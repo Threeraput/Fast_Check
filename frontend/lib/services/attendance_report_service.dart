@@ -7,7 +7,7 @@ import '../models/attendance_report_detail.dart';
 import 'auth_service.dart';
 
 class AttendanceReportService {
-  static const String baseUrl = 'http://192.168.0.197:8000/api/v1';
+  static const String baseUrl = 'http://192.168.1.104:8000/api/v1';
   static const Duration _timeout = Duration(seconds: 15);
 
   static Map<String, String> _headers(String token) => {

@@ -412,6 +412,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (mounted) setState(() => _loadingPending = false);
     }
   }
+
   Future<void> _approveTeacher(String userId) async {
     try {
       await AuthService.approveTeacher(userId);
@@ -449,8 +450,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             title: Text(user.displayName),
             subtitle: Text('อีเมล: ${user.email ?? '-'}'),
             trailing: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent
+              ),
               onPressed: () => _approveTeacher(user.userId),
-              child: const Text('อนุมัติ'),
+              child: const Text(
+                'อนุมัติ',
+              style: TextStyle(
+                color: Colors.white
+              ),
+              ),
             ),
           );
         },
@@ -475,10 +484,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         title: const Text('Admin Dashboard'),
         bottom: TabBar(
           controller: _tab,
+          labelColor: Colors.blueAccent, // สีข้อความตอนเลือก
+          unselectedLabelColor: Colors.grey[220], // สีข้อความตอนยังไม่เลือก
+          indicatorColor: Colors.blue, // สีขีดล่างตอนเลือก
+          overlayColor: WidgetStateProperty.all(
+            Colors.transparent,
+          ), // ปิดสี overlay ตอนกด
           tabs: const [
-            Tab(icon: Icon(Icons.group), text: 'Users'),
-            Tab(icon: Icon(Icons.analytics_outlined), text: 'Reports'),
-            Tab(icon: Icon(Icons.how_to_reg_outlined), text: 'Approvals'),
+            Tab(
+              icon: Icon(Icons.group, color: Colors.black),
+              text: 'Users',
+            ),
+            Tab(
+              icon: Icon(Icons.analytics_outlined, color: Colors.black),
+              text: 'Reports',
+            ),
+            Tab(
+              icon: Icon(Icons.how_to_reg_outlined, color: Colors.black),
+              text: 'Approvals',
+            ),
           ],
         ),
       ),
@@ -489,4 +513,3 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 }
- 

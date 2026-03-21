@@ -8,7 +8,7 @@ import 'auth_service.dart';
 /// ===== CONFIG =====
 /// ใช้ 10.0.2.2 เมื่อรันบน Android Emulator แล้ว backend อยู่ที่เครื่องเดียวกัน
 /// ใช้ IP ใน LAN เมื่อรันบนอุปกรณ์จริง
-const String _API_BASE_URL = 'http://192.168.0.197:8000/api/v1';
+const String _API_BASE_URL = 'http://192.168.1.104:8000/api/v1';
 // ตัวอย่างสำหรับอุปกรณ์จริง: 'http://192.168.0.200:8000/api/v1';
 
 class ApiException implements Exception {

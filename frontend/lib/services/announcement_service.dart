@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart' show AuthService;
 
-const String API_BASE_URL = 'http://192.168.0.197:8000/api/v1';
+const String API_BASE_URL = 'http://192.168.1.104:8000/api/v1';
 
 class AnnouncementDto {
   final String announcementId;

@@ -187,11 +187,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('บันทึก'),
+                  : const Text(
+                    style: TextStyle(
+                      color: Colors.green,
+                    ),
+                    'บันทึก'),
             ),
             TextButton(
               onPressed: _saving ? null : _cancelEdit,
-              child: const Text('ยกเลิก'),
+              child: const Text(
+                style: TextStyle(
+                      color: Color.fromARGB(255, 243, 96, 96),
+                    ),
+                'ยกเลิก'),
             ),
           ] else
             IconButton(
@@ -244,8 +252,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: (!_editing || _saving)
                                     ? null
                                     : _pickAndUploadAvatar,
-                                icon: const Icon(Icons.photo),
-                                label: const Text('เปลี่ยนรูป'),
+                                icon: const Icon(
+                                  color: Colors.black38,
+                                  Icons.photo),
+                                label: const Text(
+                                  style: TextStyle(
+                                    color: Colors.black
+                                  ),
+                                  'เปลี่ยนรูป'),
                               ),
                               const SizedBox(width: 8),
                               if (_nz(me.avatarUrl) != null)
