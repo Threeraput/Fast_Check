@@ -1,6 +1,6 @@
 # backend/app/models/class_model.py
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -21,6 +21,11 @@ class Class(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    # ------------------------------------------------
+    # เพิ่มคอลัมน์ใหม่ สำหรับทำ Soft Delete (Archive)
+    # ------------------------------------------------
+    is_archived = Column(Boolean, default=False, nullable=False, index=True)
+
     # Relationships
     attendance_sessions = relationship("AttendanceSession", back_populates="classroom", cascade="all, delete-orphan")
     teacher = relationship("User", back_populates="teaching_classes", foreign_keys=[teacher_id])
@@ -32,7 +37,7 @@ class Class(Base):
     assignments = relationship("ClassworkAssignment", back_populates="classroom", cascade="all, delete-orphan")
     announcements = relationship("Announcement", back_populates="klass", cascade="all, delete-orphan")
     def __repr__(self):
-        return f"<Class(name='{self.name}')>"
+        return f"<Class(name='{self.name}', archived={self.is_archived})>"
 
 # เพิ่ม relationship ใน User model ที่เกี่ยวข้องกับ Class (ถ้ายังไม่มี)
 # ต้องนำเข้าในไฟล์ user.py ด้วย

@@ -19,7 +19,7 @@ class UserService {
   //  กำหนดค่าเซิร์ฟเวอร์ของคุณที่นี่
   // -------------------------
   static const String _baseUrlRoot =
-      'http://192.168.1.104:8000'; // เปลี่ยนให้ตรงกับ backend
+      'http://192.168.1.103:8000'; // เปลี่ยนให้ตรงกับ backend
   static const String _apiPrefix = '/api/v1';
   static const String _baseUrl = '$_baseUrlRoot$_apiPrefix';
   static const Duration _timeout = Duration(seconds: 20);

@@ -5,7 +5,7 @@ import 'package:frontend/models/admin.dart';
 import 'auth_service.dart';
 
 class AdminService {
-  static const String _baseUrl = 'http://192.168.1.104:8000/api/v1';
+  static const String _baseUrl = 'http://192.168.1.103:8000/api/v1';
   static const Duration _timeout = Duration(seconds: 20);
 
   static Future<Map<String, String>> _headers() async {

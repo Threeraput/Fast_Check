@@ -69,6 +69,9 @@ def _serialize_classroom(obj) -> ClassroomResponse:
         "created_at": getattr(obj, "created_at", None),
         "teacher": _user_payload(getattr(obj, "teacher", None)),
         "students": [_user_payload(s) for s in _safe_list(getattr(obj, "students", []))],
+
+        # 👉 สิ่งที่คุณต้องพิมพ์เพิ่มเข้าไปคือบรรทัดนี้ครับ!
+        "is_archived": getattr(obj, "is_archived", False),
     }
     return ClassroomResponse.model_validate(payload)
 
