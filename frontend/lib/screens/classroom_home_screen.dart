@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/classroom.dart';
+import 'package:frontend/screens/archived_classes_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/class_service.dart';
 import 'class_details_screen.dart';
@@ -373,6 +374,24 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                       onTap: () {
                         Navigator.pop(context);
                         _openCreate();
+                      },
+                    ),
+
+                  if (_isTeacher && !_isAdmin)
+                    ListTile(
+                      leading: const Icon(Icons.all_inbox),
+                      title: const Text('ชั้นเรียนที่เก็บ'),
+                      onTap: () {
+                        // 1. สั่งปิดแถบเมนูด้านข้างลงไปก่อน
+                        Navigator.pop(context); 
+                        
+                        // 2. นำทางไปหน้าต่างใหม่ (ที่เรากำลังจะสร้าง)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ArchivedClassesScreen(),
+                          ),
+                        );
                       },
                     ),
 

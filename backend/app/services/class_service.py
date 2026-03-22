@@ -279,6 +279,34 @@ def delete_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_ad
             detail="Failed to archive classroom."
         )
 
+def restore_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool) -> ClassModel:
+    """
+    กู้คืนห้องเรียน (Unarchive)
+    - เปลี่ยนสถานะ is_archived = False
+    """
+    classroom = db.execute(
+        select(ClassModel).where(ClassModel.class_id == class_id)
+    ).scalar_one_or_none()
+
+    if not classroom:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found.")
+
+    if not is_admin and classroom.teacher_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to restore this classroom.")
+
+    try:
+        # ไฮไลท์หลักอยู่ตรงนี้ครับ: เปลี่ยนค่ากลับเป็น False
+        classroom.is_archived = False
+        
+        db.add(classroom)
+        db.commit()
+        db.refresh(classroom)
+        return classroom
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restore classroom."
+        )
+
 def get_classroom_with_relations(db: Session, class_id: uuid.UUID):
     """
     ดึงคลาสพร้อมความสัมพันธ์หลัก:
