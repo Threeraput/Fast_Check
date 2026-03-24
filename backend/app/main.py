@@ -1,5 +1,4 @@
 # backend/app/main.py
-import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -8,7 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from app.database import engine, Base, get_db
-from app.api.v1 import auth, users , admin , face_recognition ,  classes , attendance , sessions
+from app.api.v1 import (
+    auth,
+    users,
+    admin,
+    face_recognition,
+    classes,
+    attendance,
+    sessions,
+)
 from app.services.db_service import initialize_roles_permissions
 from fastapi.staticfiles import StaticFiles
 from app.api.v1 import announcements as announcements_router
@@ -17,18 +24,13 @@ from app.api.v1 import attendance_report
 from app.api.v1 import attendance_report_detail
 from pathlib import Path
 
-# ---------- Logging format ----------
-logging.basicConfig(
-    level=logging.DEBUG,  # debug ระดับแอพ
-    format="%(asctime)s | %(levelname)s | %(name)s:%(lineno)d | %(message)s",
-)
 
 MEDIA_ROOT = Path("media")
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info("Application startup: creating tables and initializing roles/permissions...")
     db_session = next(get_db())
     try:
         Base.metadata.create_all(bind=engine)
@@ -36,9 +38,12 @@ async def lifespan(app: FastAPI):
     finally:
         db_session.close()
     yield
-    logging.info("Application shutdown.")
 
-app = FastAPI(title="Face Attendance API", version="1.0.0", lifespan=lifespan, debug=True)
+
+app = FastAPI(
+    title="Face Attendance API", version="1.0.0", lifespan=lifespan, debug=True
+)
+
 
 # ---------- Middleware: เก็บ request body บางส่วนไว้ใน log ----------
 @app.middleware("http")
@@ -50,24 +55,24 @@ async def attach_request_body(request: Request, call_next):
     response = await call_next(request)
     return response
 
+
 # ---------- Exception Handlers ----------
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logging.exception("RequestValidationError at %s %s | body=%s",
-                      request.method, request.url, getattr(request.state, "body", b"")[:512])
     return JSONResponse(
         status_code=422,
         content={
             "error": "validation_error",
             "detail": exc.errors(),
-            "body_excerpt": getattr(request.state, "body", b"")[:512].decode("utf-8", "ignore"),
+            "body_excerpt": getattr(request.state, "body", b"")[:512].decode(
+                "utf-8", "ignore"
+            ),
         },
     )
 
+
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    logging.exception("SQLAlchemyError at %s %s | body=%s",
-                      request.method, request.url, getattr(request.state, "body", b"")[:512])
     return JSONResponse(
         status_code=500,
         content={
@@ -76,10 +81,9 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
         },
     )
 
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logging.exception("Unhandled Exception at %s %s | body=%s",
-                      request.method, request.url, getattr(request.state, "body", b"")[:512])
     return JSONResponse(
         status_code=500,
         content={
@@ -88,6 +92,7 @@ async def general_exception_handler(request: Request, exc: Exception):
             "path": str(request.url),
         },
     )
+
 
 # ----- CORS & routers เหมือนเดิม -----
 origins = [
@@ -112,7 +117,6 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/workpdf", StaticFiles(directory="workpdf"), name="workpdf")
 app.mount("/media", StaticFiles(directory=str(MEDIA_ROOT)), name="media")
-
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(face_recognition.router, prefix="/api/v1")
@@ -122,8 +126,9 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(sessions.router, prefix="/api/v1")
 app.include_router(classwork_simple.router, prefix="/api/v1")
 app.include_router(announcements_router.router, prefix="/api/v1")
-app.include_router(attendance_report.router , prefix="/api/v1")
+app.include_router(attendance_report.router, prefix="/api/v1")
 app.include_router(attendance_report_detail.router, prefix="/api/v1")
+
 
 @app.get("/")
 async def read_root():

@@ -50,7 +50,7 @@ def _normalize_image_bytes(raw: bytes) -> bytes:
 REVERIFY_MIN_SIMILARITY = 0.25
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
-logger = logging.getLogger(__name__)
+
 
 
 def _has_role(user: User, role_name: str) -> bool:
@@ -78,7 +78,6 @@ async def check_in(
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
-    logger.debug("check-in input | session_id=%s user=%s", class_data.session_id, current_user.user_id)
 
     try:
         attendance_record = record_check_in(
@@ -91,10 +90,8 @@ async def check_in(
         )
         return attendance_record
     except SQLAlchemyError as e:
-        logger.exception("DB error in /check-in")
         raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
     except Exception as e:
-        logger.exception("Unhandled error in /check-in")
         raise HTTPException(status_code=500, detail=f"internal_error: {e}")
 
 
@@ -120,7 +117,6 @@ async def update_teacher_location(
         )
         return {"message": "Teacher location updated successfully."}
     except SQLAlchemyError as e:
-        logger.exception("DB error in /teacher-location")
         raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
 
 
@@ -146,7 +142,6 @@ async def track_student_location(
         )
         return {"message": "Student location logged successfully."}
     except SQLAlchemyError as e:
-        logger.exception("DB error in /student-tracking")
         raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
 
 
@@ -170,7 +165,7 @@ async def re_verify_check_in(
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
-    logger.debug("re-verify input | session_id=%s user=%s", form.session_id, current_user.user_id)
+
 
     # ✅ ตรวจว่าผู้ใช้มี Face Sample หรือไม่
     try:
@@ -178,7 +173,6 @@ async def re_verify_check_in(
             UserFaceSample.user_id == current_user.user_id
         ).limit(1).count() > 0
     except Exception as e:
-        logger.exception("DB error while checking user's face samples")
         raise HTTPException(status_code=500, detail=f"database_error: {e}")
     if not has_sample:
         raise HTTPException(
@@ -197,10 +191,7 @@ async def re_verify_check_in(
             matched = bool(result)
             score = None
     except Exception as e:
-        logger.exception("Face service error in /re-verify")
         raise HTTPException(status_code=500, detail=f"Face service error: {e}")
-
-    logger.info("re-verify | user=%s matched=%s score=%s", current_user.user_id, matched, score)
 
     # ✅ ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
     if not matched:
@@ -221,12 +212,10 @@ async def re_verify_check_in(
         except Exception:
             return AttendanceResponse.from_orm(result)
     except SQLAlchemyError as e:
-        logger.exception("DB error in /re-verify")
         raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Unhandled error in /re-verify")
         raise HTTPException(status_code=500, detail=f"internal_error: {e}")
 
 
@@ -271,7 +260,6 @@ async def override_attendance_status(
         except Exception:
             return AttendanceResponse.from_orm(record)
     except SQLAlchemyError as e:
-        logger.exception("DB error in /override")
         raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
 
 

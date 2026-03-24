@@ -12,8 +12,7 @@ router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Detai
 # 🧑‍🎓 นักเรียนดูรายงานรายวันของตัวเอง
 @router.get("/my", response_model=list[AttendanceReportDetailResponse])
 def get_my_daily_reports(
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user)
+    db: Session = Depends(get_db), me: User = Depends(get_current_user)
 ):
     """ให้นักเรียนดูรายงานรายวันของตัวเอง"""
     # ✅ ตรวจสอบ role แบบยืดหยุ่น (รองรับ Role object)
@@ -62,8 +61,11 @@ def get_my_daily_reports(
 
 
 # 👩‍🏫 ครูดูรายงานรายวันของคลาส
-@router.get("/class/{class_id}", response_model=list[AttendanceReportDetailResponse],
-             dependencies=[Depends(role_required(["teacher"]))])
+@router.get(
+    "/class/{class_id}",
+    response_model=list[AttendanceReportDetailResponse],
+    dependencies=[Depends(role_required(["teacher"]))],
+)
 def get_class_daily_reports(class_id: str, db: Session = Depends(get_db)):
     """ให้ครูดูรายงานรายวันของคลาส"""
     results = (
@@ -75,6 +77,8 @@ def get_class_daily_reports(class_id: str, db: Session = Depends(get_db)):
     )
 
     if not results:
-        raise HTTPException(status_code=404, detail="No daily reports found for this class")
+        raise HTTPException(
+            status_code=404, detail="No daily reports found for this class"
+        )
 
     return results
