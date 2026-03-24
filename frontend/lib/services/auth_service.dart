@@ -3,9 +3,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/users.dart'; // ตรวจสอบให้แน่ใจว่า import ถูกต้อง
 import '../models/token.dart';
+import 'package:frontend/config.dart';
 
 // ตรวจสอบ BASE_URL ของคุณให้ตรงกับ Backend
-const String API_BASE_URL = 'http://192.168.0.200:8000/api/v1';
+const String API_BASE_URL = AppConfig.baseUrl;
 
 class AuthService {
   // ... (โค้ด login, register, getAccessToken, getCurrentUserFromLocal, logout เดิม) ...

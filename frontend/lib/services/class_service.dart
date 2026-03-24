@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/classroom.dart';
 import 'auth_service.dart' show AuthService; // ใช้ getAccessToken()
+import 'package:frontend/config.dart';
 
-const String API_BASE_URL = 'http://192.168.0.200:8000/api/v1';
+const String API_BASE_URL = AppConfig.baseUrl;
 
 class ClassService {
   // ===== Headers =====

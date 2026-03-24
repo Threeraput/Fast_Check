@@ -4,12 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import 'auth_service.dart';
+import 'package:frontend/config.dart';
 
-/// ===== CONFIG =====
-/// ใช้ 10.0.2.2 เมื่อรันบน Android Emulator แล้ว backend อยู่ที่เครื่องเดียวกัน
-/// ใช้ IP ใน LAN เมื่อรันบนอุปกรณ์จริง
-const String _API_BASE_URL = 'http://192.168.0.200:8000/api/v1';
-// ตัวอย่างสำหรับอุปกรณ์จริง: 'http://192.168.0.200:8000/api/v1';
+const String _API_BASE_URL = AppConfig.baseUrl;
 
 class ApiException implements Exception {
   final String message;
@@ -162,7 +159,7 @@ class FaceService {
     }
   }
 
-   // 3 ตรวจว่านักเรียนมีใบหน้าในระบบแล้วหรือไม่
+  // 3 ตรวจว่านักเรียนมีใบหน้าในระบบแล้วหรือไม่
   static Future<bool> checkHasFace(String userId) async {
     try {
       final token = await AuthService.getAccessToken();
@@ -188,7 +185,7 @@ class FaceService {
     }
   }
 
- static Future<void> deleteFace() async {
+  static Future<void> deleteFace() async {
     try {
       // ดึง token จาก AuthService
       final token = await AuthService.getAccessToken();
@@ -214,5 +211,3 @@ class FaceService {
     }
   }
 }
-
-

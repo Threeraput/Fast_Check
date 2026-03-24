@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-
 import '../models/attendance_report.dart';
 import '../models/attendance_report_detail.dart';
 import 'auth_service.dart';
+import 'package:frontend/config.dart';
 
 class AttendanceReportService {
-  static const String baseUrl = 'http://192.168.0.200:8000/api/v1';
+  static const String baseUrl = AppConfig.baseUrl;
   static const Duration _timeout = Duration(seconds: 15);
 
   static Map<String, String> _headers(String token) => {

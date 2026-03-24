@@ -6,9 +6,10 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:frontend/models/classwork.dart';
 import 'auth_service.dart' show AuthService;
+import 'package:frontend/config.dart';
 
 // ให้ใช้รูปแบบเดียวกับไฟล์อื่นๆ ในโปรเจกต์คุณ
-const String API_BASE_URL = 'http://192.168.0.200:8000/api/v1';
+const String API_BASE_URL = AppConfig.baseUrl;
 const Duration _kTimeout = Duration(seconds: 20);
 
 class ClassworkSimpleService {

@@ -6,6 +6,7 @@ import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:frontend/config.dart';
 import "../services/auth_service.dart"; 
 
 class AssignmentDetailScreen extends StatefulWidget {
@@ -125,7 +126,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
 
   ///  ฟังก์ชัน normalize URL (แก้ให้มี http:// และตัด static ออก)
   String _resolveFileUrl(String relativePath) {
-    const base = 'http://192.168.0.200:8000';
+    const base = AppConfig.uploadsfileUrl;
     var path = relativePath.trim();
 
     // ถ้าเป็น URL เต็มแล้ว ก็ส่งกลับเลย

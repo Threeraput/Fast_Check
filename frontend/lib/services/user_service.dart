@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/users.dart';
 import 'auth_service.dart'; // ต้องมี getToken()
+import 'package:frontend/config.dart';
 
 class ApiException implements Exception {
   final int? statusCode;
@@ -18,10 +19,8 @@ class UserService {
   // -------------------------
   //  กำหนดค่าเซิร์ฟเวอร์ของคุณที่นี่
   // -------------------------
-  static const String _baseUrlRoot =
-      'http://192.168.0.200:8000'; // เปลี่ยนให้ตรงกับ backend
-  static const String _apiPrefix = '/api/v1';
-  static const String _baseUrl = '$_baseUrlRoot$_apiPrefix';
+
+  static const String _baseUrl = AppConfig.baseUrl;
   static const Duration _timeout = Duration(seconds: 20);
 
   // -------------------------
@@ -75,19 +74,17 @@ class UserService {
     bool? isActive,
   }) async {
     final token = await AuthService.getAccessToken();
-   // lib/services/user_service.dart (เฉพาะ body ของ updateUser)
     final body = <String, dynamic>{
       if (username != null && username.trim().isNotEmpty)
         'username': username.trim(),
       if (firstName != null) 'first_name': firstName.trim(),
       if (lastName != null) 'last_name': lastName.trim(),
       if (studentId != null && studentId.trim().isNotEmpty)
-        'student_id': studentId.trim(), //  เปลี่ยนตรงนี้
+        'student_id': studentId.trim(),
       if (teacherId != null && teacherId.trim().isNotEmpty)
-        'teacher_id': teacherId.trim(), //  เปลี่ยนตรงนี้
+        'teacher_id': teacherId.trim(),
       if (isActive != null) 'is_active': isActive,
     };
-
 
     final res = await http
         .put(
@@ -149,6 +146,19 @@ class UserService {
   static String? absoluteAvatarUrl(String? avatarUrl) {
     if (avatarUrl == null || avatarUrl.isEmpty) return null;
     if (avatarUrl.startsWith('http')) return avatarUrl;
-    return '$_baseUrlRoot$avatarUrl';
+
+    // ตัด /api/v1 ออกจาก Base URL เพื่อให้ได้เฉพาะ Root (IP:Port)
+    final rootUrl = _baseUrl.replaceAll('/api/v1', '');
+
+    // จัดการเครื่องหมาย / ให้ถูกต้อง เพื่อไม่ให้เกิด // ซ้ำซ้อน
+    final cleanPath = avatarUrl.startsWith('/') ? avatarUrl : '/$avatarUrl';
+
+    final fullUrl = '$rootUrl$cleanPath';
+
+    // พิมพ์เช็คใน Console เพื่อตรวจสอบความถูกต้อง
+    print("💕💕💕DEBUG: Avatar Path from DB: $avatarUrl");
+    print("💕💕💕DEBUG: Final Result URL: $fullUrl");
+
+    return fullUrl;
   }
 }

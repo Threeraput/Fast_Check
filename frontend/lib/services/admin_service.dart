@@ -3,9 +3,10 @@ import 'package:http/http.dart' as http;
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/admin.dart';
 import 'auth_service.dart';
+import 'package:frontend/config.dart';
 
 class AdminService {
-  static const String _baseUrl = 'http://192.168.0.200:8000/api/v1';
+  static const String _baseUrl = AppConfig.baseUrl;
   static const Duration _timeout = Duration(seconds: 20);
 
   static Future<Map<String, String>> _headers() async {

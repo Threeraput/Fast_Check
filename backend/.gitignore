@@ -5,9 +5,8 @@
 # Python environment files
 .env
 ีีuploads/
-
+media/
 workpdf/
-
 # Python bytecode
 *.pyc
 __pycache__/
