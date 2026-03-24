@@ -1,6 +1,6 @@
 # backend/app/models/user_face_sample.py
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import Column, String, DateTime, ForeignKey, LargeBinary  , UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -13,7 +13,7 @@ class UserFaceSample(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     image_url = Column(String(255), nullable=True) # ถ้าเก็บเป็น URL
     # หรือถ้าเก็บ binary data ใน DB โดยตรง (ไม่แนะนำสำหรับไฟล์ขนาดใหญ่)
-    # face_embedding = Column(LargeBinary, nullable=True) # For storing face recognition embeddings
+    face_embedding = Column(LargeBinary, nullable=True) # For storing face recognition embeddings
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
@@ -21,3 +21,8 @@ class UserFaceSample(Base):
 
     def __repr__(self):
         return f"<UserFaceSample(user_id='{self.user_id}', sample_id='{self.sample_id}')>"
+    
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_user_face_sample_user"),
+    )

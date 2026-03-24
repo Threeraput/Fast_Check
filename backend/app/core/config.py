@@ -21,6 +21,20 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = "your-default-bucket-name"
 
+     # Email settings
+    MAIL_USERNAME: str
+    MAIL_PASSWORD: str
+    MAIL_FROM: str
+    MAIL_PORT: int
+    MAIL_SERVER: str
+    MAIL_STARTTLS: bool 
+    MAIL_SSL_TLS: bool  
+    MAIL_USE_CREDENTIALS: bool
+
+    # For OTP generation
+    OTP_LENGTH: int = 6 # เช่น 6 หลัก
+    OTP_EXPIRE_MINUTES: int = 5 # OTP หมดอายุใน 5 นาที
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

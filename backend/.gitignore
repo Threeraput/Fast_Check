@@ -4,8 +4,9 @@
 
 # Python environment files
 .env
-
-
+ีีuploads/
+media/
+workpdf/
 # Python bytecode
 *.pyc
 __pycache__/
@@ -15,3 +16,7 @@ __pycache__/
 .vscode/                # VS Code
 *.sublime-project       # Sublime Text
 *.sublime-workspace     # Sublime Text
+
+
+alembic/
+alembic.ini

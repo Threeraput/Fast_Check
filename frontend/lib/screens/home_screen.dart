@@ -1,15 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:frontend/models/users.dart';
-import '../services/auth_service.dart';
+// lib/screens/home_screen.dart
 
+import 'package:flutter/material.dart';
+import 'package:frontend/screens/classroom_home_screen.dart';
+import '../services/auth_service.dart';
+import '../models/users.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   User? _currentUser;
+  bool _isAdmin = false; // เพิ่มตัวแปรเพื่อตรวจสอบว่าเป็น Admin หรือไม่
 
   @override
   void initState() {
@@ -21,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = await AuthService.getCurrentUserFromLocal();
     setState(() {
       _currentUser = user;
+      // ตรวจสอบ roles ของผู้ใช้ว่ามี 'admin' หรือไม่
+      _isAdmin = user?.roles.contains('admin') ?? false;
     });
   }
 
@@ -32,7 +39,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Dashboard')),
+      appBar: AppBar(
+        title: Text('Home Screen'),
+        actions: [
+          // แสดงปุ่ม "Admin" เฉพาะเมื่อผู้ใช้เป็น Admin
+          if (_isAdmin)
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/admin-dashboard');
+              },
+              child: Text('Admin', style: TextStyle(color: Colors.cyanAccent)),
+            ),
+          // ปุ่ม Logout
+          IconButton(icon: Icon(Icons.logout), onPressed: _logout),
+        ],
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -55,8 +76,26 @@ class _HomeScreenState extends State<HomeScreen> {
               Text('Roles: ${_currentUser!.roles.join(', ')}'),
               SizedBox(height: 30),
             ],
-            ElevatedButton(onPressed: _logout, child: Text('Logout')),
-          ],
+              ElevatedButton.icon(
+              icon: const Icon(Icons.person_add),
+              label: const Text('อัปโหลดใบหน้า'),
+              onPressed: () => Navigator.pushNamed(context, '/upload-face'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.verified_user),
+              label: const Text('ยืนยันตัวตนด้วยใบหน้า'),
+              onPressed: () => Navigator.pushNamed(context, '/verify-face'),
+            ),
+    ElevatedButton(
+      child: const Text('ไปยัง Classroom'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ClassroomHomeScreen()),
+        );
+      },
+    ),
+  ],
         ),
       ),
     );

@@ -1,84 +1,140 @@
 # backend/app/services/db_service.py
-
+import uuid
+import random
+import string
+from typing import Optional, List
+from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timezone
 from app.models.user import User
 from app.models.role import Role
 from app.models.permission import Permission
-import uuid # เพิ่ม import นี้
+from app.models.association import user_roles, role_permissions 
 
-def get_user_by_username(db: Session, username: str):
-    """ดึงข้อมูลผู้ใช้จาก username"""
+# --- CRUD Read Operations for User ---
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    """Retrieves a user by their username."""
     return db.query(User).filter(User.username == username).first()
 
-def get_user_by_email(db: Session, email: str):
-    """ดึงข้อมูลผู้ใช้จาก email"""
+def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    """Retrieves a user by their email."""
     return db.query(User).filter(User.email == email).first()
 
-def get_user_by_id(db: Session, user_id: uuid.UUID):
-    """ดึงข้อมูลผู้ใช้จาก user_id"""
+def get_user_by_id(db: Session, user_id: uuid.UUID) -> Optional[User]:
+    """Retrieves a user by their user ID."""
     return db.query(User).filter(User.user_id == user_id).first()
 
+# --- Functions to Generate IDs ---
+def generate_student_id() -> str:
+    """Generates a unique student ID (e.g., STU-UUID_PART)."""
+    return f"STU-{uuid.uuid4().hex[:8].upper()}"
+
+def generate_teacher_id() -> str:
+    """Generates a unique teacher ID (e.g., TEA-UUID_PART)."""
+    return f"TEA-{uuid.uuid4().hex[:8].upper()}"
+
+def create_user(db: Session, user_data: dict) -> User:
+    #  เอา role ออกจาก dict ก่อน เพื่อไม่ให้ error ตอนสร้าง User
+    role = user_data.pop("role", None)
+
+    new_user = User(**user_data)
+
+    #  ใช้ role ที่ดึงออกมา generate id
+    if role == "student" and not new_user.student_id:
+        new_user.student_id = generate_student_id()
+    elif role == "teacher" and not new_user.teacher_id:
+        new_user.teacher_id = generate_teacher_id()
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+# --- CRUD Operations and Business Logic ---
+def assign_role_to_user(db: Session, user: User, role_name: str):
+    """Assigns a role to a user if not already assigned."""
+    role = db.query(Role).filter(Role.name == role_name).first()
+    if not role:
+        raise ValueError(f"Role '{role_name}' not found.")
+
+    # ตรวจสอบว่าผู้ใช้มี role นี้แล้วหรือไม่โดย Query จาก Table Object
+    stmt = select(user_roles).where(
+        and_(user_roles.c.user_id == user.user_id, user_roles.c.role_id == role.id)
+    )
+    existing_assignment = db.execute(stmt).first()
+
+    if not existing_assignment:
+        db.execute(user_roles.insert().values(user_id=user.user_id, role_id=role.id))
+
+def approve_teacher(db: Session, user_id: uuid.UUID) -> Optional[User]:
+    """Approves a teacher user."""
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        return None
+    
+    # เช็คว่า user มี role 'teacher' จริง ๆ ไหม
+    if not any(role.name == "teacher" for role in user.roles):
+        raise ValueError("User is not a teacher.")
+
+    user.is_approved = True
+    db.commit()           # บันทึกค่าใน DB
+    db.refresh(user)      # sync object ให้เป็นค่าล่าสุด
+    return user
+
+
+# --- Initial Database Setup Logic (for startup event) ---
 def initialize_roles_permissions(db: Session):
     """
-    สร้าง Roles และ Permissions เริ่มต้นถ้ายังไม่มีในฐานข้อมูล
+    Initializes default roles and permissions in the database.
+    This function is intended to be called only once on application startup.
     """
     print("Initializing roles and permissions...")
-    # ตรวจสอบและสร้าง Role 'admin'
-    admin_role = db.query(Role).filter(Role.name == "admin").first()
-    if not admin_role:
-        admin_role = Role(name="admin", description="Administrator role with full access")
-        db.add(admin_role)
 
-    # ตรวจสอบและสร้าง Role 'teacher'
-    teacher_role = db.query(Role).filter(Role.name == "teacher").first()
-    if not teacher_role:
-        teacher_role = Role(name="teacher", description="Teacher role with class management permissions")
-        db.add(teacher_role)
+    # Create Roles if they don't exist
+    role_names = ["admin", "teacher", "student", "teaching_assistant"]
+    for role_name in role_names:
+        if not db.query(Role).filter(Role.name == role_name).first():
+            db.add(Role(name=role_name))
+    
+    # Create Permissions if they don't exist
+    permissions_data = [
+        {"name": "manage_users", "description": "Create, edit, delete user accounts"},
+        {"name": "view_all_attendance", "description": "View all attendance records across the system"},
+        {"name": "edit_class_attendance", "description": "Edit attendance records for classes they are assigned to"},
+        {"name": "manage_classes", "description": "Create, edit, delete classes they are assigned to"},
+        {"name": "perform_self_attendance", "description": "Perform self-attendance check"},
+        {"name": "approve_enrollment_requests", "description": "Approve student enrollment requests"},
+        {"name": "manage_face_samples", "description": "Add/remove face samples for users"},
+    ]
+    for perm_data in permissions_data:
+        if not db.query(Permission).filter(Permission.name == perm_data["name"]).first():
+            db.add(Permission(**perm_data))
 
-    # ตรวจสอบและสร้าง Role 'student'
-    student_role = db.query(Role).filter(Role.name == "student").first()
-    if not student_role:
-        student_role = Role(name="student", description="Student role with attendance viewing permissions")
-        db.add(student_role)
+    db.commit() # Commit new roles/permissions before assigning relationships
 
-    # ตัวอย่าง permissions
-    view_users_perm = db.query(Permission).filter(Permission.name == "view_users").first()
-    if not view_users_perm:
-        view_users_perm = Permission(name="view_users", description="Can view all user details")
-        db.add(view_users_perm)
+    # Assign Permissions to Roles (after roles and permissions exist)
+    role_permission_assignments = {
+        'admin': ['manage_users', 'view_all_attendance', 'edit_class_attendance', 'manage_classes', 'approve_enrollment_requests', 'manage_face_samples'],
+        'teacher': ['view_class_attendance', 'edit_class_attendance', 'manage_classes', 'approve_enrollment_requests', 'manage_face_samples'],
+        'student': ['perform_self_attendance'],
+        'teaching_assistant': ['view_class_attendance', 'approve_enrollment_requests']
+    }
 
-    manage_classes_perm = db.query(Permission).filter(Permission.name == "manage_classes").first()
-    if not manage_classes_perm:
-        manage_classes_perm = Permission(name="manage_classes", description="Can create, update, delete classes")
-        db.add(manage_classes_perm)
+    for role_name, perm_names in role_permission_assignments.items():
+        role = db.query(Role).filter(Role.name == role_name).first()
+        if not role: continue
+        
+        for perm_name in perm_names:
+            permission = db.query(Permission).filter(Permission.name == perm_name).first()
+            if not permission: continue
 
-    try:
-        db.commit() # Commit changes to save new roles/permissions
-        # db.refresh(admin_role) # refresh objects after commit to ensure relationships are loaded
-        # db.refresh(teacher_role)
-        # db.refresh(student_role)
-        # db.refresh(view_users_perm)
-        # db.refresh(manage_classes_perm)
-        print("Roles and Permissions added/checked.")
-    except Exception as e:
-        db.rollback()
-        print(f"Error during initial role/permission creation commit: {e}")
-
-    # กำหนดความสัมพันธ์ระหว่าง Role และ Permission (ถ้ายังไม่มี)
-    if admin_role and view_users_perm and manage_classes_perm:
-        # โหลด relationship collections ก่อนใช้งานเพื่อหลีกเลี่ยง DetachedInstanceError
-        if view_users_perm not in admin_role.permissions:
-            admin_role.permissions.append(view_users_perm)
-        if manage_classes_perm not in admin_role.permissions:
-            admin_role.permissions.append(manage_classes_perm)
-
-    if teacher_role and manage_classes_perm:
-        if manage_classes_perm not in teacher_role.permissions:
-            teacher_role.permissions.append(manage_classes_perm)
-
-    try:
-        db.commit()
-        print("Role-Permission relationships assigned.")
-    except Exception as e:
-        db.rollback()
-        print(f"Error during role-permission assignment commit: {e}")
+            # เช็คว่า assignment มีอยู่แล้วหรือไม่โดยใช้ Table Object
+            stmt = select(role_permissions).where(
+                and_(role_permissions.c.role_id == role.id, role_permissions.c.permission_id == permission.id)
+            )
+            if not db.execute(stmt).first():
+                db.execute(role_permissions.insert().values(role_id=role.id, permission_id=permission.id))
+    
+    db.commit() # Final commit for relationship assignments
+    print("Role and permission initialization complete.")

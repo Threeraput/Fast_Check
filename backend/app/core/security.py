@@ -33,15 +33,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def decode_access_token(token: str) -> Optional[TokenData]:
-    """ถอดรหัส JWT Access Token และตรวจสอบความถูกต้อง"""
+def decode_access_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("user_id")
-        roles: list[str] = payload.get("roles", [])
-        if user_id is None:
-            return None
-        token_data = TokenData(user_id=uuid.UUID(user_id), roles=roles)
+        return payload  
     except JWTError:
         return None
-    return token_data
