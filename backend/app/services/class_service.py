@@ -146,8 +146,18 @@ def assign_student_to_class(db: Session, student_id: uuid.UUID, code: str):
     """
     code = (code or "").strip()
 
+    #
+    #classroom: Optional[ClassModel] = db.execute(
+        #select(ClassModel).where(ClassModel.code == code)
+    #).scalar_one_or_none()
+    
     classroom: Optional[ClassModel] = db.execute(
-        select(ClassModel).where(ClassModel.code == code)
+        select(ClassModel).where(
+            and_(
+                ClassModel.code == code,
+                ClassModel.is_archived == False # เพิ่มบรรทัดนี้ เพื่อเช็คว่าห้องยังเปิดอยู่
+            )
+        )
     ).scalar_one_or_none()
 
     if not classroom:
@@ -327,4 +337,10 @@ def get_enrolled_classes(db: Session, student_id: uuid.UUID):
     student = db.query(User).filter(User.user_id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
-    return student.enrolled_classes  # จาก relationship ใน model
+        
+    # กรองเอาเฉพาะห้องที่ยังไม่ถูกซ่อน (is_archived == False) ส่งกลับไปให้นักเรียน
+    active_classes = [c for c in student.enrolled_classes if getattr(c, 'is_archived', False) == False]
+    
+    return active_classes
+
+

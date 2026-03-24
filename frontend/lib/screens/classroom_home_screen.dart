@@ -856,6 +856,10 @@ class _ClassCard extends StatelessWidget {
               top: 4,
               right: 4,
               child: PopupMenuButton<String>(
+                constraints: const BoxConstraints(
+                  minWidth: 90,  // ปรับให้แคบลง 
+                  maxWidth: 120, // ไม่ให้กว้างเกินนี้
+                ),
                 color: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -883,25 +887,27 @@ class _ClassCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         title: const Text(
-                          'ออกจากคลาส',
+                          'เก็บคลาส',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         content: const Text(
-                          'ต้องการลบคลาสนี้ใช่หรือไม่?',
+                          'ต้องการเก็บคลาสนี้ใช่หรือไม่?',
                           style: TextStyle(fontSize: 15),
                         ),
                         actionsAlignment: MainAxisAlignment.center,
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            child: const Text('ยกเลิก'),
+                            child: const Text('ยกเลิก', style: TextStyle(
+                              color: Colors.grey
+                            ),),
                           ),
                           FilledButton(
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
+                              backgroundColor: Colors.blueAccent,
                             ),
                             onPressed: () => Navigator.pop(context, true),
-                            child: const Text('ลบ'),
+                            child: const Text('เก็บ'),
                           ),
                         ],
                       ),
@@ -964,9 +970,19 @@ class _ClassCard extends StatelessWidget {
                 },
                 itemBuilder: (_) => isTeacher
                     ? const [
-                        PopupMenuItem(value: 'edit', child: Text('แก้ไขคลาส')),
+                        PopupMenuItem(
+                          value: 'edit', 
+                          height: 28, 
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('แก้ไข')
+                          ),
                         PopupMenuDivider(height: 2),
-                        PopupMenuItem(value: 'delete', child: Text('ลบคลาส')),
+                        PopupMenuItem(
+                          value: 'delete', 
+                          height: 28, 
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('เก็บ')
+                          ),
                       ]
                     : [
                         const PopupMenuItem(
