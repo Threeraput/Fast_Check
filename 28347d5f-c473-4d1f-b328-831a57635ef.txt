@@ -1,0 +1,86 @@
+28347d5f-c473-4d1f-b328-831a57635ef2
+
+rfgdx@powerscrews.com
+
+admin@yourdomain.com
+your_strong_admin_password
+
+adb connect 192.168.0.199:40859
+
+uvicorn app.main:app --reload --port 5000
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+myfirstproject\Scripts\activate
+
+for update database
+
+alembic revision --autogenerate -m "rend"
+
+alembic upgrade head
+
+alembic downgrade -1
+
+$2b$12$dDtnf68x0QYjLkJYFleFUuRAD0SRbjuxYTHBizDTt7fYewvaIhk3S
+//teacher
+0f38b5b6-23eb-4b1c-9207-ee5f4b6848cb
+//class
+1eebd7d9-9a6f-4408-b8c9-c959ecfe478b
+47e7034f-9390-47f3-a14d-32047920b1b7
+//student id
+9bb0bcb0-c5b0-46a6-8f28-ae8e67965774
+
+"""
+นักเรียนเช็คชื่อเข้าเรียนด้วยใบหน้าและตำแหน่ง (Proximity Check).
+"""
+จารย์พิกัด
+13.7563
+100.5018
+
+นักเรียนใกล้    
+13.7564
+100.5019
+
+นักเรียนไกล
+13.7663
+100.5118
+
+608e2f38-a8d0-4b5d-9221-015cc6b01ace
+
+CCUM78
+
+
+alembic revision --autogenerate -m "add class work"
+
+
+
+{
+  "class_id": "0c9d0678-cddc-473f-953e-009b8932bad5",
+  "latitude": 0,
+  "longitude": 0,
+  "radius_meters": 10,
+  "start_time": "2025-11-07T00:52:43.040Z",
+  "late_cutoff_time": "2025-11-07T00:57:43.000Z",
+  "end_time": "2025-11-07T01:08:43.000Z"
+}
+
+
+
+-- กำหนดตัวแปรสำหรับ User ID ใหม่ (ต้องไม่ซ้ำกับใครในตาราง)
+-- ถ้าคุณไม่มี UUID Generator ให้ใช้เครื่องมือออนไลน์เพื่อสร้าง UUID ใหม่
+INSERT INTO users (user_id, username, password_hash, first_name, last_name, email, is_active, is_approved, created_at, updated_at)
+VALUES (
+    '87654321-abcd-4e12-8888-1a2b3c4d5e6f', -- 🚨 เปลี่ยนเป็น UUID ใหม่
+    'system_admin',
+    '[YOUR_PASSWORD_HASH]',                 -- 🚨 แทนที่ด้วยรหัสผ่านที่ Hash แล้ว
+    'Super',
+    'Admin',
+    'admin@yourdomain.com',
+    TRUE,
+    TRUE,
+    NOW(),
+    NOW()
+);
+
+
+

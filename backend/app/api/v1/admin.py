@@ -14,14 +14,14 @@ from app.schemas.admin_schema import (
     SystemSummaryReport,
     AdminClassesPage,
     AdminClassSummary,
-    AdminCreateClass,  # ✅ เพิ่ม schema สำหรับสร้างคลาส
+    AdminCreateClass,  #  เพิ่ม schema สำหรับสร้างคลาส
 )
 from app.models.user import User
 from app.models.role import Role
 from app.models.class_model import Class as ClassModel
 from app.models.attendance import Attendance
 from app.models.association import user_roles
-# ✅ association table สำหรับนับนักเรียนในคลาส
+#  association table สำหรับนับนักเรียนในคลาส
 from app.models.association import class_students
 from app.services.db_service import approve_teacher
 from app.core.deps import get_current_admin_user
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 
-# ✅ helper: สร้าง code ที่ไม่ซ้ำ
+#  helper: สร้าง code ที่ไม่ซ้ำ
 def _generate_unique_class_code(db: Session, length: int = 6) -> str:
     chars = string.ascii_uppercase + string.digits
     tries = 0

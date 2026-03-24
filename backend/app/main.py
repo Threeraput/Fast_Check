@@ -1,11 +1,14 @@
 # backend/app/main.py
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from contextlib import asynccontextmanager # สำหรับ lifespan events
+from contextlib import asynccontextmanager
 from app.database import engine, Base, get_db
-from app.api.v1 import auth, users , admin , face_recognition ,  classes , attendance , sessions # Import เฉพาะ routers ที่สร้างแล้ว
-# from app.api.v1 import classes, attendance, admin # ถ้ายังไม่มีไฟล์เหล่านี้ ให้ comment ไว้ก่อน
+from app.api.v1 import auth, users , admin , face_recognition ,  classes , attendance , sessions
 from app.services.db_service import initialize_roles_permissions
 from fastapi.staticfiles import StaticFiles
 from app.api.v1 import announcements as announcements_router
@@ -13,40 +16,89 @@ from app.api.v1 import classwork_simple
 from app.api.v1 import attendance_report
 from app.api.v1 import attendance_report_detail
 from pathlib import Path
-# ใช้ asynccontextmanager สำหรับ startup/shutdown events (ดีกว่า @app.on_event)
 
+# ---------- Logging format ----------
+logging.basicConfig(
+    level=logging.DEBUG,  # debug ระดับแอพ
+    format="%(asctime)s | %(levelname)s | %(name)s:%(lineno)d | %(message)s",
+)
 
 MEDIA_ROOT = Path("media")
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup event
-    print("Application startup: Creating database tables and initializing roles/permissions...")
-    db_session = next(get_db()) # รับ db session
+    logging.info("Application startup: creating tables and initializing roles/permissions...")
+    db_session = next(get_db())
     try:
-        Base.metadata.create_all(bind=engine) # สร้างตารางทั้งหมด (ถ้ายังไม่มี)
-        initialize_roles_permissions(db_session) # สร้าง roles และ permissions เริ่มต้น
+        Base.metadata.create_all(bind=engine)
+        initialize_roles_permissions(db_session)
     finally:
-        db_session.close() # ปิด session
+        db_session.close()
     yield
-    # Shutdown event (ถ้ามีอะไรต้อง cleanup)
-    print("Application shutdown.")
+    logging.info("Application shutdown.")
 
-app = FastAPI(title="Face Attendance API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Face Attendance API", version="1.0.0", lifespan=lifespan, debug=True)
 
-# ตั้งค่า CORS (Cross-Origin Resource Sharing)
+# ---------- Middleware: เก็บ request body บางส่วนไว้ใน log ----------
+@app.middleware("http")
+async def attach_request_body(request: Request, call_next):
+    try:
+        request.state.body = await request.body()
+    except Exception:
+        request.state.body = b""
+    response = await call_next(request)
+    return response
+
+# ---------- Exception Handlers ----------
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logging.exception("RequestValidationError at %s %s | body=%s",
+                      request.method, request.url, getattr(request.state, "body", b"")[:512])
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "detail": exc.errors(),
+            "body_excerpt": getattr(request.state, "body", b"")[:512].decode("utf-8", "ignore"),
+        },
+    )
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    logging.exception("SQLAlchemyError at %s %s | body=%s",
+                      request.method, request.url, getattr(request.state, "body", b"")[:512])
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "database_error",
+            "message": str(getattr(exc, "orig", exc)),  # โชว์ข้อความจาก psycopg2 ถ้ามี
+        },
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logging.exception("Unhandled Exception at %s %s | body=%s",
+                      request.method, request.url, getattr(request.state, "body", b"")[:512])
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_error",
+            "message": str(exc),
+            "path": str(request.url),
+        },
+    )
+
+# ----- CORS & routers เหมือนเดิม -----
 origins = [
     "http://localhost",
-    "http://localhost:8000", # ตัวอย่างพอร์ตที่ Flutter Web อาจรัน
+    "http://localhost:8000",
     "http://127.0.0.1",
-    "http://127.0.0.1:5000", # ถ้า Flutter Web รันที่พอร์ตเดียวกันกับ Backend
-    "http://127.0.0.1:5500", # พอร์ตที่ VS Code Live Server หรือ Flutter Web อาจใช้
-    "http://10.32.189.77:5000", # IP Address ของเครื่องที่รัน Backend
-    
-    "file://", 
-    "null", 
-    # เพิ่ม IP Address ของเครื่องที่คุณรัน Flutter App หากทดสอบบนมือถือจริงในเครือข่ายเดียวกัน
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5500",
+    "http://10.32.189.77:5000",
+    "file://",
+    "null",
 ]
 
 app.add_middleware(
@@ -57,14 +109,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# รวม API Routers
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/workpdf", StaticFiles(directory="workpdf"), name="workpdf")
 app.mount("/media", StaticFiles(directory=str(MEDIA_ROOT)), name="media")
+
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(face_recognition.router, prefix="/api/v1")
-# ถ้าคุณยังไม่ได้สร้าง routers อื่นๆ ให้ comment บรรทัดเหล่านี้ไว้ก่อน เพื่อป้องกัน ImportError
 app.include_router(classes.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
@@ -74,7 +125,6 @@ app.include_router(announcements_router.router, prefix="/api/v1")
 app.include_router(attendance_report.router , prefix="/api/v1")
 app.include_router(attendance_report_detail.router, prefix="/api/v1")
 
-# --- Optional: Default root endpoint ---
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to the Face Attendance API!"}
