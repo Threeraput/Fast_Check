@@ -37,10 +37,8 @@ async def upload_face_for_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # --- ensure upload dir ---
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    # 0) validate ไฟล์
     if not (file.content_type and file.content_type.startswith("image/")):
         raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
 
@@ -48,17 +46,13 @@ async def upload_face_for_user(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file.")
 
-    # 0.5) ป้องกันซ้ำตั้งแต่ต้น (เร็ว และข้อความชัด)
-    exists = db.query(UserFaceSample).filter(
-        UserFaceSample.user_id == current_user.user_id
-    ).first()
-    if exists:
-        raise HTTPException(
-            status_code=409,
-            detail="Face sample already exists for this user. Please delete it before uploading a new one."
-        )
+    # 💡 1. ดึงข้อมูลรูปเก่ามาเตรียมไว้ (เพื่อที่จะลบไฟล์ขยะทิ้ง ถ้าอัปเดตสำเร็จ)
+    old_sample = db.query(UserFaceSample).filter(UserFaceSample.user_id == current_user.user_id).first()
+    old_image_path = None
+    if old_sample and old_sample.image_url:
+        old_image_path = os.path.join(os.getcwd(), old_sample.image_url.strip('/'))
 
-    # 1) สร้าง embedding จาก bytes ก่อน (กันไฟล์ขยะหากล้มเหลว)
+    # 2. สร้าง embedding 
     try:
         embedding = get_face_embedding(BytesIO(content))
     except ValueError as e:
@@ -71,52 +65,46 @@ async def upload_face_for_user(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Face embedding failed: {e}")
 
-    # 2) เตรียมไฟล์ใหม่
+    # 3. เตรียมไฟล์ใหม่
     file_extension = os.path.splitext(file.filename or "")[1] or ".jpg"
     filename = f"{current_user.user_id}_{uuid.uuid4().hex}{file_extension}"
     file_path = os.path.join(UPLOAD_DIR, filename)
     image_url = f"/uploads/{filename}"
 
-    # 3) เขียนไฟล์ + บันทึก DB
+    # 4. เขียนไฟล์ + บันทึก DB
     try:
-        # เขียนไฟล์จริง
         with open(file_path, "wb") as buffer:
             buffer.write(content)
 
-        # สร้าง record ใหม่ (ให้แน่ใจว่า create_face_sample คืน ORM model)
+        # 🚀 5. เรียกใช้ Service อัปเดตข้อมูล (ที่จะมีระบบดัก 30 วันอยู่ข้างใน)
         face_sample = create_face_sample(db, current_user.user_id, image_url, embedding)
 
-        # ถ้า create_face_sample ยังไม่ commit ให้ uncomment บรรทัดล่าง:
-        # db.commit()
-        # db.refresh(face_sample)
+        # 6. ถ้าอัปเดตผ่านฉลุย ให้ลบไฟล์รูปภาพอันเก่าทิ้งซะ จะได้ไม่เปลืองฮาร์ดดิสก์
+        if old_image_path and os.path.exists(old_image_path):
+            try:
+                os.remove(old_image_path)
+            except Exception:
+                pass
 
         return face_sample
 
-    except IntegrityError:
-        # รองรับกรณี unique constraint ชน (race condition)
-        db.rollback()
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=409,
-            detail="Face sample already exists for this user. Please delete it before uploading a new one."
-        )
-
     except HTTPException:
-        # ส่งต่อ error ที่ raise ด้านบน
-        raise
+        # สำคัญ! ถ้าติด Cooldown 30 วัน Service จะโยน Error กลับมาที่นี่
+        # เราต้องลบรูปที่เพิ่งอัปโหลดลงโฟลเดอร์ทิ้งไปด้วย
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
+        raise # โยนข้อความ "กรุณารออีก X วัน" กลับไปให้หน้าบ้านแสดงผล
 
     except Exception as e:
-        # พลาดอย่างอื่น -> rollback และลบไฟล์ใหม่ทิ้ง
         db.rollback()
-        try:
-            if os.path.exists(file_path):
+        if os.path.exists(file_path):
+            try:
                 os.remove(file_path)
-        except Exception:
-            pass
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 @router.post("/verify-face", status_code=status.HTTP_200_OK)
@@ -183,61 +171,50 @@ async def verify_face(
     
 # ... (โค้ด router, UPLOAD_DIR, upload-face, verify-face) ...
 
+# -----------------------------------------------------------
+# 🚨 ล็อกสิทธิ์การลบ! ให้นักเรียนลบหน้าตัวเองไม่ได้ ป้องกันช่องโหว่รีเซ็ตเวลา
+# -----------------------------------------------------------
 @router.delete("/delete-face-sample/{sample_id}", status_code=status.HTTP_200_OK)
 async def delete_face_sample(
     sample_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    ลบรูปภาพใบหน้า (Face Sample) ของผู้ใช้ โดยอนุญาตให้เฉพาะเจ้าของหรือ Admin ลบได้
-    """
-    # 1. ค้นหารูปภาพจาก sample_id
-    sample_to_delete = db.query(UserFaceSample).filter(
-        UserFaceSample.sample_id == sample_id
-    ).first()
+    # ตรวจสอบว่าเป็น Admin หรือ Teacher หรือไม่ (ถ้านักเรียนกดมาจะโดนบล็อก!)
+    is_admin_or_teacher = any(role.name in ["admin", "teacher"] for role in current_user.roles)
+    if not is_admin_or_teacher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="นักเรียนไม่สามารถลบใบหน้าได้ กรุณาใช้เมนู 'อัปเดตใบหน้า' แทนครับ"
+        )
 
+    sample_to_delete = db.query(UserFaceSample).filter(UserFaceSample.sample_id == sample_id).first()
     if not sample_to_delete:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Face sample not found.")
     
-    # 2. ตรวจสอบสิทธิ์การลบ: ต้องเป็นเจ้าของรูปภาพ หรือเป็น Admin
-    is_owner = str(sample_to_delete.user_id) == str(current_user.user_id)
-    is_admin = "admin" in [role.name for role in current_user.roles] # ตรวจสอบว่าเป็น Admin หรือไม่
-
-    if not (is_owner or is_admin):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to delete this face sample."
-        )
-
-    # 3. ลบไฟล์รูปภาพออกจาก disk
     file_path_on_disk = os.path.join(os.getcwd(), sample_to_delete.image_url.strip('/'))
     if os.path.exists(file_path_on_disk):
         os.remove(file_path_on_disk)
         
-    # 4. ลบข้อมูลออกจากฐานข้อมูล
     db.delete(sample_to_delete)
     db.commit()
 
-    return JSONResponse(
-    status_code=status.HTTP_200_OK,
-    content={"message": "Face sample deleted successfully."}
-)
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Face sample deleted successfully."})
     
 @router.delete("/delete-face", status_code=status.HTTP_200_OK)
 async def delete_face(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    ลบข้อมูลใบหน้าทั้งหมดของผู้ใช้ปัจจุบัน
-    """
-    from app.models.user_face_sample import UserFaceSample
+    # ล็อกเหมือนกัน!
+    is_admin_or_teacher = any(role.name in ["admin", "teacher"] for role in current_user.roles)
+    if not is_admin_or_teacher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ไม่อนุญาตให้นักเรียนลบข้อมูลใบหน้า"
+        )
 
-    samples = db.query(UserFaceSample).filter(
-        UserFaceSample.user_id == current_user.user_id
-    ).all()
-
+    samples = db.query(UserFaceSample).filter(UserFaceSample.user_id == current_user.user_id).all()
     if not samples:
         raise HTTPException(status_code=404, detail="ไม่พบข้อมูลใบหน้าในระบบ")
 

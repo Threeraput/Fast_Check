@@ -409,60 +409,60 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                     const Divider(),
                     ListTile(
                       leading: const Icon(Icons.face_retouching_natural),
-                      title: const Text('เพิ่มใบหน้า'),
+                      title: const Text('ลงทะเบียน/เปลี่ยนใบหน้า'),
                       onTap: () async {
                         Navigator.pushReplacementNamed(context, '/upload-face');
                       },
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.delete_forever),
-                      title: const Text('ลบใบหน้า'),
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('ยืนยันการลบข้อมูลใบหน้า'),
-                            content: const Text(
-                              'การกระทำนี้ไม่สามารถกู้คืนได้',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text(
-                                  style: TextStyle(color: Colors.grey),
-                                  'ยกเลิก'),
-                              ),
-                              FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                ),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('ลบ'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true) {
-                          try {
-                            await FaceService.deleteFace();
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('ลบข้อมูลใบหน้าสำเร็จ'),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('ลบข้อมูลใบหน้าไม่สำเร็จ: $e'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
+                    // ListTile(
+                    //   leading: const Icon(Icons.delete_forever),
+                    //   title: const Text('ลบใบหน้า'),
+                    //   onTap: () async {
+                    //     Navigator.pop(context);
+                    //     final confirmed = await showDialog<bool>(
+                    //       context: context,
+                    //       builder: (ctx) => AlertDialog(
+                    //         title: const Text('ยืนยันการลบข้อมูลใบหน้า'),
+                    //         content: const Text(
+                    //           'การกระทำนี้ไม่สามารถกู้คืนได้',
+                    //         ),
+                    //         actions: [
+                    //           TextButton(
+                    //             onPressed: () => Navigator.pop(ctx, false),
+                    //             child: const Text(
+                    //               style: TextStyle(color: Colors.grey),
+                    //               'ยกเลิก'),
+                    //           ),
+                    //           FilledButton(
+                    //             style: FilledButton.styleFrom(
+                    //               backgroundColor: Colors.redAccent,
+                    //             ),
+                    //             onPressed: () => Navigator.pop(ctx, true),
+                    //             child: const Text('ลบ'),
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     );
+                    //     if (confirmed == true) {
+                    //       try {
+                    //         await FaceService.deleteFace();
+                    //         if (!mounted) return;
+                    //         ScaffoldMessenger.of(context).showSnackBar(
+                    //           const SnackBar(
+                    //             content: Text('ลบข้อมูลใบหน้าสำเร็จ'),
+                    //           ),
+                    //         );
+                    //       } catch (e) {
+                    //         if (!mounted) return;
+                    //         ScaffoldMessenger.of(context).showSnackBar(
+                    //           SnackBar(
+                    //             content: Text('ลบข้อมูลใบหน้าไม่สำเร็จ: $e'),
+                    //           ),
+                    //         );
+                    //       }
+                    //     }
+                    //   },
+                    // ),
                   ],
                 ],
               ),
