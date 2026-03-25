@@ -1,15 +1,17 @@
+from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
+
 
 class AttendanceReportDetailResponse(BaseModel):
     detail_id: UUID
     report_id: UUID
     session_id: UUID
-    check_in_time: datetime | None
+    check_in_time: Optional[datetime] = None
     status: str
     is_reverified: bool
-    created_at: datetime | None
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True

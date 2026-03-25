@@ -1,5 +1,6 @@
+# backend/app/api/v1/attendance_report_detail.py
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.attendance_report_detail import AttendanceReportDetail
 from app.schemas.attendance_report_detail_schema import AttendanceReportDetailResponse
@@ -15,42 +16,24 @@ def get_my_daily_reports(
     db: Session = Depends(get_db), me: User = Depends(get_current_user)
 ):
     """ให้นักเรียนดูรายงานรายวันของตัวเอง"""
-    # ✅ ตรวจสอบ role แบบยืดหยุ่น (รองรับ Role object)
-    role_value = getattr(me, "role", None)
-    roles_value = getattr(me, "roles", None)
-
-    is_student = False
-
-    # กรณี role เป็น string เดียว
-    if isinstance(role_value, str) and role_value.lower() == "student":
-        is_student = True
-    # กรณี roles เป็น list ของ string หรือ Role object
-    elif isinstance(roles_value, list):
-        for r in roles_value:
-            # ดึงชื่อ role จาก attribute ที่มีอยู่จริง
-            role_name = None
-            if isinstance(r, str):
-                role_name = r
-            elif hasattr(r, "name"):
-                role_name = r.name
-            elif hasattr(r, "role_name"):
-                role_name = r.role_name
-            elif hasattr(r, "role"):
-                role_name = r.role
-
-            if role_name and role_name.lower() == "student":
-                is_student = True
-                break
-
-    if not is_student:
+    # ตรวจสอบสิทธิ์ว่าเป็น student หรือไม่
+    roles_list = [
+        r.name.lower() if hasattr(r, "name") else str(r).lower()
+        for r in getattr(me, "roles", [])
+    ]
+    if "student" not in roles_list:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
-    # ✅ Query รายละเอียดรายวัน
+    #  ปรับปรุงการ Query:
+    # 1. ใช้ order_by created_at แทน check_in_time เพราะคนขาดเรียน (Absent) จะไม่มีเวลาเช็คอิน
+    # 2. ใช้ .all() เพื่อดึงข้อมูลทั้งหมดมาแสดงในหน้าประวัติ
     results = (
         db.query(AttendanceReportDetail)
         .join(AttendanceReportDetail.report)
         .filter(AttendanceReportDetail.report.has(student_id=me.user_id))
-        .order_by(AttendanceReportDetail.check_in_time.desc())
+        .order_by(
+            AttendanceReportDetail.created_at.desc()
+        )  # เรียงตามเวลาที่สร้างเรคคอร์ดล่าสุด
         .all()
     )
 
@@ -60,7 +43,7 @@ def get_my_daily_reports(
     return results
 
 
-# 👩‍🏫 ครูดูรายงานรายวันของคลาส
+# 👩ครูดูรายงานรายวันของคลาส
 @router.get(
     "/class/{class_id}",
     response_model=list[AttendanceReportDetailResponse],
@@ -68,11 +51,13 @@ def get_my_daily_reports(
 )
 def get_class_daily_reports(class_id: str, db: Session = Depends(get_db)):
     """ให้ครูดูรายงานรายวันของคลาส"""
+    #  ปรับปรุงการ Query:
+    # ใช้ joinedload เพื่อลดการ Query ซ้ำซ้อน (N+1 Problem) และเรียงลำดับให้ถูกต้อง
     results = (
         db.query(AttendanceReportDetail)
-        .join(AttendanceReportDetail.report)
+        .options(joinedload(AttendanceReportDetail.report))
         .filter(AttendanceReportDetail.report.has(class_id=class_id))
-        .order_by(AttendanceReportDetail.check_in_time.desc())
+        .order_by(AttendanceReportDetail.created_at.desc())
         .all()
     )
 
