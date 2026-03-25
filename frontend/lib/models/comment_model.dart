@@ -36,3 +36,41 @@ class AssignmentComment {
     );
   }
 }
+
+// =======================================
+// 2. คอมเมนต์ของหน้าประกาศ (Announcement)
+// =======================================
+class AnnouncementComment {
+  final String commentId;
+  final String announcementId;
+  final String userId;
+  final String content;
+  final DateTime createdAt;
+  final String commenterName;
+
+  AnnouncementComment({
+    required this.commentId,
+    required this.announcementId,
+    required this.userId,
+    required this.content,
+    required this.createdAt,
+    required this.commenterName,
+  });
+
+  factory AnnouncementComment.fromJson(Map<String, dynamic> json) {
+    final user = json['user'];
+    final firstName = user != null ? (user['first_name'] ?? 'ไม่ระบุ') : 'ไม่ระบุ';
+    final lastName = user != null ? (user['last_name'] ?? '') : '';
+
+    return AnnouncementComment(
+      commentId: json['comment_id'] ?? '',
+      announcementId: json['announcement_id'] ?? '',
+      userId: json['user_id'] ?? '',
+      content: json['content'] ?? '',
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']).toLocal() 
+          : DateTime.now(),
+      commenterName: '$firstName $lastName'.trim(),
+    );
+  }
+}

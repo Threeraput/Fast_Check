@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart' show AuthService;
+import 'package:frontend/models/comment_model.dart';
 
 const String API_BASE_URL = 'http://192.168.1.103:8000/api/v1';
 
@@ -194,5 +195,36 @@ class AnnouncementService {
     if (res.statusCode != 204) {
       throw Exception('ลบประกาศไม่สำเร็จ: ${res.body}');
     }
+  }
+  /// ดึงคอมเมนต์ทั้งหมดของประกาศ
+  static Future<List<AnnouncementComment>> getComments(String announcementId) async {
+    final url = Uri.parse('$API_BASE_URL/announcements/$announcementId/comments');
+    final res = await http.get(url, headers: await _authHeaders());
+        
+    if (res.statusCode == 200) {
+      final List data = json.decode(utf8.decode(res.bodyBytes));
+      return data.map((e) => AnnouncementComment.fromJson(e)).toList();
+    }
+    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ: ${res.body}');
+  }
+
+  /// ส่งคอมเมนต์ใหม่ในประกาศ
+  static Future<AnnouncementComment> addComment({
+    required String announcementId,
+    required String content,
+  }) async {
+    final url = Uri.parse('$API_BASE_URL/announcements/$announcementId/comments');
+    final payload = {'content': content};
+    
+    final res = await http.post(
+      url, 
+      headers: await _authHeaders(), 
+      body: jsonEncode(payload)
+    );
+        
+    if (res.statusCode == 201 || res.statusCode == 200) {
+      return AnnouncementComment.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
+    }
+    throw Exception('ส่งคอมเมนต์ไม่สำเร็จ: ${res.body}');
   }
 }
