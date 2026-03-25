@@ -44,87 +44,103 @@ class AssignmentCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.lightBlue[300],
-                  child: Icon(
-                    Icons.assignment_outlined,
-                    size: 18,
-                    color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          // 👈 3. ย้ายคำสั่งเปลี่ยนหน้ามาไว้ตรงนี้ (กดตรงไหนของ Card ก็ทำงาน)
+          Navigator.pushNamed(
+            context,
+            '/assignment-detail',
+            arguments: {
+              'assignmentId': assignmentId,
+              'title': title,
+              'classId': classId,
+              'isTeacher': isTeacher,
+            },
+          ).then((_) => onChanged?.call());
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.lightBlue[300],
+                    child: Icon(
+                      Icons.assignment_outlined,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'งาน: $title',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'งาน: $title',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                   ),
-                ),
+                  Text(
+                    df.format(postedAt.toLocal()),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+        
+              if (due != null)
                 Text(
-                  df.format(postedAt.toLocal()),
+                  'กำหนดส่ง: ${df.format(due.toLocal())}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            if (due != null)
-              Text(
-                'กำหนดส่ง: ${df.format(due.toLocal())}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            if (maxScore != null)
-              Text(
-                'คะแนนเต็ม: $maxScore',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-
-            const SizedBox(height: 10),
-
-            if (!isTeacher)
-              Align(
-                alignment: Alignment.centerRight,
-                child: _StudentSubmitButton(
-                  assignmentId: assignmentId,
-                  alreadySubmitted: alreadySubmitted,
-                  onChanged: onChanged,
+              if (maxScore != null)
+                Text(
+                  'คะแนนเต็ม: $maxScore',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-              )
-            else
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.lightBlue[300],
-                    side: BorderSide.none
+        
+              const SizedBox(height: 10),
+        
+              if (!isTeacher)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _StudentSubmitButton(
+                    assignmentId: assignmentId,
+                    alreadySubmitted: alreadySubmitted,
+                    onChanged: onChanged,
                   ),
-                  label: const Text(
-                    style: TextStyle(color: Colors.white),
-                    'ดูการส่งของนักเรียน',
-                  ),
-                  onPressed: () {
-                    // ไปหน้า detail ของอาจารย์
-                    Navigator.pushNamed(
-                      context,
-                      '/assignment-detail',
-                      arguments: {
-                        'assignmentId': assignmentId,
-                        'title': title,
-                        'classId': classId, // ✅ ใส่ตรงนี้
-                      },
-                    ).then((_) => onChanged?.call());
-                  },
-                ),
-              ),
-          ],
+                )
+              // else
+              //   Align(
+              //     alignment: Alignment.centerLeft,
+              //     child: OutlinedButton.icon(
+              //       style: OutlinedButton.styleFrom(
+              //         backgroundColor: Colors.lightBlue[300],
+              //         side: BorderSide.none
+              //       ),
+              //       label: const Text(
+              //         style: TextStyle(color: Colors.white),
+              //         'ดูการส่งของนักเรียน',
+              //       ),
+              //       onPressed: () {
+              //         // ไปหน้า detail ของอาจารย์
+              //         Navigator.pushNamed(
+              //           context,
+              //           '/assignment-detail',
+              //           arguments: {
+              //             'assignmentId': assignmentId,
+              //             'title': title,
+              //             'classId': classId, // ✅ ใส่ตรงนี้
+              //           },
+              //         ).then((_) => onChanged?.call());
+              //       },
+              //     ),
+              //   ),
+            ],
+          ),
         ),
       ),
     );

@@ -157,6 +157,7 @@ class MyApp extends StatelessWidget {
             assignmentId: args['assignmentId'],
             title: args['title'] ?? 'Assignment',
             classId: args['classId'],
+            isTeacher: args['isTeacher'] ?? false,
           );
         },
         '/edit-announcement': (context) {

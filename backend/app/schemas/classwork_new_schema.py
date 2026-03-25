@@ -130,3 +130,36 @@ class AssignmentWithClassOverview(BaseModel):
     assignment: AssignmentResponse
     stats: AssignmentStats
     submissions: List[SubmissionRowForTeacher]
+
+# -------------------------------------------------------------------
+# Comments (คอมเมนต์ในงาน)
+# -------------------------------------------------------------------
+
+class CommentCreate(BaseModel):
+    """ข้อมูลที่รับเข้ามาตอนสร้างคอมเมนต์"""
+    content: str = Field(..., description="เนื้อหาคอมเมนต์")
+
+class CommentUserMini(BaseModel):
+    """ข้อมูลย่อของผู้ใช้ (เอาไว้แสดงชื่อ/รูปโปรไฟล์ คนพิมพ์คอมเมนต์)"""
+    user_id: UUID
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    # profile_picture_url: Optional[str] = None  # ถ้าใน User model ของคุณมีรูปโปรไฟล์ เอาคอมเมนต์บรรทัดนี้ออกได้ครับ
+
+    class Config:
+        from_attributes = True
+
+class CommentResponse(BaseModel):
+    """ข้อมูลคอมเมนต์ที่จะส่งกลับไปให้ Flutter"""
+    comment_id: UUID
+    assignment_id: UUID
+    user_id: UUID
+    content: str
+    created_at: datetime
+    updated_at: datetime
+    
+    # แนบข้อมูลคนพิมพ์มาด้วย หน้าบ้านจะได้โชว์ชื่อได้เลย ไม่ต้องไปยิง API หาชื่ออีกรอบ
+    user: Optional[CommentUserMini] = None 
+
+    class Config:
+        from_attributes = True

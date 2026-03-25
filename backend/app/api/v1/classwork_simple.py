@@ -1,7 +1,9 @@
 # app/api/v1/classwork_simple.py
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Body, Path
+from app.schemas.classwork_new_schema import CommentCreate, CommentResponse
+from app.services import classwork_service
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -158,3 +160,43 @@ def list_assignments_for_class_route(
         .all()
     )
     return items
+
+# -----------------------------
+# คอมเมนต์: สร้างคอมเมนต์ใหม่ (ทั้งครูและนักเรียน)
+# -----------------------------
+@router.post(
+    "/assignments/{assignment_id}/comments", 
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED
+)
+async def add_assignment_comment(
+    assignment_id: UUID = Path(..., description="UUID ของงานที่ต้องการคอมเมนต์"),
+    comment_in: CommentCreate = Body(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user) # ไม่บังคับ Role เพราะทั้งครูและเด็กก็คอมเมนต์ได้
+):
+    new_comment = classwork_service.create_comment(
+        db=db,
+        assignment_id=assignment_id,
+        user_id=me.user_id,
+        content=comment_in.content
+    )
+    return new_comment
+
+# -----------------------------
+# คอมเมนต์: ดึงคอมเมนต์ทั้งหมดของงานชิ้นนั้น
+# -----------------------------
+@router.get(
+    "/assignments/{assignment_id}/comments", 
+    response_model=List[CommentResponse]
+)
+async def get_assignment_comments(
+    assignment_id: UUID = Path(..., description="UUID ของงานที่ต้องการดูคอมเมนต์"),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user)
+):
+    comments = classwork_service.get_comments_by_assignment(
+        db=db, 
+        assignment_id=assignment_id
+    )
+    return comments
