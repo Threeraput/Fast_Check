@@ -1,4 +1,5 @@
 # backend/app/api/v1/attendance_report_detail.py
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
@@ -10,7 +11,7 @@ from app.models.user import User
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
 
-# 🧑‍🎓 นักเรียนดูรายงานรายวันของตัวเอง
+# นักเรียนดูรายงานรายวันของตัวเอง
 @router.get("/my", response_model=list[AttendanceReportDetailResponse])
 def get_my_daily_reports(
     db: Session = Depends(get_db), me: User = Depends(get_current_user)
@@ -24,26 +25,27 @@ def get_my_daily_reports(
     if "student" not in roles_list:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
-    #  ปรับปรุงการ Query:
-    # 1. ใช้ order_by created_at แทน check_in_time เพราะคนขาดเรียน (Absent) จะไม่มีเวลาเช็คอิน
-    # 2. ใช้ .all() เพื่อดึงข้อมูลทั้งหมดมาแสดงในหน้าประวัติ
+    # ปรับปรุงการ Query:
+    # ดึงข้อมูลพร้อมกับข้อมูลรูปภาพและเวลาเริ่มคาบที่บันทึกไว้
     results = (
         db.query(AttendanceReportDetail)
         .join(AttendanceReportDetail.report)
         .filter(AttendanceReportDetail.report.has(student_id=me.user_id))
-        .order_by(
-            AttendanceReportDetail.created_at.desc()
-        )  # เรียงตามเวลาที่สร้างเรคคอร์ดล่าสุด
+        .order_by(AttendanceReportDetail.created_at.desc())
         .all()
     )
 
     if not results:
         raise HTTPException(status_code=404, detail="No daily reports found")
 
+    # ✅ แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema
+    for r in results:
+        r.face_image_url = r.face_image_path
+
     return results
 
 
-# 👩ครูดูรายงานรายวันของคลาส
+# ครูดูรายงานรายวันของคลาส
 @router.get(
     "/class/{class_id}",
     response_model=list[AttendanceReportDetailResponse],
@@ -51,8 +53,7 @@ def get_my_daily_reports(
 )
 def get_class_daily_reports(class_id: str, db: Session = Depends(get_db)):
     """ให้ครูดูรายงานรายวันของคลาส"""
-    #  ปรับปรุงการ Query:
-    # ใช้ joinedload เพื่อลดการ Query ซ้ำซ้อน (N+1 Problem) และเรียงลำดับให้ถูกต้อง
+    # ใช้ joinedload เพื่อประสิทธิภาพ และดึงข้อมูลรูปภาพ/วันที่มาด้วย
     results = (
         db.query(AttendanceReportDetail)
         .options(joinedload(AttendanceReportDetail.report))
@@ -65,5 +66,38 @@ def get_class_daily_reports(class_id: str, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=404, detail="No daily reports found for this class"
         )
+
+    # ✅ แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema
+    for r in results:
+        r.face_image_url = r.face_image_path
+
+    return results
+
+
+@router.get(
+    "/student/{student_id}",
+    response_model=list[AttendanceReportDetailResponse],
+    dependencies=[Depends(role_required(["teacher", "admin"]))],
+)
+def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
+    """ให้อาจารย์ดูประวัติการเช็คชื่อราย session ของนักเรียนคนใดคนหนึ่ง"""
+
+    # Query หา AttendanceReportDetail โดยกรองจาก student_id ในตาราง Report
+    results = (
+        db.query(AttendanceReportDetail)
+        .join(AttendanceReportDetail.report)
+        .filter(AttendanceReportDetail.report.has(student_id=student_id))
+        .order_by(AttendanceReportDetail.created_at.desc())
+        .all()
+    )
+
+    if not results:
+        raise HTTPException(status_code=404, detail="ไม่พบประวัติการเช็คชื่อของนักเรียนคนนี้")
+
+    # ✅ แมป Path รูปภาพ (ทั้งรูปแรกและรูป Re-verify) เข้าสู่ URL ใน Schema
+    for r in results:
+        r.face_image_url = r.face_image_path
+        # ถ้าเราเพิ่มคอลัมน์ reverify_image_path ในอนาคต ก็แมปเพิ่มตรงนี้ได้ครับ
+        # r.reverify_image_url = r.reverify_image_path
 
     return results

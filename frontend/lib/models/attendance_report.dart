@@ -2,6 +2,10 @@ class AttendanceReport {
   final String reportId;
   final String classId;
   final String studentId;
+  // --- เพิ่มฟิลด์เหล่านี้ ---
+  final String? className;
+  final String? studentName;
+  // -----------------------
   final int totalSessions;
   final int attendedSessions;
   final int lateSessions;
@@ -15,6 +19,8 @@ class AttendanceReport {
     required this.reportId,
     required this.classId,
     required this.studentId,
+    this.className,
+    this.studentName,
     required this.totalSessions,
     required this.attendedSessions,
     required this.lateSessions,
@@ -27,9 +33,11 @@ class AttendanceReport {
 
   factory AttendanceReport.fromJson(Map<String, dynamic> json) {
     return AttendanceReport(
-      reportId: json['report_id'],
-      classId: json['class_id'],
-      studentId: json['student_id'],
+      reportId: json['report_id'] ?? '',
+      classId: json['class_id'] ?? '',
+      studentId: json['student_id'] ?? '',
+      className: json['class_name'],
+      studentName: json['student_name'],
       totalSessions: json['total_sessions'] ?? 0,
       attendedSessions: json['attended_sessions'] ?? 0,
       lateSessions: json['late_sessions'] ?? 0,

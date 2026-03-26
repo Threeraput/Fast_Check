@@ -10,13 +10,9 @@ from app.models.association import class_students
 
 
 def generate_reports_for_class(db: Session, class_id: str):
-    """
-    สร้าง/อัปเดตรายงานรายคน (Upsert) โดยคำนึงถึงวันเข้าเรียน (joined_at)
-    และนับเฉพาะ session ที่จบแล้วเท่านั้น
-    """
     now = datetime.now(timezone.utc)
 
-    # 1. ดึงข้อมูลนักเรียนพร้อมวันเข้าคลาส (joined_at)
+    # 1. ดึงข้อมูลนักเรียนพร้อมวันเข้าคลาส
     student_data = db.execute(
         select(class_students.c.student_id, class_students.c.joined_at).where(
             class_students.c.class_id == class_id
@@ -26,8 +22,7 @@ def generate_reports_for_class(db: Session, class_id: str):
     if not student_data:
         return {"message": f"❌ No students found in class {class_id}"}
 
-    # 2. ดึง sessions ทั้งหมดที่ 'จบลงแล้ว' (end_time <= now)
-    # เพื่อไม่ให้นับคาบในอนาคตมาหักคะแนนเด็ก
+    # 2. ดึง sessions ที่จบลงแล้ว
     all_past_sessions = (
         db.query(AttendanceSession)
         .filter(
@@ -38,7 +33,6 @@ def generate_reports_for_class(db: Session, class_id: str):
     )
 
     for student_id, joined_at in student_data:
-        # กรองเฉพาะ session ที่เริ่มหลังจากนักเรียนเข้าคลาสแล้วเท่านั้น
         effective_sessions = [
             s
             for s in all_past_sessions
@@ -48,7 +42,6 @@ def generate_reports_for_class(db: Session, class_id: str):
         total_effective = len(effective_sessions)
         attended = late = absent = left_early = reverified = 0
 
-        # 3. ใช้ระบบ Upsert: หา report เดิม ถ้าไม่มีค่อยสร้างใหม่
         report = (
             db.query(AttendanceReport)
             .filter(
@@ -61,14 +54,12 @@ def generate_reports_for_class(db: Session, class_id: str):
         if not report:
             report = AttendanceReport(class_id=class_id, student_id=student_id)
             db.add(report)
-            db.flush()  # เพื่อให้ได้ report_id
+            db.flush()
 
-        # ลบรายละเอียดรายวันเก่า (Detail) เพื่อสร้างใหม่ให้เป็นปัจจุบันที่สุด
         db.query(AttendanceReportDetail).filter(
             AttendanceReportDetail.report_id == report.report_id
         ).delete()
 
-        # 4. คำนวณสถิติจาก Effective Sessions เท่านั้น
         for session in effective_sessions:
             record = (
                 db.query(Attendance)
@@ -82,19 +73,27 @@ def generate_reports_for_class(db: Session, class_id: str):
             status = "Absent"
             check_in_time = None
             is_reverified = False
+            current_face_path = None  # ✅ เตรียมเก็บ path รูป
 
             if not record:
                 absent += 1
             else:
                 check_in_time = record.check_in_time
                 is_reverified = record.is_reverified
+                current_face_path = (
+                    record.face_image_path
+                )  # ✅ ดึง path รูปจาก Attendance
 
-                # Logic การตัดสินสถานะ
                 if not record.is_reverified:
                     status = "LeftEarly"
                     left_early += 1
                 else:
-                    status = record.status or "Present"
+                    # ดึงค่าจาก Enum หรือ String
+                    status = (
+                        record.status.value
+                        if hasattr(record.status, "value")
+                        else str(record.status)
+                    )
                     if status == "Present":
                         attended += 1
                     elif status == "Late":
@@ -105,7 +104,7 @@ def generate_reports_for_class(db: Session, class_id: str):
                 if record.is_reverified:
                     reverified += 1
 
-            # บันทึกรายละเอียดราย session (Detail)
+            # ✅ บันทึกรายละเอียดพร้อมเวลาเริ่มคาบและรูปถ่าย
             db.add(
                 AttendanceReportDetail(
                     report_id=report.report_id,
@@ -113,10 +112,11 @@ def generate_reports_for_class(db: Session, class_id: str):
                     status=status,
                     check_in_time=check_in_time,
                     is_reverified=is_reverified,
+                    session_start=session.start_time,  # ✅ ใส่เวลาเริ่มคาบเรียน
+                    face_image_path=current_face_path,  # ✅ ใส่ path รูปถ่าย
                 )
             )
 
-        # 5. อัปเดตตัวเลขสรุปใน Report
         report.total_sessions = total_effective
         report.attended_sessions = attended
         report.late_sessions = late
@@ -125,7 +125,6 @@ def generate_reports_for_class(db: Session, class_id: str):
         report.reverified_sessions = reverified
         report.generated_at = now
 
-        # คำนวณ % การเข้าเรียน (เฉพาะคาบที่เขาควรเข้าจริง)
         if total_effective > 0:
             rate = ((attended + late) / total_effective) * 100
             report.attendance_rate = round(rate, 2)

@@ -1,6 +1,6 @@
 # backend/app/models/attendance.py
 import uuid
-from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Numeric
+from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Numeric, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -39,15 +39,15 @@ class Attendance(Base):
         ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True
     )
+    face_image_path = Column(String, nullable=True)
     # --- เพิ่ม FK ชี้ไปยัง Session ---
     session_id = Column(UUID(as_uuid=True), ForeignKey("attendance_sessions.session_id", ondelete="CASCADE"), nullable=False)
     # Relationships
     class_rel = relationship("Class", back_populates="attendances")
     student = relationship("User", foreign_keys=[student_id], back_populates="attendances")
     recorder = relationship("User", foreign_keys=[recorded_by_user_id], back_populates="recorded_attendances")
-
     attendance_session = relationship("AttendanceSession", back_populates="attendances", foreign_keys=[session_id])
-    
+
     def __repr__(self):
         return (
             f"<Attendance(student='{self.student_id}', class='{self.class_id}', "

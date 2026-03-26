@@ -465,7 +465,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   const SizedBox(width: 12),
                   Text(
                     'รายละเอียดการเข้าเรียน',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ],
               ),
