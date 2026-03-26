@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/users.dart';
-import 'package:frontend/screens/class_report_tab.dart';
-import 'package:frontend/screens/classroom_home_screen.dart';
-import 'package:frontend/screens/create_announcement_screen.dart';
-import 'package:frontend/screens/teacher_open_checkin_sheet.dart';
+import 'package:frontend/screens/attendance/class_report_tab.dart';
+import 'package:frontend/screens/classroom/classroom_home_screen.dart';
+import 'package:frontend/screens/announcement/create_announcement_screen.dart';
+import 'package:frontend/screens/attendance/teacher_open_checkin_sheet.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/feed_service.dart';

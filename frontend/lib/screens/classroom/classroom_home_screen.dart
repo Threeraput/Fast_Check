@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/classroom.dart';
-import 'package:frontend/screens/archived_classes_screen.dart';
+import 'package:frontend/screens/home/archived_classes_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/class_service.dart';
 import 'class_details_screen.dart';
 import 'create_class_screen.dart';
 import 'join_class_sheet.dart';
-import 'student_class_view.dart';
-import '../screens/camera_screen.dart';
-import '../services/face_service.dart';
-import 'package:frontend/screens/profile_screen.dart';
+import '../student_class_view.dart';
+import '../face_recognition/camera_screen.dart';
+import '../../services/face_service.dart';
+import 'package:frontend/screens/profile/profile_screen.dart';
 import 'package:frontend/services/user_service.dart';
-import 'package:frontend/screens/admin_dashboard_screen.dart';
+import 'package:frontend/screens/admin/admin_dashboard_screen.dart';
 
 // ✅ ใช้ API แอดมินสำหรับดึง/เพิ่ม/ลบคลาสทั้งหมดในระบบ
 import 'package:frontend/services/admin_service.dart';

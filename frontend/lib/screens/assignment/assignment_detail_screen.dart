@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/comment_model.dart'; 
 import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:intl/intl.dart';
-import 'package:frontend/screens/grading_screen.dart'; 
+import 'package:frontend/screens/assignment/grading_screen.dart'; 
 
 class AssignmentDetailScreen extends StatefulWidget {
   final String assignmentId;

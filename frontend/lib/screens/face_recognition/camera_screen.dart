@@ -2,10 +2,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/image_utils.dart';
-import '../services/face_service.dart';
-import '../services/face_service.dart' show ApiException;
-import 'classroom_home_screen.dart';
+import '../../utils/image_utils.dart';
+import '../../services/face_service.dart';
+import '../../services/face_service.dart' show ApiException;
+import '../classroom/classroom_home_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;

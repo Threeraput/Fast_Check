@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/screens/student_class_view.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/attendance_service.dart';
-import 'package:frontend/screens/student_checkin_screen.dart';
+import 'package:frontend/screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/utils/location_helper.dart';
 import 'package:frontend/services/sessions_service.dart';
 

@@ -1,8 +1,8 @@
 // lib/screens/student_checkin_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../utils/location_helper.dart';
-import '../services/attendance_service.dart';
+import '../../utils/location_helper.dart';
+import '../../services/attendance_service.dart';
 
 class StudentCheckinScreen extends StatefulWidget {
   final String classId;

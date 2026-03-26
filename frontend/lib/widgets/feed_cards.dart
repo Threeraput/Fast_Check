@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/announcement_detail_screen.dart';
+import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../models/feed_item.dart';
-import '../screens/student_checkin_screen.dart';
+import '../screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/services/sessions_service.dart';
 import 'package:frontend/services/attendance_service.dart';
 import 'package:frontend/utils/location_helper.dart';

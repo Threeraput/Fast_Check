@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/attendance_report_detail.dart';
-import '../services/attendance_report_service.dart';
+import '../../models/attendance_report_detail.dart';
+import '../../services/attendance_report_service.dart';
 
 class StudentReportDetailScreen extends StatefulWidget {
   final String studentId;

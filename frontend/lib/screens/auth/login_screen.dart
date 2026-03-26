@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/auth_service.dart';
-import '../services/face_service.dart';
-import "classroom_home_screen.dart";
-import 'camera_screen.dart';
+import '../../services/auth_service.dart';
+import '../../services/face_service.dart';
+import "../classroom/classroom_home_screen.dart";
+import '../face_recognition/camera_screen.dart';
 import 'package:frontend/main.dart' show cameras;
 
 

@@ -1,9 +1,9 @@
 // lib/screens/student_reverify_screen.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/image_utils.dart';
-import '../utils/location_helper.dart';
-import '../services/attendance_service.dart';
+import '../../utils/image_utils.dart';
+import '../../utils/location_helper.dart';
+import '../../services/attendance_service.dart';
 
 class StudentReverifyScreen extends StatefulWidget {
   final String sessionId; // ต้องส่ง session ที่กำลังเปิดอยู่ของคลาสนี้

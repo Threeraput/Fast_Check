@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/classroom.dart';
-import '../services/class_service.dart'; // 2. นำเข้าคนส่งของ
+import '../../services/class_service.dart'; // 2. นำเข้าคนส่งของ
 
 class ArchivedClassesScreen extends StatefulWidget {
   const ArchivedClassesScreen({Key? key}) : super(key: key);
