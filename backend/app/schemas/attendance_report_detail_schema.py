@@ -13,8 +13,11 @@ class AttendanceReportDetailResponse(BaseModel):
     is_reverified: bool
     created_at: Optional[datetime] = None
     face_image_url: Optional[str] = None
+    reverify_image_url: Optional[str] = None
+    reverify_time: Optional[datetime] = None
+    session_start: Optional[datetime] = None
 
-    @field_validator("face_image_url", mode="before")
+    @field_validator("face_image_url", "reverify_image_url", mode="before")
     @classmethod
     def assemble_image_url(cls, v):
         #  ต่อ URL ให้สมบูรณ์เพื่อให้แอปโหลดรูปขึ้น (เปลี่ยน IP เป็นของคุณ)

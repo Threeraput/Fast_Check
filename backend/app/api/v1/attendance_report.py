@@ -52,7 +52,10 @@ def get_my_report(db: Session = Depends(get_db), me: User = Depends(get_current_
 
     rows = (
         db.query(AttendanceReport)
-        .options(joinedload(AttendanceReport.classroom))
+        #  เพิ่ม joinedload student เพื่อลด N+1 Query
+        .options(
+            joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
+        )
         .filter(
             AttendanceReport.student_id == me.user_id,
             AttendanceReport.class_id.isnot(None),  # กันแถวเสีย
@@ -82,7 +85,10 @@ def generate_class_reports(class_id: UUID, db: Session = Depends(get_db)):
 def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     rows = (
         db.query(AttendanceReport)
-        .options(joinedload(AttendanceReport.classroom))
+        #  เพิ่ม joinedload student
+        .options(
+            joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
+        )
         .filter(
             AttendanceReport.class_id == class_id, AttendanceReport.class_id.isnot(None)
         )
@@ -123,7 +129,10 @@ def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
 def get_student_report(student_id: UUID, db: Session = Depends(get_db)):
     rows = (
         db.query(AttendanceReport)
-        .options(joinedload(AttendanceReport.classroom))
+        #  เพิ่ม joinedload student
+        .options(
+            joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
+        )
         .filter(
             AttendanceReport.student_id == student_id,
             AttendanceReport.class_id.isnot(None),

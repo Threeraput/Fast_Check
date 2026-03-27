@@ -2,31 +2,30 @@ import io
 import logging
 import os
 import uuid
-import shutil
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.attendance import Attendance
 from app.models.attendance_enums import AttendanceStatus
-from app.models.class_model import Class as ClassModel
 from app.models.attendance_session import AttendanceSession
 from app.schemas.attendance_schema import AttendanceResponse
 from app.services.face_recognition_service import get_face_embedding, compare_faces
 from app.services.location_service import (
     PROXIMITY_THRESHOLD,
     is_within_proximity,
-    get_latest_teacher_location,
 )
 
 logger = logging.getLogger(__name__)
 
-#  กำหนดที่เก็บรูปภาพแยกสำหรับการเช็คชื่อรายวัน
-ATTENDANCE_IMAGE_DIR = "uploads/attendance"
-os.makedirs(ATTENDANCE_IMAGE_DIR, exist_ok=True)
+#  กำหนดที่เก็บรูปภาพแยกโฟลเดอร์ให้ชัดเจน
+CHECKIN_IMAGE_DIR = "uploads/attendance/checkin"
+REVERIFY_IMAGE_DIR = "uploads/attendance/reverify"
+
+os.makedirs(CHECKIN_IMAGE_DIR, exist_ok=True)
+os.makedirs(REVERIFY_IMAGE_DIR, exist_ok=True)
 
 
 # ---------------------------
@@ -138,20 +137,19 @@ def record_check_in(
             session.start_time, session.late_cutoff_time, session.end_time, now=now
         )
 
-    # 1. บันทึกรูปภาพเช็คชื่อลง Disk
+    #  1. บันทึกรูปภาพลงโฟลเดอร์ Checkin
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_name = f"checkin_{student_id}_{session_id}_{timestamp}.jpg"
-    file_path = os.path.join(ATTENDANCE_IMAGE_DIR, file_name)
-    relative_path = f"uploads/attendance/{file_name}"
+    file_path = os.path.join(CHECKIN_IMAGE_DIR, file_name)
+    relative_path = f"uploads/attendance/checkin/{file_name}"
 
     try:
         with open(file_path, "wb") as f:
             f.write(image_bytes)
     except Exception as e:
         logger.error(f"Failed to save check-in image: {e}")
-        # ไม่ raise error เพื่อให้บันทึกสถานะต่อได้ แต่ควร log ไว้
 
-    #  2. สร้าง Record พร้อมเก็บ face_image_path
+    #  2. สร้าง Record และเก็บ path ใน face_image_path (ช่องที่ 1)
     new_attendance = Attendance(
         class_id=session.class_id,
         session_id=session.session_id,
@@ -159,7 +157,8 @@ def record_check_in(
         status=status_to_record,
         check_in_lat=student_lat,
         check_in_lon=student_lon,
-        face_image_path=relative_path,  # บันทึก path สำหรับรายงาน
+        face_image_path=relative_path,
+        check_in_time=now,
     )
 
     try:
@@ -168,7 +167,6 @@ def record_check_in(
         db.refresh(new_attendance)
     except Exception as e:
         db.rollback()
-        # ลบไฟล์ที่เพิ่งเซฟถ้า DB ล้มเหลว (Optional)
         if os.path.exists(file_path):
             os.remove(file_path)
         logger.exception(
@@ -182,10 +180,13 @@ def record_check_in(
     try:
         return AttendanceResponse.model_validate(new_attendance, from_attributes=True)
     except Exception:
+        # Fallback สำหรับ Pydantic v1
         return AttendanceResponse.from_orm(new_attendance)
 
 
-#  UPDATED: handle_reverification พร้อมบันทึกรูปภาพใหม่
+# ---------------------------
+# Re-verification
+# ---------------------------
 def handle_reverification(
     db: Session,
     session_id: uuid.UUID,
@@ -246,11 +247,11 @@ def handle_reverification(
     except Exception:
         matched = False
 
-    #  1. บันทึกรูปภาพตอน Re-verify (เพื่ออัปเดตหลักฐานในรายงาน)
+    #  1. บันทึกรูปภาพลงโฟลเดอร์ Reverify
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_name = f"reverify_{student_id}_{session_id}_{timestamp}.jpg"
-    file_path = os.path.join(ATTENDANCE_IMAGE_DIR, file_name)
-    relative_path = f"uploads/attendance/{file_name}"
+    file_path = os.path.join(REVERIFY_IMAGE_DIR, file_name)
+    relative_path = f"uploads/attendance/reverify/{file_name}"
 
     try:
         with open(file_path, "wb") as f:
@@ -258,10 +259,12 @@ def handle_reverification(
     except Exception as e:
         logger.error(f"Failed to save reverify image: {e}")
 
-    # อัปเดตสถานะ
+     2. อัปเดตสถานะและเก็บ path ลงช่อง reverify_image_path (ช่องที่ 2)
     attendance.is_reverified = True
-    attendance.face_image_path = relative_path  # อัปเดต Path รูปภาพเป็นรูปปัจจุบันที่สุด
+    attendance.reverify_image_path = relative_path
+    attendance.reverify_time = datetime.now(timezone.utc)
 
+    # ปรับสถานะถ้าไม่ตรงกัน (เป็น LeftEarly)
     if isinstance(attendance.status, str):
         try:
             attendance.status = AttendanceStatus(attendance.status)
@@ -305,7 +308,11 @@ def manual_override_attendance(
     try:
         db.commit()
         db.refresh(attendance)
-        return AttendanceResponse.from_orm(attendance)
+        # รองรับทั้ง Pydantic V1 และ V2
+        try:
+            return AttendanceResponse.model_validate(attendance, from_attributes=True)
+        except AttributeError:
+            return AttendanceResponse.from_orm(attendance)
     except Exception as e:
         db.rollback()
         raise HTTPException(

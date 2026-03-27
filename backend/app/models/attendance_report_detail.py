@@ -18,3 +18,5 @@ class AttendanceReportDetail(Base):
     report = relationship("AttendanceReport", backref="details")
     face_image_path = Column(String, nullable=True)
     session_start = Column(DateTime(timezone=True), nullable=True)
+    reverify_time = Column(DateTime(timezone=True), nullable=True) 
+    reverify_image_path = Column(String, nullable=True)

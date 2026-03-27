@@ -73,16 +73,20 @@ def generate_reports_for_class(db: Session, class_id: str):
             status = "Absent"
             check_in_time = None
             is_reverified = False
-            current_face_path = None  # ✅ เตรียมเก็บ path รูป
+            current_face_path = None
+            current_reverify_time = None  #  เตรียมตัวแปรเวลาสุ่มตรวจ
+            current_reverify_path = None  #  เตรียมตัวแปรรูปสุ่มตรวจ
 
             if not record:
                 absent += 1
             else:
                 check_in_time = record.check_in_time
                 is_reverified = record.is_reverified
-                current_face_path = (
-                    record.face_image_path
-                )  # ✅ ดึง path รูปจาก Attendance
+                current_face_path = record.face_image_path
+
+                #  ดึงข้อมูลการสุ่มตรวจ (ถ้ามี) จาก Model Attendance
+                current_reverify_time = getattr(record, "reverify_time", None)
+                current_reverify_path = getattr(record, "reverify_image_path", None)
 
                 if not record.is_reverified:
                     status = "LeftEarly"
@@ -104,7 +108,7 @@ def generate_reports_for_class(db: Session, class_id: str):
                 if record.is_reverified:
                     reverified += 1
 
-            # ✅ บันทึกรายละเอียดพร้อมเวลาเริ่มคาบและรูปถ่าย
+            #  บันทึกรายละเอียดพร้อมเวลาและรูปถ่ายทั้ง 2 ชุด (Check-in และ Re-verify)
             db.add(
                 AttendanceReportDetail(
                     report_id=report.report_id,
@@ -112,8 +116,10 @@ def generate_reports_for_class(db: Session, class_id: str):
                     status=status,
                     check_in_time=check_in_time,
                     is_reverified=is_reverified,
-                    session_start=session.start_time,  # ✅ ใส่เวลาเริ่มคาบเรียน
-                    face_image_path=current_face_path,  # ✅ ใส่ path รูปถ่าย
+                    session_start=session.start_time,
+                    face_image_path=current_face_path,  # รูปตอนเช็คอิน
+                    reverify_time=current_reverify_time,  # ✅ เวลาที่สุ่มตรวจ
+                    reverify_image_path=current_reverify_path,  # ✅ รูปตอนสุ่มตรวจ
                 )
             )
 

@@ -40,6 +40,8 @@ class Attendance(Base):
         nullable=True
     )
     face_image_path = Column(String, nullable=True)
+    reverify_time = Column(DateTime(timezone=True), nullable=True)
+    reverify_image_path = Column(String, nullable=True)
     # --- เพิ่ม FK ชี้ไปยัง Session ---
     session_id = Column(UUID(as_uuid=True), ForeignKey("attendance_sessions.session_id", ondelete="CASCADE"), nullable=False)
     # Relationships
