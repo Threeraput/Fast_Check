@@ -22,6 +22,7 @@ class AttendanceReport(Base):
     attendance_rate = Column(Float, nullable=False, default=0.0)
 
     generated_at = Column(DateTime, default=datetime.utcnow)
+    last_session_time = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     student = relationship("User", backref="attendance_reports")

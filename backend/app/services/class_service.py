@@ -1,28 +1,16 @@
 # backend/app/services/class_service.py
 import uuid
-from sqlalchemy.orm import Session
-from sqlalchemy import select, and_
-from fastapi import HTTPException, status
-from typing import List, Optional
-import random
-import string
-from sqlalchemy.exc import IntegrityError
-
-from app.models.class_model import Class as ClassModel
-from app.schemas.class_schema import ClassroomUpdate 
-from app.models.user import User
-from app.models.role import Role
-from app.models.association import class_students # Table object สำหรับนักเรียน
-
-# --- Imports ที่ต้องมีในไฟล์นี้ ---
-import uuid
 import secrets
-from typing import List, Optional
-
-from fastapi import HTTPException, status
-from sqlalchemy import select, and_
-from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timezone
+from typing import List, Optional, Iterable, Set, Dict, Any
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import select, and_, func
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
+from app.models.class_model import Class as ClassModel
+from app.models.user import User
+from app.models.association import class_students
+from app.schemas.class_schema import ClassroomUpdate
 
 # สมมติว่าโมเดล/ตารางเหล่านี้ถูก import แล้ว
 # from app.models.classroom import ClassModel, class_students
@@ -34,8 +22,10 @@ from sqlalchemy.orm import Session, selectinload
 # -----------------------------
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # ตัดตัวที่สับสน เช่น I, O, 0, 1
 
+
 def _gen_code(n: int = 6) -> str:
     return "".join(secrets.choice(_ALPHABET) for _ in range(n))
+
 
 def generate_unique_code(db: Session, max_retries: int = 5, length: int = 6) -> str:
     """
@@ -54,10 +44,13 @@ def generate_unique_code(db: Session, max_retries: int = 5, length: int = 6) -> 
     # ถ้ายังชน ให้คืนโค้ดยาวขึ้นเล็กน้อย เพื่อลดโอกาสชนบนชั้น DB
     return _gen_code(length + 1)
 
+
 # -----------------------------
 # Business Logic
 # -----------------------------
-def check_class_teacher(db: Session, class_id: uuid.UUID, user_id: uuid.UUID) -> ClassModel:
+def check_class_teacher(
+    db: Session, class_id: uuid.UUID, user_id: uuid.UUID
+) -> ClassModel:
     """
     ตรวจสิทธิ์ว่าผู้ใช้เป็นอาจารย์เจ้าของคลาส
     """
@@ -66,14 +59,21 @@ def check_class_teacher(db: Session, class_id: uuid.UUID, user_id: uuid.UUID) ->
     ).scalar_one_or_none()
 
     if not classroom:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found."
+        )
 
     if classroom.teacher_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the class teacher can perform this action.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the class teacher can perform this action.",
+        )
     return classroom
 
 
-def create_classroom(db: Session, name: str, teacher_id: uuid.UUID, start_time=None, end_time=None) -> ClassModel:
+def create_classroom(
+    db: Session, name: str, teacher_id: uuid.UUID, start_time=None, end_time=None
+) -> ClassModel:
     """
     สร้างห้องเรียนใหม่ (generate code อัตโนมัติ) พร้อมจัดการเคส UNIQUE ชน
     - ถ้า code ชน UNIQUE → retry อัตโนมัติ
@@ -87,7 +87,7 @@ def create_classroom(db: Session, name: str, teacher_id: uuid.UUID, start_time=N
             code=unique_code,
             teacher_id=teacher_id,
             start_time=start_time,
-            end_time=end_time
+            end_time=end_time,
         )
 
         try:
@@ -106,13 +106,22 @@ def create_classroom(db: Session, name: str, teacher_id: uuid.UUID, start_time=N
 
             if "name" in msg:
                 # ชื่อคลาสชน (ทั้งระบบ หรือชนนิยาม unique อื่น ๆ)
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom name already exists.")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Classroom name already exists.",
+                )
 
             # ไม่ทราบสาเหตุ → โยนต่อเป็น 500
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create classroom.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create classroom.",
+            )
 
     # ถ้า retry แล้วยังชน code
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate unique join code. Please try again.")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Failed to generate unique join code. Please try again.",
+    )
 
 
 def get_taught_classes(db: Session, teacher_id: uuid.UUID) -> List[ClassModel]:
@@ -140,6 +149,7 @@ def get_taught_classes(db: Session, teacher_id: uuid.UUID) -> List[ClassModel]:
 def assign_student_to_class(db: Session, student_id: uuid.UUID, code: str):
     """
     นักเรียนเข้าร่วมห้องเรียนด้วยรหัสเข้าร่วม
+    - บันทึก joined_at เพื่อใช้กรองรายงานการเข้าเรียนให้ยุติธรรม
     - 404 ถ้า code ไม่ถูกต้อง
     - 409 ถ้าเข้าร่วมแล้ว
     """
@@ -150,12 +160,13 @@ def assign_student_to_class(db: Session, student_id: uuid.UUID, code: str):
     ).scalar_one_or_none()
 
     if not classroom:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid classroom code.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invalid classroom code."
+        )
 
     # ตรวจซ้ำว่าลงทะเบียนแล้วหรือยัง
     already = db.execute(
-        select(class_students)
-        .where(
+        select(class_students).where(
             and_(
                 class_students.c.student_id == student_id,
                 class_students.c.class_id == classroom.class_id,
@@ -164,23 +175,32 @@ def assign_student_to_class(db: Session, student_id: uuid.UUID, code: str):
     ).first()
 
     if already:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You have already joined this classroom.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already joined this classroom.",
+        )
 
     try:
+        # บันทึกข้อมูลลงตารางเชื่อม โดยระบุ joined_at เป็นเวลาปัจจุบัน (UTC)
         db.execute(
             class_students.insert().values(
                 student_id=student_id,
-                class_id=classroom.class_id
+                class_id=classroom.class_id,
+                joined_at=datetime.now(timezone.utc),  # บันทึกเวลาที่เข้าเรียนจริง
             )
         )
         db.commit()
     except IntegrityError:
         db.rollback()
-        # ถ้าชน UNIQUE ที่ตารางเชื่อม (เช่น unique (student_id, class_id)) ก็ถือว่า join แล้ว
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You have already joined this classroom.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already joined this classroom.",
+        )
 
 
-def remove_student_from_class(db: Session, student_id: uuid.UUID, class_id: uuid.UUID, current_user_id: uuid.UUID):
+def remove_student_from_class(
+    db: Session, student_id: uuid.UUID, class_id: uuid.UUID, current_user_id: uuid.UUID
+):
     """
     ลบนักเรียนออกจากห้องเรียน (อาจารย์เจ้าของคลาส หรือ นักเรียนคนนั้นเอง เท่านั้น)
     """
@@ -189,13 +209,18 @@ def remove_student_from_class(db: Session, student_id: uuid.UUID, class_id: uuid
     ).scalar_one_or_none()
 
     if not classroom:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found."
+        )
 
     is_teacher = classroom.teacher_id == current_user_id
     is_self = student_id == current_user_id
 
     if not (is_teacher or is_self):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to remove this student.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to remove this student.",
+        )
 
     result = db.execute(
         class_students.delete().where(
@@ -206,12 +231,17 @@ def remove_student_from_class(db: Session, student_id: uuid.UUID, class_id: uuid
         )
     )
     if result.rowcount == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student is not enrolled in this classroom.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student is not enrolled in this classroom.",
+        )
 
     db.commit()
 
 
-def update_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, update_data: ClassroomUpdate) -> ClassModel:
+def update_classroom(
+    db: Session, class_id: uuid.UUID, user_id: uuid.UUID, update_data: ClassroomUpdate
+) -> ClassModel:
     """
     อัปเดตรายละเอียดห้องเรียน (เฉพาะอาจารย์เจ้าของคลาส)
     - ตรวจ start_time < end_time ถ้าถูกส่งมา
@@ -221,13 +251,19 @@ def update_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, updat
 
     data = update_data.model_dump(exclude_none=True)
     if not data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields provided for update.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields provided for update.",
+        )
 
     # ตรวจสอบเวลา ถ้ามีสองช่องนี้
     start_time = data.get("start_time")
     end_time = data.get("end_time")
     if start_time and end_time and start_time >= end_time:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="start_time must be earlier than end_time.")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_time must be earlier than end_time.",
+        )
 
     for key, value in data.items():
         setattr(classroom, key, value)
@@ -241,11 +277,19 @@ def update_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, updat
         db.rollback()
         msg = str(getattr(e, "orig", e)).lower()
         if "name" in msg:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Classroom name already exists.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update classroom.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Classroom name already exists.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update classroom.",
+        )
 
 
-def delete_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool) -> None:
+def delete_classroom(
+    db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool
+) -> None:
     """
     ลบห้องเรียน (hard delete)
     - เฉพาะอาจารย์เจ้าของคลาสหรือแอดมินเท่านั้น
@@ -258,17 +302,20 @@ def delete_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_ad
     ).scalar_one_or_none()
 
     if not classroom:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found."
+        )
 
     # 2) ตรวจสิทธิ์: admin ผ่าน, teacher ต้องเป็นเจ้าของคลาส
     if not is_admin and classroom.teacher_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to delete this classroom.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to delete this classroom.",
+        )
 
     try:
         # 3) ลบความสัมพันธ์ในตารางเชื่อมก่อน (กันกรณีไม่มี ON DELETE CASCADE)
-        db.execute(
-            class_students.delete().where(class_students.c.class_id == class_id)
-        )
+        db.execute(class_students.delete().where(class_students.c.class_id == class_id))
 
         # 4) (ถ้ามีตารางลูกอื่น ๆ เช่น assignments/submissions และยังไม่มี cascade)
         #    คุณสามารถลบด้วยมือที่นี่ก่อน db.delete(classroom) ตามลำดับลึกสุด → ตื้น
@@ -288,20 +335,21 @@ def delete_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_ad
         # ยังมีระเบียนลูกอื่นที่ผูกอยู่ (เช่น assignments/submissions) และไม่มี CASCADE
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete classroom due to related records. Remove related objects or enable ON DELETE CASCADE."
+            detail="Cannot delete classroom due to related records. Remove related objects or enable ON DELETE CASCADE.",
         )
     except Exception:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete classroom."
+            detail="Failed to delete classroom.",
         )
+
 
 def get_classroom_with_relations(db: Session, class_id: uuid.UUID):
     """
     ดึงคลาสพร้อมความสัมพันธ์หลัก:
-      - teacher, teacher.roles
-      - students, students.roles
+    - teacher, teacher.roles
+    - students, students.roles
     """
     stmt = (
         select(ClassModel)
@@ -312,6 +360,7 @@ def get_classroom_with_relations(db: Session, class_id: uuid.UUID):
         )
     )
     return db.scalars(stmt).first()
+
 
 def get_enrolled_classes(db: Session, student_id: uuid.UUID):
     student = db.query(User).filter(User.user_id == student_id).first()

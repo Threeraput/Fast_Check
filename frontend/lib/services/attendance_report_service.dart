@@ -203,7 +203,7 @@ class AttendanceReportService {
     try {
       final res = await _get(url, token);
 
-      // ✅ ถ้ายังไม่เคย generate → 404 → คืน summary ว่าง
+      //  ถ้ายังไม่เคย generate → 404 → คืน summary ว่าง
       if (res.statusCode == 404) {
         return {
           'total_students': 0,
@@ -215,6 +215,28 @@ class AttendanceReportService {
       return _parseMap(res);
     } on SocketException {
       throw Exception('Network error while fetching class summary');
+    }
+  }
+
+  /// ครูดูรายงานรายวันของนักเรียน "เจาะจงรายบุคคล" (เพื่อดูรูปเช็คชื่อ)
+  static Future<List<AttendanceReportDetail>> getStudentDailyReports(
+    String studentId,
+  ) async {
+    final token = await AuthService.getAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+    final url = Uri.parse(
+      '$baseUrl/attendance/reports/details/student/$studentId',
+    );
+    try {
+      final res = await _get(url, token);
+
+      return _parseList<AttendanceReportDetail>(
+        res,
+        (m) => AttendanceReportDetail.fromJson(m),
+        emptyOn404: true,
+      );
+    } on SocketException {
+      throw Exception('Network error while fetching student daily reports');
     }
   }
 }
