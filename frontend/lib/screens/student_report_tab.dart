@@ -73,6 +73,30 @@ class _StudentReportTabState extends State<StudentReportTab> {
     return _classNameById[classId] ?? classId;
   }
 
+  void _showImageDialog(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(imageUrl, fit: BoxFit.contain),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -350,64 +374,138 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
   Widget _buildDailyDetailCard(AttendanceReportDetail detail) {
     Color statusColor;
-    IconData statusIcon;
     String statusText;
 
     switch (detail.status.toLowerCase()) {
       case 'present':
         statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
         statusText = 'เข้าเรียน';
         break;
       case 'late':
         statusColor = Colors.orange;
-        statusIcon = Icons.schedule;
         statusText = 'สาย';
         break;
       case 'absent':
         statusColor = Colors.red;
-        statusIcon = Icons.cancel;
         statusText = 'ขาด';
         break;
       case 'left_early':
+      case 'leftearly':
         statusColor = Colors.purple;
-        statusIcon = Icons.exit_to_app;
         statusText = 'กลับก่อน';
         break;
       default:
         statusColor = Colors.grey;
-        statusIcon = Icons.help_outline;
         statusText = detail.status;
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.2),
-          child: Icon(statusIcon, color: statusColor, size: 20),
-        ),
-        title: Text(
-          statusText,
-          style: TextStyle(fontWeight: FontWeight.bold, color: statusColor),
-        ),
-        subtitle: Column(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // เดิม: แสดง Session ID / เวลา
-            // ถ้าต้องการเพิ่มชื่อคลาสตรงนี้ ต้องมีข้อมูล mapping รายวันของ session -> classId -> className จาก backend
-            if (detail.checkInTime != null)
-              Text('เวลา: ${_formatDateTime(detail.checkInTime!)}'),
-            if (detail.isReverified)
-              const Text(
-                '✓ ตรวจสอบซ้ำแล้ว',
-                style: TextStyle(color: Colors.blue, fontSize: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'วันที่: ${_formatDateTime(detail.sessionStart ?? detail.checkInTime ?? '').split(' ')[0]}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(),
+
+            // รูป Check-in
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: GestureDetector(
+                onTap: () => detail.faceImageUrl != null
+                    ? _showImageDialog(detail.faceImageUrl!)
+                    : null,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: detail.faceImageUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            detail.faceImageUrl!,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(Icons.person, color: Colors.grey),
+                ),
+              ),
+              title: const Text('เช็คชื่อ', style: TextStyle(fontSize: 14)),
+              subtitle: Text(
+                detail.checkInTime != null
+                    ? _formatDateTime(detail.checkInTime!)
+                    : '-',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+
+            // รูป Re-verify (ถ้ามี)
+            if (detail.reverifyImageUrl != null || detail.isReverified)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: GestureDetector(
+                  onTap: () => detail.reverifyImageUrl != null
+                      ? _showImageDialog(detail.reverifyImageUrl!)
+                      : null,
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: detail.reverifyImageUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              detail.reverifyImageUrl!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : const Icon(Icons.verified, color: Colors.blue),
+                  ),
+                ),
+                title: const Text(
+                  'ตรวจสอบซ้ำ',
+                  style: TextStyle(fontSize: 14, color: Colors.blue),
+                ),
+                subtitle: Text(
+                  detail.reverifyTime != null
+                      ? _formatDateTime(detail.reverifyTime!)
+                      : '-',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: const Icon(
+                  Icons.verified,
+                  color: Colors.blue,
+                  size: 20,
+                ),
               ),
           ],
         ),
-        trailing: detail.isReverified
-            ? const Icon(Icons.verified, color: Colors.blue, size: 20)
-            : null,
       ),
     );
   }

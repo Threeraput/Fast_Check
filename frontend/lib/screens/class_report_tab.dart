@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/attendance_report.dart';
 import 'package:frontend/models/attendance_report_detail.dart';
 import 'package:frontend/services/attendance_report_service.dart';
+import 'student_report_detail_screen.dart';
 import 'package:intl/intl.dart';
 
 // เพิ่ม: ใช้ข้อมูลสมาชิกคลาสเพื่อ map studentId -> ชื่อผู้ใช้
@@ -391,7 +392,6 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const Divider(height: 24),
-              // เปลี่ยนให้เห็นชื่อแทนรหัส
               _buildDetailRow('นักเรียน', name),
               _buildDetailRow('ทั้งหมด', '${report.totalSessions} ครั้ง'),
               _buildDetailRow('เข้าเรียน', '${report.attendedSessions} ครั้ง'),
@@ -407,11 +407,42 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 '${report.attendanceRate.toStringAsFixed(2)}%',
               ),
               const SizedBox(height: 16),
+
+              // ✅ เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context); // ปิด Dialog
+                    // import หน้าต่างนี้ไว้ด้านบนไฟล์ด้วยนะครับ ถ้ายังไม่มี
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            // ไปที่ไฟล์ student_report_detail_screen.dart
+                              StudentReportDetailScreen(
+                              studentId: report.studentId,
+                            ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('ดูประวัติรายวันและรูปถ่าย'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade50,
+                    foregroundColor: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('ปิด'),
+                  child: const Text(
+                    'ปิด',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
               ),
             ],
