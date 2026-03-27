@@ -259,7 +259,7 @@ def handle_reverification(
     except Exception as e:
         logger.error(f"Failed to save reverify image: {e}")
 
-     2. อัปเดตสถานะและเก็บ path ลงช่อง reverify_image_path (ช่องที่ 2)
+    #  2. อัปเดตสถานะและเก็บ path ลงช่อง reverify_image_path (ช่องที่ 2)
     attendance.is_reverified = True
     attendance.reverify_image_path = relative_path
     attendance.reverify_time = datetime.now(timezone.utc)
