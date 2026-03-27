@@ -38,5 +38,6 @@ class AttendanceReportResponse(BaseModel):
     attendance_rate: float  # อัตราส่วนที่คำนวณมาแล้วจาก Service
 
     generated_at: datetime
+    last_session_time: Optional[datetime] = None
     class_name: Optional[str] = None
     details: List[AttendanceReportDetailResponse] = Field(default_factory=list)

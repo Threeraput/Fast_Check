@@ -33,6 +33,7 @@ def _to_schema(r: AttendanceReport) -> AttendanceReportResponse:
             "reverified_sessions": r.reverified_sessions or 0,
             "attendance_rate": float(r.attendance_rate or 0.0),
             "generated_at": r.generated_at,
+            "last_session_time": r.last_session_time,
             "class_name": (
                 getattr(r.classroom, "name", "Unknown Class")
                 if r.classroom
@@ -112,12 +113,14 @@ def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
     rates = [float(r.attendance_rate or 0.0) for r in rows]
     avg_rate = (sum(rates) / len(rows)) if rows else 0.0
     total_absent = sum(int(r.absent_sessions or 0) for r in rows)
+    max_sessions = max([int(r.total_sessions or 0) for r in rows]) if rows else 0
 
     return {
         "class_id": str(class_id),
         "total_students": len(rows),
         "average_attendance_rate": round(avg_rate, 2),
         "total_absent_records": total_absent,
+        "total_sessions": max_sessions,
     }
 
 

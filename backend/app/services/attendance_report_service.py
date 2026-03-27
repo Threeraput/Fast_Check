@@ -130,6 +130,10 @@ def generate_reports_for_class(db: Session, class_id: str):
         report.left_early_sessions = left_early
         report.reverified_sessions = reverified
         report.generated_at = now
+        if effective_sessions:
+            report.last_session_time = effective_sessions[-1].start_time
+        else:
+            report.last_session_time = None
 
         if total_effective > 0:
             rate = ((attended + late) / total_effective) * 100

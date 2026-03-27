@@ -14,6 +14,8 @@ class AttendanceReport {
   final int reverifiedSessions;
   final double attendanceRate;
   final String generatedAt;
+  final String? lastSessionTime;
+  
 
   AttendanceReport({
     required this.reportId,
@@ -29,6 +31,7 @@ class AttendanceReport {
     required this.reverifiedSessions,
     required this.attendanceRate,
     required this.generatedAt,
+    this.lastSessionTime,
   });
 
   factory AttendanceReport.fromJson(Map<String, dynamic> json) {
@@ -46,6 +49,7 @@ class AttendanceReport {
       reverifiedSessions: json['reverified_sessions'] ?? 0,
       attendanceRate: (json['attendance_rate'] ?? 0).toDouble(),
       generatedAt: json['generated_at'] ?? '',
+      lastSessionTime: json['last_session_time'],
     );
   }
 }
