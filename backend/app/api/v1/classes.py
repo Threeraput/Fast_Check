@@ -332,4 +332,5 @@ def get_class_members_for_members(
         code=getattr(cls, "code", None),
         teacher=UserPublic.model_validate(teacher_payload),
         students=[UserPublic.model_validate(p) for p in students_payload],
+        is_archived=getattr(cls, "is_archived", False),
     )
