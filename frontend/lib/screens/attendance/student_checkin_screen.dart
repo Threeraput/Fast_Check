@@ -1,8 +1,8 @@
 // lib/screens/student_checkin_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../utils/location_helper.dart';
-import '../services/attendance_service.dart';
+import '../../utils/location_helper.dart';
+import '../../services/attendance_service.dart';
 
 class StudentCheckinScreen extends StatefulWidget {
   final String classId;
@@ -178,7 +178,9 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
         future: _init,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(
+              color: Colors.blue,
+            ));
           }
           if (snap.hasError) {
             return Center(child: Text(snap.error.toString()));
@@ -220,7 +222,9 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: Colors.blue,
+                              strokeWidth: 2),
                           )
                         : const Icon(Icons.check_circle),
                     label: Text(

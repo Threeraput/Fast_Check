@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.attendance import Attendance
 from app.models.attendance_enums import AttendanceStatus
@@ -59,6 +60,8 @@ def decide_status_by_hard_times(
     if now > e:
         return AttendanceStatus.ABSENT
     if now < s:
+        return AttendanceStatus.PRESENT
+    if (now >= s and now < l):
         return AttendanceStatus.PRESENT
     if now >= s and now < l:
         return AttendanceStatus.PRESENT
@@ -202,6 +205,8 @@ def handle_reverification(
     )
     if not session:
         raise HTTPException(status_code=404, detail="Attendance session not found.")
+    if session.anchor_lat is None or session.anchor_lon is None:
+        raise HTTPException(status_code=400, detail="Re-verification unavailable: teacher anchor location is not set.")
 
     end_aware = _ensure_aware_utc(session.end_time)
     if end_aware and datetime.now(timezone.utc) > end_aware:

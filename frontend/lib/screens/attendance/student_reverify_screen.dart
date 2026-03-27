@@ -1,9 +1,9 @@
 // lib/screens/student_reverify_screen.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/image_utils.dart';
-import '../utils/location_helper.dart';
-import '../services/attendance_service.dart';
+import '../../utils/image_utils.dart';
+import '../../utils/location_helper.dart';
+import '../../services/attendance_service.dart';
 
 class StudentReverifyScreen extends StatefulWidget {
   final String sessionId; // ต้องส่ง session ที่กำลังเปิดอยู่ของคลาสนี้
@@ -93,7 +93,9 @@ class _StudentReverifyScreenState extends State<StudentReverifyScreen> {
         future: _init,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(
+              color: Colors.blue,
+            ));
           }
           if (snap.hasError) {
             return Center(child: Text(snap.error.toString()));

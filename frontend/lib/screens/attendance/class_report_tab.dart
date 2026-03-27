@@ -142,8 +142,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
           // ปุ่มสร้างรายงานใหม่
           ElevatedButton.icon(
             onPressed: _generateReport,
-            icon: const Icon(Icons.refresh),
-            label: const Text('สร้างรายงานใหม่'),
+            icon: const Icon(Icons.refresh, color: Colors.blueAccent),
+            label: const Text('สร้างรายงานใหม่', style: TextStyle(
+              color: Colors.black,
+            ),),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
             ),

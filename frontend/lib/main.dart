@@ -1,20 +1,20 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:frontend/screens/assignment_detail_screen.dart';
-import 'package:frontend/screens/classroom_home_screen.dart';
-import 'package:frontend/screens/create_assignment_screen.dart';
-import 'package:frontend/screens/edit_announcement_screen.dart';
-import 'package:frontend/screens/verify_face_route.dart';
+import 'package:frontend/screens/assignment/assignment_detail_screen.dart';
+import 'package:frontend/screens/classroom/classroom_home_screen.dart';
+import 'package:frontend/screens/assignment/create_assignment_screen.dart';
+import 'package:frontend/screens/announcement/edit_announcement_screen.dart';
+import 'package:frontend/screens/face_recognition/verify_face_route.dart';
 import 'services/auth_service.dart';
-import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/otp_verification_screen.dart';
-import 'screens/forgot_password_screen.dart';
-import 'screens/reset_password_screen.dart';
-import 'screens/admin_dashboard_screen.dart';
-import 'screens/camera_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/auth/otp_verification_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
+import 'screens/face_recognition/camera_screen.dart';
 
 List<CameraDescription> cameras = const [];
 
@@ -57,6 +57,7 @@ class MyApp extends StatelessWidget {
         // เปลี่ยนให้ /home ไปที่ ClassroomHomeScreen แทน HomeScreen
         return MaterialPageRoute(builder: (_) => const ClassroomHomeScreen());
       case '/verify-otp':
+        
         {
           final email = settings.arguments as String?;
           return MaterialPageRoute(
@@ -156,6 +157,7 @@ class MyApp extends StatelessWidget {
             assignmentId: args['assignmentId'],
             title: args['title'] ?? 'Assignment',
             classId: args['classId'],
+            isTeacher: args['isTeacher'] ?? false,
           );
         },
         '/edit-announcement': (context) {

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 // ใช้ SessionsService ให้ตรงกับส่วนอื่นของแอป
 import 'package:frontend/services/sessions_service.dart';
 import 'package:numberpicker/numberpicker.dart';
-import '../utils/location_helper.dart';
+import '../../utils/location_helper.dart';
 import 'package:frontend/services/attendance_service.dart';
 
 class TeacherOpenCheckinSheet extends StatefulWidget {

@@ -243,4 +243,39 @@ class ClassworkSimpleService {
       throw _errorFrom(res);
     }
   }
+  // =======================================
+  // ====== ASSIGNMENT COMMENTS (แชท) ======
+  // =======================================
+
+  /// ดึงคอมเมนต์ทั้งหมดของงานชิ้นนั้น
+  static Future<List<AssignmentComment>> getComments(String assignmentId) async {
+    final url = Uri.parse('$_base/assignments/$assignmentId/comments');
+    final res = await http
+        .get(url, headers: await _headersAuthOnly())
+        .timeout(_kTimeout);
+        
+    if (res.statusCode == 200) {
+      final List data = json.decode(utf8.decode(res.bodyBytes)); // ใช้ utf8 เผื่อพิมพ์ภาษาไทย
+      return data.map((e) => AssignmentComment.fromJson(e)).toList();
+    }
+    throw _errorFrom(res);
+  }
+
+  /// ส่งคอมเมนต์ใหม่
+  static Future<AssignmentComment> addComment({
+    required String assignmentId,
+    required String content,
+  }) async {
+    final url = Uri.parse('$_base/assignments/$assignmentId/comments');
+    final payload = {'content': content};
+    
+    final res = await http
+        .post(url, headers: await _headersJson(), body: json.encode(payload))
+        .timeout(_kTimeout);
+        
+    if (res.statusCode == 201 || res.statusCode == 200) {
+      return AssignmentComment.fromJson(json.decode(utf8.decode(res.bodyBytes)));
+    }
+    throw _errorFrom(res);
+  }
 }

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.user_face_sample import UserFaceSample
 from app.schemas.face_schema import FaceSampleResponse
 from uuid import UUID
-
+from datetime import datetime, timezone, timedelta # 👈 เพิ่ม timedelta และ datetime
 
 # ฟังก์ชันสำหรับประมวลผลรูปภาพและดึง face embedding
 def get_face_embedding(image_path: str) -> bytes:
@@ -48,18 +48,54 @@ def get_face_embedding(image_path: str) -> bytes:
         )
 
 
-# ฟังก์ชันสำหรับบันทึก face sample ลงฐานข้อมูล
+# 🛠️ ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน
 def create_face_sample(db: Session, user_id: UUID, image_url: str, embedding: bytes) -> FaceSampleResponse:
-    new_sample = UserFaceSample(
-        user_id=user_id,
-        image_url=image_url,
-        face_embedding=embedding
-    )
-    db.add(new_sample)
-    db.commit()
-    db.refresh(new_sample)
+    now = datetime.now(timezone.utc)
+    
+    # 1. เช็คว่ามีใบหน้าเดิมอยู่ในระบบไหม
+    existing_sample = db.query(UserFaceSample).filter(UserFaceSample.user_id == user_id).first()
 
-    return FaceSampleResponse.from_orm(new_sample)
+    if existing_sample:
+        # 2. ถ้ามีใบหน้าอยู่แล้ว ให้เช็ค Cooldown 30 วัน
+        last_updated = existing_sample.updated_at or existing_sample.created_at
+        
+        # ป้องกัน error เรื่อง timezone
+        if last_updated.tzinfo is None:
+            last_updated = last_updated.replace(tzinfo=timezone.utc)
+
+        days_since_update = (now - last_updated).days
+        
+        # 3. ถ้าเพิ่งเปลี่ยนไปไม่ถึง 30 วัน -> ดีด Error!
+        if days_since_update < 30:
+            days_left = 30 - days_since_update
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"คุณเปลี่ยนใบหน้าไปแล้ว กรุณารออีก {days_left} วันจึงจะสามารถเปลี่ยนได้อีกครั้ง"
+            )
+            
+        # 4. ถ้าเกิน 30 วันแล้ว -> อนุญาตให้อัปเดตใบหน้าใหม่ทับของเดิมได้
+        existing_sample.image_url = image_url
+        existing_sample.face_embedding = embedding
+        existing_sample.updated_at = now
+        
+        db.commit()
+        db.refresh(existing_sample)
+        return FaceSampleResponse.from_orm(existing_sample)
+
+    else:
+        # 5. ถ้ายังไม่เคยมีใบหน้าในระบบ -> สร้างใหม่เลย
+        new_sample = UserFaceSample(
+            user_id=user_id,
+            image_url=image_url,
+            face_embedding=embedding,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(new_sample)
+        db.commit()
+        db.refresh(new_sample)
+
+        return FaceSampleResponse.from_orm(new_sample)
 
 
 # ฟังก์ชันสำหรับเปรียบเทียบใบหน้า

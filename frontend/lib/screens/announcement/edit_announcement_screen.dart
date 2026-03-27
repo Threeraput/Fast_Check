@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/announcement_service.dart';
+import '../../services/announcement_service.dart';
 
 class EditAnnouncementScreen extends StatefulWidget {
   final String announcementId;

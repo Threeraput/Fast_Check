@@ -16,6 +16,9 @@ class UserFaceSample(Base):
     face_embedding = Column(LargeBinary, nullable=True) # For storing face recognition embeddings
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # 👈 เพิ่มบรรทัดนี้เข้ามา เพื่อเก็บเวลาที่มีการอัปเดตใบหน้า
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
     # Relationships
     user = relationship("User", back_populates="face_samples")
 

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../models/feed_item.dart';
-import '../screens/student_checkin_screen.dart';
+import '../screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/services/sessions_service.dart';
 import 'package:frontend/services/attendance_service.dart';
 import 'package:frontend/utils/location_helper.dart';
@@ -196,7 +197,9 @@ class _FeedCard extends StatelessWidget {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: CircularProgressIndicator(
+              color: Colors.blue,
+            )),
           );
         }
 
@@ -246,6 +249,7 @@ class _FeedCard extends StatelessWidget {
           children: [
             _HeaderRow(
               icon: Icons.access_time,
+              iconColor: Colors.blueAccent,
               title: title,
               dateText: dfTime.format(item.postedAt.toLocal()),
             ),
@@ -349,9 +353,9 @@ class _FeedCard extends StatelessWidget {
                           newEnabled
                               ? 'เปิด reverify แล้ว'
                               : 'ปิด reverify แล้ว',
-                          style: const TextStyle(color: Colors.black),
+                          
                         ),
-                        behavior: SnackBarBehavior.floating,
+                        // behavior: SnackBarBehavior.floating,
                       ),
                     );
                   }
@@ -459,16 +463,17 @@ class _HeaderRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String dateText;
+  final Color iconColor;
 
   const _HeaderRow({
     required this.icon,
     required this.title,
     required this.dateText,
+    required this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.inverseSurface;
     return Row(
       children: [
         CircleAvatar(
@@ -515,193 +520,214 @@ class _AnnouncementCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _HeaderRow(
-              icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
-              title: pinned ? '[ปักหมุด] $title' : title,
-              dateText: df.format(postedAt.toLocal()),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          // 👈 3. พอกดแล้วให้เด้งไปหน้า AnnouncementDetailScreen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AnnouncementDetailScreen(
+                announcementId: announcementId, // ต้องส่ง ID ประกาศไป
+                title: title, // ส่งชื่อเรื่อง
+                body: body, // ส่งเนื้อหา
+                postedAt: postedAt, // ส่งเวลา
+              ),
             ),
-            if (author.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'โดย: $author',
-                  style: Theme.of(context).textTheme.bodySmall,
+          ).then((_) {
+            // ถ้ารีเฟรชได้ ให้เรียกตรงนี้ครับ
+            onChanged?.call(); 
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _HeaderRow(
+                icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
+                iconColor: pinned ? Colors.red : Colors.blueGrey,
+                title: pinned ? '[ปักหมุด] $title' : title,
+                dateText: df.format(postedAt.toLocal()),
+              ),
+              if (author.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'โดย: $author',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
-              ),
-            if (body.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(body),
-              ),
-            if (expiresAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'หมดอายุ: ${df.format(expiresAt!.toLocal())}',
-                  style: Theme.of(context).textTheme.bodySmall,
+              if (body.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(body),
                 ),
-              ),
-
-            // 🔹 เพิ่มเมนู 3 จุด สำหรับครูเท่านั้น
-            if (isTeacher)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.grey),
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        // ---------- ฟังก์ชันแก้ไข ----------
-                        final titleCtrl = TextEditingController(text: title);
-                        final bodyCtrl = TextEditingController(text: body);
-
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('แก้ไขประกาศ'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextField(
-                                  controller: titleCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: 'หัวข้อ',
+              if (expiresAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'หมดอายุ: ${df.format(expiresAt!.toLocal())}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+        
+              // 🔹 เพิ่มเมนู 3 จุด สำหรับครูเท่านั้น
+              if (isTeacher)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.grey),
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          // ---------- ฟังก์ชันแก้ไข ----------
+                          final titleCtrl = TextEditingController(text: title);
+                          final bodyCtrl = TextEditingController(text: body);
+        
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('แก้ไขประกาศ'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    controller: titleCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'หัวข้อ',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: bodyCtrl,
+                                    maxLines: 4,
+                                    decoration: const InputDecoration(
+                                      labelText: 'เนื้อหา',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text(
+                                    'ยกเลิก',
+                                    style: TextStyle(color: Colors.grey),
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: bodyCtrl,
-                                  maxLines: 4,
-                                  decoration: const InputDecoration(
-                                    labelText: 'เนื้อหา',
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blueAccent,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('บันทึก'),
+                                ),
+                              ],
+                            ),
+                          );
+        
+                          if (ok == true) {
+                            try {
+                              await AnnouncementService.update(
+                                announcementId: announcementId,
+                                title: titleCtrl.text,
+                                body: bodyCtrl.text,
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('อัปเดตประกาศสำเร็จ'),
+                                  ),
+                                );
+                              }
+                              onChanged?.call();
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('อัปเดตไม่สำเร็จ: $e')),
+                                );
+                              }
+                            }
+                          }
+                        } else if (value == 'delete') {
+                          // ---------- ฟังก์ชันลบ ----------
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('ยืนยันการลบ'),
+                              content: const Text(
+                                'คุณแน่ใจหรือไม่ว่าจะลบประกาศนี้?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text(
+                                    'ยกเลิก',
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text(
+                                    'ลบ',
+                                    style: TextStyle(color: Colors.white),
                                   ),
                                 ),
                               ],
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text(
-                                  'ยกเลิก',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent,
-                                ),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('บันทึก'),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (ok == true) {
-                          try {
-                            await AnnouncementService.update(
-                              announcementId: announcementId,
-                              title: titleCtrl.text,
-                              body: bodyCtrl.text,
-                            );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('อัปเดตประกาศสำเร็จ'),
-                                ),
-                              );
-                            }
-                            onChanged?.call();
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('อัปเดตไม่สำเร็จ: $e')),
-                              );
+                          );
+        
+                          if (ok == true) {
+                            try {
+                              await AnnouncementService.delete(announcementId);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('ลบประกาศสำเร็จ')),
+                                );
+                              }
+                              onChanged?.call();
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
+                                );
+                              }
                             }
                           }
                         }
-                      } else if (value == 'delete') {
-                        // ---------- ฟังก์ชันลบ ----------
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('ยืนยันการลบ'),
-                            content: const Text(
-                              'คุณแน่ใจหรือไม่ว่าจะลบประกาศนี้?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text(
-                                  'ยกเลิก',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text(
-                                  'ลบ',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, color: Colors.blueAccent),
+                              SizedBox(width: 8),
+                              Text('แก้ไข'),
                             ],
                           ),
-                        );
-
-                        if (ok == true) {
-                          try {
-                            await AnnouncementService.delete(announcementId);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('ลบประกาศสำเร็จ')),
-                              );
-                            }
-                            onChanged?.call();
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
-                              );
-                            }
-                          }
-                        }
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, color: Colors.blueAccent),
-                            SizedBox(width: 8),
-                            Text('แก้ไข'),
-                          ],
                         ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('ลบ'),
-                          ],
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('ลบ'),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

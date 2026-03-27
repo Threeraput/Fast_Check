@@ -145,8 +145,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     final df = DateFormat('dd MMM yyyy HH:mm');
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: Text('ประกาศ • ${widget.className}'),
+      appBar: AppBar( 
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black87,
@@ -365,7 +364,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: Colors.blue,
+                              strokeWidth: 2),
                           ),
                           SizedBox(width: 8),
                           Text(

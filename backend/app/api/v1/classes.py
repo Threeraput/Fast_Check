@@ -1,7 +1,7 @@
 import uuid
 from typing import List, Iterable, Set, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Path, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Path, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -69,6 +69,9 @@ def _serialize_classroom(obj) -> ClassroomResponse:
         "created_at": getattr(obj, "created_at", None),
         "teacher": _user_payload(getattr(obj, "teacher", None)),
         "students": [_user_payload(s) for s in _safe_list(getattr(obj, "students", []))],
+
+        # 👉 สิ่งที่คุณต้องพิมพ์เพิ่มเข้าไปคือบรรทัดนี้ครับ!
+        "is_archived": getattr(obj, "is_archived", False),
     }
     return ClassroomResponse.model_validate(payload)
 
@@ -107,6 +110,8 @@ async def create_classroom(
 # ------------------------------------
 @router.get("/taught", response_model=List[ClassroomResponse])
 async def get_taught_classes(
+    # 👉 1. เพิ่มบรรทัดนี้เข้าไป เพื่อรับค่าจากหน้าบ้าน
+    is_archived: bool = Query(False, description="ดึงห้องเรียนที่ถูกซ่อนหรือไม่"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -115,7 +120,9 @@ async def get_taught_classes(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied. You are not authorized as a teacher/admin.",
         )
-    classes = class_service.get_taught_classes(db, current_user.user_id)
+    # classes = class_service.get_taught_classes(db, current_user.user_id)
+    # 👉 2. ส่งค่า is_archived ต่อไปให้ class_service
+    classes = class_service.get_taught_classes(db, current_user.user_id, is_archived=is_archived)
     return _serialize_classroom_list(classes)
 
 
@@ -209,6 +216,26 @@ async def delete_classroom(
         is_admin=is_admin,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ------------------------------------
+# 6.2 PATCH /classes/{class_id}/restore - กู้คืนห้องเรียน
+# ------------------------------------
+@router.patch("/{class_id}/restore", response_model=ClassroomResponse)
+async def restore_classroom_api(
+    class_id: uuid.UUID = Path(..., description="UUID of the classroom to restore"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """กู้คืนห้องเรียนที่ถูกซ่อนไว้ให้กลับมาใช้งานได้ปกติ"""
+    is_admin = _has_any_role(current_user, {"admin"})
+    
+    restored_class = class_service.restore_classroom(
+        db=db, 
+        class_id=class_id, 
+        user_id=current_user.user_id, 
+        is_admin=is_admin
+    )
+    return _serialize_classroom(restored_class)
 
 
 # ------------------------------------
@@ -305,4 +332,5 @@ def get_class_members_for_members(
         code=getattr(cls, "code", None),
         teacher=UserPublic.model_validate(teacher_payload),
         students=[UserPublic.model_validate(p) for p in students_payload],
+        is_archived=getattr(cls, "is_archived", False),
     )

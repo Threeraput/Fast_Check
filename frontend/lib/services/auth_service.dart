@@ -203,4 +203,6 @@ class AuthService {
       throw Exception('Failed to approve teacher: $e');
     }
   }
+
+  static Future getCurrentUser() async {}
 }

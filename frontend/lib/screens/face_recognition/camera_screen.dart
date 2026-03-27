@@ -2,10 +2,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/image_utils.dart';
-import '../services/face_service.dart';
-import '../services/face_service.dart' show ApiException;
-import 'classroom_home_screen.dart';
+import '../../utils/image_utils.dart';
+import '../../services/face_service.dart';
+import '../../services/face_service.dart' show ApiException;
+import '../classroom/classroom_home_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -349,15 +349,19 @@ Future<void> _captureAndProcess() async {
       appBar: AppBar(title: Text(appBarTitle),
         backgroundColor: Colors.transparent, // ✅ โปร่งใส
         elevation: 0, // ✅ ตัดเงาออก
-        foregroundColor: Colors.black, // ✅ เปลี่ยนสีไอคอนเป็นดำ
+        foregroundColor: Colors.white, // ✅ เปลี่ยนสีไอคอนเป็นดำ
       ),
       body: controller == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(
+            color: Colors.blue,
+          ))
           : FutureBuilder<void>(
               future: _initializeControllerFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator(
+                    color: Colors.blue,
+                  ));
                 }
 
                 if (!_consentGiven && !widget.isVerificationMode) {

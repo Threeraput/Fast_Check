@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
-from app.models.announcement import Announcement
+from app.models.announcement import Announcement, AnnouncementComment
 from app.models.class_model import Class as ClassModel
 from fastapi import HTTPException as ApiException
 from app.services.simple_classwork_service import _ensure_teacher_of_class
@@ -95,3 +95,40 @@ def delete_announcement(
     _ = _ensure_teacher_of_class(db, teacher_id=teacher_id, class_id=ann.class_id)
     db.delete(ann)
     db.commit()
+
+# ==========================================
+# ระบบคอมเมนต์ประกาศ (Announcement Comments)
+# ==========================================
+
+def create_announcement_comment(
+    db: Session, 
+    announcement_id: UUID, 
+    user_id: UUID, 
+    content: str
+) -> AnnouncementComment:
+    """
+    สร้างคอมเมนต์ใหม่ในประกาศ
+    """
+    new_comment = AnnouncementComment(
+        announcement_id=announcement_id,
+        user_id=user_id,
+        content=content
+    )
+    db.add(new_comment)
+    db.commit()
+    db.refresh(new_comment)
+    return new_comment
+
+def get_announcement_comments(
+    db: Session, 
+    announcement_id: UUID
+) -> List[AnnouncementComment]:
+    """
+    ดึงคอมเมนต์ทั้งหมดของประกาศนั้น (เรียงจากเก่าไปใหม่)
+    """
+    return (
+        db.query(AnnouncementComment)
+        .filter(AnnouncementComment.announcement_id == announcement_id)
+        .order_by(AnnouncementComment.created_at.asc())
+        .all()
+    )

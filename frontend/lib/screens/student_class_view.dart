@@ -7,9 +7,9 @@ import 'package:frontend/widgets/active_sessions_banner.dart';
 import 'package:frontend/utils/location_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/attendance_service.dart';
-import 'package:frontend/screens/student_checkin_screen.dart';
-import 'package:frontend/screens/classroom_home_screen.dart';
-import 'package:frontend/screens/student_report_tab.dart';
+import 'package:frontend/screens/attendance/student_checkin_screen.dart';
+import 'package:frontend/screens/classroom/classroom_home_screen.dart';
+import 'package:frontend/screens/attendance/student_report_tab.dart';
 
 // Added for People tab (fetching class members)
 import 'package:frontend/services/class_service.dart';
@@ -190,7 +190,9 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: CircularProgressIndicator(
+                    color: Colors.blue,
+                  )),
                 );
               }
               if (snap.hasError) {
@@ -265,7 +267,9 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: CircularProgressIndicator(
+                    color: Colors.blue,
+                  )),
                 );
               }
               if (snap.hasError) {

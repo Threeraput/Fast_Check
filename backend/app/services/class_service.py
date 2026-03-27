@@ -124,24 +124,25 @@ def create_classroom(
     )
 
 
-def get_taught_classes(db: Session, teacher_id: uuid.UUID) -> List[ClassModel]:
+def get_taught_classes(db: Session, teacher_id: uuid.UUID, is_archived: bool = False) -> List[ClassModel]:
     """
     ดึงรายการห้องเรียนที่อาจารย์คนนี้สอนทั้งหมด
     - Eager-load ความสัมพันธ์เพื่อลด N+1 (teacher, teacher.roles, students, students.roles)
     """
     stmt = (
         select(ClassModel)
-        .where(ClassModel.teacher_id == teacher_id)
+        .where(
+            and_(
+                ClassModel.teacher_id == teacher_id,
+                ClassModel.is_archived == is_archived # กรองสถานะห้องเรียน
+            )
+        )
         .options(
             selectinload(ClassModel.teacher).selectinload(ClassModel.teacher.property.mapper.class_.roles),  # type: ignore
-            selectinload(ClassModel.students),  # ถ้า students เป็น relationship ไป User
+            selectinload(ClassModel.students),  
         )
     )
-    # หมายเหตุ:
-    # บรรทัด selectinload(...) อาจต้องแก้ให้ตรงกับโมเดลจริง:
-    #   selectinload(ClassModel.teacher).selectinload(User.roles)
-    #   selectinload(ClassModel.students).selectinload(User.roles)
-    # ขึ้นอยู่กับการประกาศ relationship ในโมเดลของคุณ
+    
     classes = db.scalars(stmt).all()
     return classes
 
@@ -155,8 +156,18 @@ def assign_student_to_class(db: Session, student_id: uuid.UUID, code: str):
     """
     code = (code or "").strip()
 
+    #
+    #classroom: Optional[ClassModel] = db.execute(
+        #select(ClassModel).where(ClassModel.code == code)
+    #).scalar_one_or_none()
+    
     classroom: Optional[ClassModel] = db.execute(
-        select(ClassModel).where(ClassModel.code == code)
+        select(ClassModel).where(
+            and_(
+                ClassModel.code == code,
+                ClassModel.is_archived == False # เพิ่มบรรทัดนี้ เพื่อเช็คว่าห้องยังเปิดอยู่
+            )
+        )
     ).scalar_one_or_none()
 
     if not classroom:
@@ -291,10 +302,9 @@ def delete_classroom(
     db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool
 ) -> None:
     """
-    ลบห้องเรียน (hard delete)
+    ซ่อนห้องเรียน (Soft delete) 
+    - เปลี่ยนสถานะ is_archived = True แทนการลบข้อมูลจริงๆ
     - เฉพาะอาจารย์เจ้าของคลาสหรือแอดมินเท่านั้น
-    - ลบแถวในตารางเชื่อม class_students ก่อน เพื่อลดโอกาสติด FK
-    - ถ้าโครงสร้าง DB มี ON DELETE CASCADE อยู่แล้ว การลบ class_students อาจไม่จำเป็น
     """
     # 1) หา class
     classroom = db.execute(
@@ -314,34 +324,46 @@ def delete_classroom(
         )
 
     try:
-        # 3) ลบความสัมพันธ์ในตารางเชื่อมก่อน (กันกรณีไม่มี ON DELETE CASCADE)
-        db.execute(class_students.delete().where(class_students.c.class_id == class_id))
-
-        # 4) (ถ้ามีตารางลูกอื่น ๆ เช่น assignments/submissions และยังไม่มี cascade)
-        #    คุณสามารถลบด้วยมือที่นี่ก่อน db.delete(classroom) ตามลำดับลึกสุด → ตื้น
-        #    ตัวอย่าง (คอมเมนต์ไว้เพราะขึ้นกับโมเดลจริง):
-        # for assignment in list(getattr(classroom, "assignments", []) or []):
-        #     # ถ้ามี submissions และไม่มี cascade ก็ลบ submissions ก่อน
-        #     for sub in list(getattr(assignment, "submissions", []) or []):
-        #         db.delete(sub)
-        #     db.delete(assignment)
-
-        # 5) ลบตัวคลาส
-        db.delete(classroom)
+        # 3) ทำ Soft Delete โดยการปรับค่า is_archived เป็น True (แทนการใช้ db.delete)
+        classroom.is_archived = True
+        
+        db.add(classroom)
         db.commit()
 
-    except IntegrityError:
+    except Exception as e:
         db.rollback()
-        # ยังมีระเบียนลูกอื่นที่ผูกอยู่ (เช่น assignments/submissions) และไม่มี CASCADE
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete classroom due to related records. Remove related objects or enable ON DELETE CASCADE.",
-        )
-    except Exception:
-        db.rollback()
+        print(f"Error archiving class: {e}") # ปริ้นท์ error เผื่อไว้ดูใน Terminal
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete classroom.",
+            detail="Failed to archive classroom."
+        )
+
+def restore_classroom(db: Session, class_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool) -> ClassModel:
+    """
+    กู้คืนห้องเรียน (Unarchive)
+    - เปลี่ยนสถานะ is_archived = False
+    """
+    classroom = db.execute(
+        select(ClassModel).where(ClassModel.class_id == class_id)
+    ).scalar_one_or_none()
+
+    if not classroom:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found.")
+
+    if not is_admin and classroom.teacher_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to restore this classroom.")
+
+    try:
+        # ไฮไลท์หลักอยู่ตรงนี้ครับ: เปลี่ยนค่ากลับเป็น False
+        classroom.is_archived = False
+        
+        db.add(classroom)
+        db.commit()
+        db.refresh(classroom)
+        return classroom
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restore classroom."
         )
 
 
@@ -366,4 +388,10 @@ def get_enrolled_classes(db: Session, student_id: uuid.UUID):
     student = db.query(User).filter(User.user_id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
-    return student.enrolled_classes  # จาก relationship ใน model
+        
+    # กรองเอาเฉพาะห้องที่ยังไม่ถูกซ่อน (is_archived == False) ส่งกลับไปให้นักเรียน
+    active_classes = [c for c in student.enrolled_classes if getattr(c, 'is_archived', False) == False]
+    
+    return active_classes
+
+

@@ -49,6 +49,9 @@ class ClassroomResponseBase(BaseModel):
     created_at: Optional[datetime] = None
     description: Optional[str] = None
 
+    # เพิ่มบรรทัดนี้ เพื่อส่งสถานะการซ่อนกลับไปให้ Flutter
+    is_archived: bool
+
 
 class ClassroomResponse(ClassroomResponseBase):
     model_config = ConfigDict(from_attributes=True)
@@ -65,3 +68,6 @@ class ClassMembersResponse(BaseModel):
     code: Optional[str] = None
     teacher: UserPublic
     students: List[UserPublic] = Field(default_factory=list)
+
+    # เพิ่มบรรทัดนี้ เพื่อส่งสถานะการซ่อนกลับไปให้ Flutter
+    is_archived: bool

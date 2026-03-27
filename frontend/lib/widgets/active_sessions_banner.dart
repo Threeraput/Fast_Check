@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/screens/student_class_view.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/attendance_service.dart';
-import 'package:frontend/screens/student_checkin_screen.dart';
+import 'package:frontend/screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/utils/location_helper.dart';
 import 'package:frontend/services/sessions_service.dart';
 
@@ -67,7 +67,9 @@ class _ActiveSessionsBannerState extends State<ActiveSessionsBanner> {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: CircularProgressIndicator(
+              color: Colors.blue,
+            )),
           );
         }
         if (snap.hasError) {
@@ -197,9 +199,9 @@ class _SessionRow extends StatelessWidget {
                                         
                                           ? 'เปิด reverify แล้ว'
                                           : 'ปิด reverify แล้ว',
-                                      style: const TextStyle(color: Colors.black),
+                                      
                                     ),
-                                   behavior: SnackBarBehavior.floating, // ทำให้มันลอยสวยขึ้น (optional)
+                                  //  behavior: SnackBarBehavior.floating, // ทำให้มันลอยสวยขึ้น (optional)
                                   ),
                                 );
                               }

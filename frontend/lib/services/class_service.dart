@@ -45,8 +45,12 @@ class ClassService {
   }
 
   /// 2) GET /classes/taught (ห้องเรียนที่สอน)
-  static Future<List<Classroom>> getTaughtClasses() async {
-    final url = Uri.parse('$API_BASE_URL/classes/taught');
+  // 👉 1. เพิ่มพารามิเตอร์ {bool isArchived = false} เข้ามา
+  static Future<List<Classroom>> getTaughtClasses({bool isArchived = false}) async {
+    // final url = Uri.parse('$API_BASE_URL/classes/taught');
+    
+    // 👉 2. เติม ?is_archived=$isArchived ต่อท้าย URL
+    final url = Uri.parse('$API_BASE_URL/classes/taught?is_archived=$isArchived');
     final res = await http.get(url, headers: await _headers());
     if (res.statusCode == 200) {
       final list = (json.decode(res.body) as List).cast<dynamic>();
@@ -54,6 +58,17 @@ class ClassService {
           .map((e) => Classroom.fromJson(e as Map<String, dynamic>))
           .toList();
     }
+    throw _errorFrom(res);
+  }
+
+  /// 11) PATCH /classes/{class_id}/restore (กู้คืนห้องเรียน)
+  static Future<void> restoreClassroom(String classId) async {
+    final url = Uri.parse('$API_BASE_URL/classes/$classId/restore');
+    
+    // ใช้ http.patch เพราะเราแค่เข้าไปอัปเดตข้อมูลบางส่วน
+    final res = await http.patch(url, headers: await _headers());
+    
+    if (res.statusCode == 200) return; // สำเร็จ
     throw _errorFrom(res);
   }
 

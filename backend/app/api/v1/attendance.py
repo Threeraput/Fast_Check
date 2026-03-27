@@ -50,6 +50,7 @@ def _normalize_image_bytes(raw: bytes) -> bytes:
 REVERIFY_MIN_SIMILARITY = 0.25
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
+logger = logging.getLogger(__name__)
 
 
 

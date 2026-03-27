@@ -33,3 +33,35 @@ class AnnouncementResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ==========================================
+# ส่วนที่เพิ่มใหม่: Schemas สำหรับคอมเมนต์ประกาศ
+# ==========================================
+
+class AnnouncementCommentCreate(BaseModel):
+    """ข้อมูลที่รับเข้ามาตอนสร้างคอมเมนต์ในประกาศ"""
+    content: str = Field(..., description="เนื้อหาคอมเมนต์")
+
+class AnnouncementCommentUserMini(BaseModel):
+    """ข้อมูลย่อของผู้ใช้ (เอาไว้แสดงชื่อคนพิมพ์คอมเมนต์)"""
+    user_id: UUID
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class AnnouncementCommentResponse(BaseModel):
+    """ข้อมูลคอมเมนต์ที่จะส่งกลับไปให้ Flutter"""
+    comment_id: UUID
+    announcement_id: UUID
+    user_id: UUID
+    content: str
+    created_at: datetime
+    updated_at: datetime
+    
+    # แนบข้อมูลคนพิมพ์มาด้วย (หน้าบ้านจะได้ไม่ต้องไปดึง API ซ้ำ)
+    user: Optional[AnnouncementCommentUserMini] = None 
+
+    class Config:
+        from_attributes = True

@@ -32,7 +32,9 @@ class _AddAssignmentButtonState extends State<AddAssignmentButton> {
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  color: Colors.blue,
+                  strokeWidth: 2),
               )
             : const Icon(Icons.assignment_ind_outlined),
         onPressed: _busy ? null : _openCreateDialog,
@@ -138,7 +140,9 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: Colors.blue,
+                    strokeWidth: 2),
                 )
               : const Text('สร้างงาน'),
         ),

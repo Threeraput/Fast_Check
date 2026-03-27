@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../models/users.dart';
+import '../../services/auth_service.dart';
+import '../../models/users.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
 class RegisterScreen extends StatefulWidget {

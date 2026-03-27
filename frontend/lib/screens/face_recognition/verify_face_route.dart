@@ -48,7 +48,9 @@ class _VerifyFaceRouteState extends State<VerifyFaceRoute> {
       );
     }
     if (_camera == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator(
+        color: Colors.blue,
+      )));
     }
 
     final isReverify = widget.isReverifyMode;
