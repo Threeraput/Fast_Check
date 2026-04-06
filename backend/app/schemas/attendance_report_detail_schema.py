@@ -22,7 +22,7 @@ class AttendanceReportDetailResponse(BaseModel):
     def assemble_image_url(cls, v):
         #  ต่อ URL ให้สมบูรณ์เพื่อให้แอปโหลดรูปขึ้น (เปลี่ยน IP เป็นของคุณ)
         if v and isinstance(v, str) and not v.startswith("http"):
-            base_url = "http://10.51.151.125:8000"
+            base_url = "http://192.168.1.42:8000"
             return f"{base_url}/{v}"
         return v
 
