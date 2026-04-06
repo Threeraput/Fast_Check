@@ -18,7 +18,7 @@ class TeacherLocation(Base):
     latitude = Column(Numeric(9, 6), nullable=False)
     longitude = Column(Numeric(9, 6), nullable=False)
     timestamp = Column(DateTime(timezone=True), default=func.now())
-   
+
     #relationships
     teacher = relationship("User", back_populates="location_updates")
     classroom = relationship("Class", back_populates="teacher_location_logs")

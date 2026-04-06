@@ -8,13 +8,19 @@ from app.database import get_db
 from app.core.deps import get_current_user, role_required
 from app.models.user import User
 from app.schemas.announcement_schema import (
-    AnnouncementCreate, AnnouncementUpdate, AnnouncementResponse,
-    AnnouncementCommentCreate, AnnouncementCommentResponse #  เติม 2 ตัวนี้
+    AnnouncementCreate,
+    AnnouncementUpdate,
+    AnnouncementResponse,
+    AnnouncementCommentCreate,
+    AnnouncementCommentResponse,  #  เติม 2 ตัวนี้
 )
 from app.services.announcement_service import (
-    create_announcement, list_announcements_for_class,
-    update_announcement, delete_announcement,
-    create_announcement_comment, get_announcement_comments #  เติม 2 ตัวนี้
+    create_announcement,
+    list_announcements_for_class,
+    update_announcement,
+    delete_announcement,
+    create_announcement_comment,
+    get_announcement_comments,  #  เติม 2 ตัวนี้
 )
 
 router = APIRouter(prefix="/announcements", tags=["Announcements"])
@@ -99,39 +105,41 @@ def delete_announcement_route(
     delete_announcement(db, teacher_id=me.user_id, announcement_id=announcement_id)
     return
 
+
 # ==========================================
 # ระบบคอมเมนต์ประกาศ (Announcement Comments)
 # ==========================================
 
+
 # ทั้งครู/นักเรียน คอมเมนต์ประกาศได้
-@router.post("/{announcement_id}/comments", 
-             response_model=AnnouncementCommentResponse,
-             status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{announcement_id}/comments",
+    response_model=AnnouncementCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_announcement_comment(
     announcement_id: UUID,
     payload: AnnouncementCommentCreate,
     db: Session = Depends(get_db),
-    me: User = Depends(get_current_user), # ไม่บังคับ role เพื่อให้เด็กพิมพ์ตอบได้
+    me: User = Depends(get_current_user),  # ไม่บังคับ role เพื่อให้เด็กพิมพ์ตอบได้
 ):
     new_comment = create_announcement_comment(
         db=db,
         announcement_id=announcement_id,
         user_id=me.user_id,
-        content=payload.content
+        content=payload.content,
     )
     return new_comment
 
 
 # ดึงคอมเมนต์ของประกาศชิ้นนั้น
-@router.get("/{announcement_id}/comments", 
-            response_model=List[AnnouncementCommentResponse])
+@router.get(
+    "/{announcement_id}/comments", response_model=List[AnnouncementCommentResponse]
+)
 def get_announcement_comments_route(
     announcement_id: UUID,
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
-    comments = get_announcement_comments(
-        db=db, 
-        announcement_id=announcement_id
-    )
+    comments = get_announcement_comments(db=db, announcement_id=announcement_id)
     return comments
