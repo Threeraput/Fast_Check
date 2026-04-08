@@ -2,6 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 from uuid import UUID
+from app.core.config import settings
 
 
 class AttendanceReportDetailResponse(BaseModel):
@@ -22,7 +23,7 @@ class AttendanceReportDetailResponse(BaseModel):
     def assemble_image_url(cls, v):
         #  ต่อ URL ให้สมบูรณ์เพื่อให้แอปโหลดรูปขึ้น (เปลี่ยน IP เป็นของคุณ)
         if v and isinstance(v, str) and not v.startswith("http"):
-            base_url = "http://192.168.1.42:8000"
+            base_url = f"http://{settings.BACKEND_IP}:8000"
             return f"{base_url}/{v}"
         return v
 

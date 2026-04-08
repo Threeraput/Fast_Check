@@ -9,6 +9,10 @@ load_dotenv() # โหลด environment variables จาก .env
 class Settings(BaseSettings):
     # Core Database Setting
     DATABASE_URL: str
+    # IP Address ของ Backend Server (สำหรับการเชื่อมต่อจาก Frontend)
+    BACKEND_IP: str
+    # Firebase Admin SDK Credentials 
+    FIREBASE_CREDENTIALS_FILE: str = "firebase-adminsdk.json"
 
     # JWT Authentication Settings
     SECRET_KEY: str
@@ -21,7 +25,7 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = "your-default-bucket-name"
 
-     # Email settings
+    # Email settings
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str
