@@ -23,6 +23,7 @@ from app.api.v1 import classwork_simple
 from app.api.v1 import attendance_report
 from app.api.v1 import attendance_report_detail
 from pathlib import Path
+from app.core.config import settings
 
 
 MEDIA_ROOT = Path("media")
@@ -94,17 +95,17 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ----- CORS & routers เหมือนเดิม -----
+# ----- CORS & routers ปรับตาม .env -----
 origins = [
     "http://localhost",
     "http://localhost:8000",
     "http://127.0.0.1",
-    "http://127.0.0.1:5000",
-    "http://127.0.0.1:5500",
-    "http://10.51.151.125:8000",
+    f"http://{settings.BACKEND_IP}:8000",
     "file://",
     "null",
 ]
+
+origins.append(f"http://{settings.BACKEND_IP}")
 
 app.add_middleware(
     CORSMiddleware,

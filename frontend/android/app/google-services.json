@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "15265354217",
+    "project_id": "fastcheck-efddd",
+    "storage_bucket": "fastcheck-efddd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:15265354217:android:881b673bc9677ffeba7b78",
+        "android_client_info": {
+          "package_name": "com.fastcheck.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDul1uf_EyWsbZbQa66SHcA3eaqMmALKJ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
