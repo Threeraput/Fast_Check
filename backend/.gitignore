@@ -1,0 +1,21 @@
+# Virtual Environment
+.venv
+
+# Python environment files
+.env
+firebase-adminsdk.json
+
+# โฟลเดอร์เก็บไฟล์อัปโหลดและรูปภาพ
+uploads/
+media/
+workpdf/
+
+# Python bytecode
+*.pyc
+__pycache__/
+
+# IDE specific files
+.idea/                  # PyCharm
+.vscode/                # VS Code
+*.sublime-project       # Sublime Text
+*.sublime-workspace     # Sublime Text

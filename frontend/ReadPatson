@@ -1,0 +1,13 @@
+TextField(
+  controller: _usernameController, // กำหนดตัวควบคุมสำหรับรับค่าที่ผู้ใช้กรอก
+  decoration: InputDecoration(
+  prefixIcon: const Icon(Icons.person), //ใส่ไอคอน
+  labelText: 'Your Email', //ข้อความที่เเสดง
+  border: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(12),
+        ), // OutlineInputBorder
+      ), // InputDecoration
+    ), // TextField
+const SizedBox(height: 16), //เอาไว้เว้นช่อง
+
+** obscureText: true, // เอาไว้ซ่อนรหัสให้เห็น ●●●
