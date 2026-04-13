@@ -4,7 +4,18 @@ import logging
 import io
 from uuid import UUID
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response, Path, Body, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    UploadFile,
+    File,
+    Response,
+    Path,
+    Body,
+    Query,
+)
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -21,17 +32,27 @@ from app.schemas.attendance_schema import (
     StudentLocationLogCreate,
     AttendanceManualOverride,
     ReverifyRequest,
+    SilentLocationUpdate,
 )
 from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
 from app.core.deps import get_current_user, role_required
-from app.services.attendance_service import record_check_in, handle_reverification, manual_override_attendance
-from app.services.location_service import update_teacher_location_log, log_student_location
+from app.services.attendance_service import (
+    record_check_in,
+    handle_reverification,
+    manual_override_attendance,
+    handle_silent_location_update,
+)
+from app.services.location_service import (
+    update_teacher_location_log,
+    log_student_location,
+)
 from app.services.face_recognition_service import get_face_embedding, compare_faces
 from datetime import datetime, timezone
 
 # ---------- NEW: ช่วยจัด EXIF orientation เพื่อลด false reject ----------
 from PIL import Image, ImageOps
+
 
 def _normalize_image_bytes(raw: bytes) -> bytes:
     """แก้ EXIF orientation + บังคับ RGB -> bytes (JPEG)"""
@@ -47,11 +68,11 @@ def _normalize_image_bytes(raw: bytes) -> bytes:
         # ถ้าจัดการไม่ได้ ให้ใช้ raw เดิม
         return raw
 
+
 REVERIFY_MIN_SIMILARITY = 0.25
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 logger = logging.getLogger(__name__)
-
 
 
 def _has_role(user: User, role_name: str) -> bool:
@@ -75,7 +96,9 @@ async def check_in(
         raise HTTPException(status_code=403, detail="Only students can check in.")
 
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Only images are allowed."
+        )
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
@@ -91,7 +114,9 @@ async def check_in(
         )
         return attendance_record
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"internal_error: {e}")
 
@@ -106,7 +131,9 @@ async def update_teacher_location(
     current_user: User = Depends(get_current_user),
 ):
     if not _has_role(current_user, "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers can update their location.")
+        raise HTTPException(
+            status_code=403, detail="Only teachers can update their location."
+        )
 
     try:
         update_teacher_location_log(
@@ -118,7 +145,9 @@ async def update_teacher_location(
         )
         return {"message": "Teacher location updated successfully."}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 # ------------------------------------
@@ -143,7 +172,9 @@ async def track_student_location(
         )
         return {"message": "Student location logged successfully."}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 # ------------------------------------
@@ -162,23 +193,28 @@ async def re_verify_check_in(
 
     # ✅ ตรวจไฟล์รูป
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Only images are allowed."
+        )
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
 
-
     # ✅ ตรวจว่าผู้ใช้มี Face Sample หรือไม่
     try:
-        has_sample = db.query(UserFaceSample).filter(
-            UserFaceSample.user_id == current_user.user_id
-        ).limit(1).count() > 0
+        has_sample = (
+            db.query(UserFaceSample)
+            .filter(UserFaceSample.user_id == current_user.user_id)
+            .limit(1)
+            .count()
+            > 0
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"database_error: {e}")
     if not has_sample:
         raise HTTPException(
             status_code=404,
-            detail="No face samples found for this user. Please register your face first."
+            detail="No face samples found for this user. Please register your face first.",
         )
 
     # ✅ ใช้ logic เดียวกับ check-in
@@ -196,7 +232,9 @@ async def re_verify_check_in(
 
     # ✅ ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
     if not matched:
-        raise HTTPException(status_code=403, detail="Face verification failed for this user.")
+        raise HTTPException(
+            status_code=403, detail="Face verification failed for this user."
+        )
 
     # ✅ ถ้าผ่าน ให้เรียก handle_reverification
     try:
@@ -213,7 +251,9 @@ async def re_verify_check_in(
         except Exception:
             return AttendanceResponse.from_orm(result)
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -225,7 +265,9 @@ async def re_verify_check_in(
 # ------------------------------------
 @router.patch("/override/{attendance_id}", response_model=AttendanceResponse)
 async def override_attendance_status(
-    attendance_id: uuid.UUID = Path(..., description="UUID of the attendance record to override"),
+    attendance_id: uuid.UUID = Path(
+        ..., description="UUID of the attendance record to override"
+    ),
     override_data: AttendanceManualOverride = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -247,7 +289,10 @@ async def override_attendance_status(
         if not att:
             raise HTTPException(status_code=404, detail="Attendance not found.")
         if att.class_rel.teacher_id != current_user.user_id:
-            raise HTTPException(status_code=403, detail="You can only modify attendance for your own class.")
+            raise HTTPException(
+                status_code=403,
+                detail="You can only modify attendance for your own class.",
+            )
 
     try:
         record = manual_override_attendance(
@@ -261,7 +306,9 @@ async def override_attendance_status(
         except Exception:
             return AttendanceResponse.from_orm(record)
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 @router.get("/sessions/active", response_model=List[SessionResponse])
@@ -293,7 +340,9 @@ def toggle_reverify(req: ToggleReverifyRequest, db: Session = Depends(get_db)):
         return ToggleReverifyResponse(ok=True, reverify_enabled=s.reverify_enabled)
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 @router.get("/my-status")
@@ -304,7 +353,9 @@ def my_status(
 ):
     att = (
         db.query(Attendance)
-        .filter(Attendance.session_id == session_id, Attendance.student_id == me.user_id)
+        .filter(
+            Attendance.session_id == session_id, Attendance.student_id == me.user_id
+        )
         .first()
     )
     if not att:
@@ -314,7 +365,11 @@ def my_status(
         "has_checked_in": True,
         "attendance_id": str(att.attendance_id),
         "status": getattr(att, "status", None),
-        "checked_at": getattr(att, "check_in_time", None).isoformat() if getattr(att, "check_in_time", None) else None,
+        "checked_at": (
+            getattr(att, "check_in_time", None).isoformat()
+            if getattr(att, "check_in_time", None)
+            else None
+        ),
     }
 
 
@@ -326,7 +381,10 @@ def get_is_reverified(
 ):
     record = (
         db.query(Attendance)
-        .filter(Attendance.session_id == session_id, Attendance.student_id == current_user.user_id)
+        .filter(
+            Attendance.session_id == session_id,
+            Attendance.student_id == current_user.user_id,
+        )
         .first()
     )
     if not record:
@@ -335,8 +393,61 @@ def get_is_reverified(
     return {"session_id": str(session_id), "is_reverified": record.is_reverified}
 
 
-@router.post("/session/{session_id}/finalize", dependencies=[Depends(role_required(["teacher"]))])
+@router.post(
+    "/session/{session_id}/finalize", dependencies=[Depends(role_required(["teacher"]))]
+)
 def finalize_session(session_id: UUID, db: Session = Depends(get_db)):
     from app.services.session_finalizer_service import handle_finalize_session
+
     handle_finalize_session(db, session_id)
     return {"detail": "Session finalized successfully"}
+
+
+# ==========================================
+# API ลับสำหรับฟีเจอร์  (Silent check)
+# ==========================================
+@router.post(
+    "/silent-check", summary="รับพิกัดเบื้องหลังจากระบบสุ่มตรวจ", status_code=status.HTTP_200_OK
+)
+def silent_check_location(
+    data: SilentLocationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    API ลับสำหรับแอปมือถือเพื่อส่งพิกัดมาแบบเงียบๆ เมื่อโดนระบบหลังบ้านสุ่มตรวจ
+    - ตรวจสอบสิทธิ์เฉพาะนักเรียน
+    - บันทึกพิกัดลง StudentLocation พร้อม Flag 'is_silent_check'
+    - อัปเดตเวลายืนยันล่าสุด (last_verified_at) หากอยู่ในระยะ
+    """
+
+    # 1. ตรวจสอบ Role (ใช้ Any เพื่อความเร็วในการเช็ค)
+    if not any(role.name == "student" for role in current_user.roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ขออภัย เฉพาะนักเรียนเท่านั้นที่สามารถใช้งานส่วนนี้ได้",
+        )
+
+    try:
+        # 2. ส่งข้อมูลให้ Service จัดการ (บันทึก Log + เช็คระยะ + อัปเดตเวลา)
+        result = handle_silent_location_update(
+            db=db,
+            session_id=data.session_id,
+            student_id=current_user.user_id,
+            student_lat=data.latitude,
+            student_lon=data.longitude,
+        )
+
+        # 3. ตอบกลับสถานะ (ไม่ว่าจะ 'success' หรือ 'ignored' ก็ส่ง 200 กลับไป)
+        # เพื่อให้แอปมือถือทำงานจบกระบวนการเบื้องหลังได้ทันที
+        return result
+
+    except HTTPException as http_exc:
+        # ส่งต่อ Error ที่มาจาก Service (เช่น 404 Session ไม่เจอ)
+        raise http_exc
+    except Exception as e:
+        logger.error(f"❌ Silent Check Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="เกิดข้อผิดพลาดภายในระบบขณะประมวลผลพิกัด",
+        )

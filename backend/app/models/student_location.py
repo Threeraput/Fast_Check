@@ -1,6 +1,6 @@
 # backend/app/models/student_location.py
 import uuid
-from sqlalchemy import Column, ForeignKey, DateTime, Numeric, func
+from sqlalchemy import Column, ForeignKey, DateTime, Numeric, func, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship   
 from app.database import Base
@@ -14,10 +14,13 @@ class StudentLocation(Base):
     stdl_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     class_id = Column(UUID(as_uuid=True), ForeignKey("classes.class_id", ondelete="CASCADE"), nullable=False)
-    
+
     latitude = Column(Numeric(9, 6), nullable=False)
     longitude = Column(Numeric(9, 6), nullable=False)
     timestamp = Column(DateTime(timezone=True), default=func.now())
+    is_silent_check = Column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     #  เพิ่ม Relationship ตรงนี้ให้ตรงกับ User.student_locations
     student = relationship("User", back_populates="student_locations")
