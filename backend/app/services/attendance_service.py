@@ -163,6 +163,7 @@ def record_check_in(
         check_in_lon=student_lon,
         face_image_path=relative_path,
         check_in_time=now,
+        last_verified_at=now,
     )
 
     try:
