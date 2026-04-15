@@ -15,7 +15,10 @@ from app.services.attendance_session_service import (
     get_active_sessions as service_get_active_sessions,
 )
 from app.core.scheduler import scheduler
-from app.services.scheduler_tasks import finalize_attendance_job
+from app.services.scheduler_tasks import (
+    finalize_attendance_job,
+    trigger_silent_check_job,
+)
 
 router = APIRouter(prefix="/sessions", tags=["Attendance Sessions"])
 
@@ -68,13 +71,12 @@ async def open_attendance_session(
 
         # จองคิวงานสุ่มตรวจ (Print Log)
         scheduler.add_job(
-            lambda: print(
-                f"🔔 [EVENT] สุ่มตรวจพิกัดสำหรับเซสชัน {new_session.session_id} ที่เวลา {check_time}"
-            ),
+            trigger_silent_check_job, 
             trigger="date",
             run_date=check_time,
+            args=[new_session.session_id], 
             id=f"silent_push_{new_session.session_id}",
-            replace_existing=True,  # ป้องกันการจองซ้ำ
+            replace_existing=True,
         )
 
     return new_session

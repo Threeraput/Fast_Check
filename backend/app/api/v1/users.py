@@ -9,7 +9,7 @@ from uuid import UUID
 import uuid
 
 from app.database import get_db
-from app.schemas.user_schema import UserResponse, TokenData, UserUpdate
+from app.schemas.user_schema import FCMTokenUpdate, UserResponse, TokenData, UserUpdate
 from app.models.user import User
 from app.services.db_service import get_user_by_id
 from app.core.security import decode_access_token
@@ -54,13 +54,19 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        )
     return current_user
 
 
-async def get_current_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
     if "admin" not in [role.name for role in current_user.roles]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -70,6 +76,21 @@ async def get_current_admin_user(current_user: User = Depends(get_current_active
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.put("/fcm-token")
+def update_fcm_token(
+    data: FCMTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    API สำหรับให้แอปมือถือ (Flutter) ส่ง FCM Token ล่าสุดมาอัปเดต
+    """
+    current_user.fcm_token = data.fcm_token
+    db.commit()
+
+    return {"message": "อัปเดต FCM Token สำเร็จ"}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -99,7 +120,9 @@ async def read_user_by_id(
 ):
     user = get_user_by_id(db, user_id=user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     _ = user.roles
     user_roles = [role.name for role in user.roles]
     return UserResponse(
@@ -153,8 +176,12 @@ async def update_user(
     current_user: User = Depends(get_current_active_user),
 ):
     # อนุญาต: เจ้าของ หรือ admin
-    if str(current_user.user_id) != str(user_id) and "admin" not in [r.name for r in current_user.roles]:
-        raise HTTPException(status_code=403, detail="Not authorized to update this user's profile")
+    if str(current_user.user_id) != str(user_id) and "admin" not in [
+        r.name for r in current_user.roles
+    ]:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to update this user's profile"
+        )
 
     db_user = get_user_by_id(db, user_id=user_id)
     if not db_user:
@@ -205,7 +232,9 @@ async def delete_user(
 ):
     db_user = get_user_by_id(db, user_id=user_id)
     if not db_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
 
     if str(db_user.user_id) == str(current_user.user_id):
         raise HTTPException(

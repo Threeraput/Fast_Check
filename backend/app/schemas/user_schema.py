@@ -97,3 +97,7 @@ class TokenData(BaseModel):
 
     user_id: UUID
     roles: List[str] = Field(default_factory=list)
+
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: str

@@ -403,6 +403,9 @@ def handle_silent_location_update(
     if is_within_proximity(student_lat, student_lon, t_lat, t_lon, threshold=radius):
         # 4. ถ้าอยู่ในระยะ ให้อัปเดตเวลาล่าสุด
         attendance.last_verified_at = datetime.now(timezone.utc)
+        print(
+            f"📍 [SILENT CHECK SUCCESS] นักเรียน {student_id} ยืนยันพิกัดสำเร็จ! (แอปแอบส่งพิกัดมาให้แล้ว)"
+        )
         try:
             db.commit()
             return {"status": "success", "message": "Location verified silently"}

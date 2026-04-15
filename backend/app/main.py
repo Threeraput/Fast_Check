@@ -25,6 +25,7 @@ from app.api.v1 import attendance_report_detail
 from pathlib import Path
 from app.core.config import settings
 from app.core.scheduler import start_scheduler, shutdown_scheduler
+from app.core.firebase import init_firebase
 
 
 MEDIA_ROOT = Path("media")
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
         initialize_roles_permissions(db_session)
     finally:
         db_session.close()
+        init_firebase()
         start_scheduler()
     yield
     print("🛑 Shutting down application...")
