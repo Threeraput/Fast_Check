@@ -1,12 +1,20 @@
 # backend/app/api/v1/attendance_report_detail.py
+from datetime import datetime
+import io
+import csv
+import openpyxl  
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.attendance_report_detail import AttendanceReportDetail
 from app.schemas.attendance_report_detail_schema import AttendanceReportDetailResponse
 from app.core.deps import get_current_user, role_required
 from app.models.user import User
+
+# อย่าลืม Import Model ที่ต้องใช้ ถ้าอันไหนมีอยู่แล้วด้านบนก็ไม่ต้องใส่ซ้ำนะครับ
+from app.models.attendance_report import AttendanceReport
+from app.models.attendance_session import AttendanceSession
 
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
@@ -110,3 +118,95 @@ def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
         r.reverify_image_url = r.reverify_image_path
 
     return results
+
+# ---------------------------------------------------------
+# 📊 ส่งออกรายงานการเข้าเรียนรายวัน (Detailed Excel Export)
+# ---------------------------------------------------------
+@router.get(
+    "/class/{class_id}/export/detailed",
+    # dependencies=[Depends(role_required(["teacher", "admin"]))], # เปิดคอมเมนต์เมื่อใช้จริง
+)
+def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
+    """ดาวน์โหลดไฟล์ Excel รายงานการเข้าเรียนแบบรายวันของทั้งคลาส"""
+    
+    # 1️⃣ ดึงข้อมูลโดยการ Join 4 ตารางเข้าด้วยกัน
+    results = (
+        db.query(
+            AttendanceSession.start_time.label("session_start"),
+            User.student_id.label("student_code"),
+            User.first_name,
+            User.last_name,
+            AttendanceReportDetail.check_in_time,
+            AttendanceReportDetail.status,
+            AttendanceReportDetail.is_reverified,
+            AttendanceReportDetail.reverify_time,
+        )
+        .join(AttendanceReportDetail, AttendanceSession.session_id == AttendanceReportDetail.session_id)
+        .join(AttendanceReport, AttendanceReportDetail.report_id == AttendanceReport.report_id)
+        .join(User, AttendanceReport.student_id == User.user_id)
+        .filter(AttendanceReport.class_id == class_id)
+        .order_by(AttendanceSession.start_time.asc(), User.student_id.asc()) 
+        .all()
+    )
+
+    if not results:
+        raise HTTPException(status_code=404, detail="ไม่มีข้อมูลสำหรับการส่งออก")
+
+    # 2️⃣ เตรียมตัวช่วยแปลภาษาและฟอร์แมตวันที่
+    def translate_status(status_str: str) -> str:
+        s = status_str.lower()
+        if s == "present": return "เข้าเรียน"
+        if s == "late": return "สาย"
+        if s == "absent": return "ขาดเรียน"
+        if s in ["left_early", "leftearly"]: return "กลับก่อน"
+        return status_str
+
+    def format_dt(dt: datetime, fmt: str = "%d/%m/%Y %H:%M") -> str:
+        if not dt:
+            return "-"
+        return dt.strftime(fmt)
+
+    # 🌟 3️⃣ สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "รายงานรายวัน"
+
+    # เขียนหัวตาราง
+    headers = ["วันที่เรียน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "เวลาเริ่มคาบ", "เวลาที่เช็คชื่อ", "สถานะ", "สุ่มตรวจซ้ำ", "เวลาตรวจซ้ำ"]
+    ws.append(headers)
+
+    # 🌟 4️⃣ วนลูปข้อมูลใส่ตาราง Excel (ใช้แค่ลูปนี้ลูปเดียว)
+    for r in results:
+        # แปลงร่างข้อมูลที่ดึงมาจาก Database (r) ให้อยู่ในรูปแบบ String สวยๆ
+        date_str = format_dt(r.session_start, "%d/%m/%Y")
+        session_time = format_dt(r.session_start, "%H:%M")
+        check_in_time = format_dt(r.check_in_time, "%H:%M")
+        reverify_time = format_dt(r.reverify_time, "%H:%M")
+        full_name = f"{r.first_name or ''} {r.last_name or ''}".strip()
+        reverified_text = "ใช่" if r.is_reverified else "-"
+
+        # ใส่ข้อมูลลงไปทีละบรรทัด 
+        ws.append([
+            date_str,
+            r.student_code or "-",
+            full_name or "ไม่ระบุชื่อ",
+            session_time,
+            check_in_time,
+            translate_status(r.status),
+            reverified_text,
+            reverify_time
+        ])
+
+    # 🌟 5️⃣ บันทึกไฟล์ Excel ลงในหน่วยความจำ
+    output = io.BytesIO()
+    wb.save(output) # 🚨 จุดนี้ที่หายไป! ต้องสั่ง save ข้อมูลลง output ก่อน
+    output.seek(0)  # 🚨 และต้องรีเซ็ตเคอร์เซอร์กลับไปจุดเริ่มต้นเพื่อให้อ่านไฟล์ได้
+    
+    # 🌟 6️⃣ ส่งไฟล์กลับไปให้หน้าบ้านโหลด
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=detailed_report_{class_id}.xlsx"
+        }
+    )

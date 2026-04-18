@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../models/attendance_report.dart';
 import '../models/attendance_report_detail.dart';
 import 'auth_service.dart';
@@ -237,6 +239,48 @@ class AttendanceReportService {
       );
     } on SocketException {
       throw Exception('Network error while fetching student daily reports');
+    }
+  }
+ // 🌟 ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง - Clean Code)
+  static Future<void> exportDetailedReport(String classId, String token) async {
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/attendance/reports/details/class/$classId/export/detailed');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // 1. หาพื้นที่ว่างในเครื่อง
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        
+        // 2. 🚨 เซฟไฟล์เป็น .xlsx ให้ตรงกับที่ Backend ส่งมา
+        final filePath = '${dir.path}/detailed_report_$timestamp.xlsx'; 
+        
+        // 3. เขียนไฟล์ลงเครื่อง
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        // 4. สั่งเปิดไฟล์ด้วย OpenFilex
+        final result = await OpenFilex.open(filePath);
+        
+        // 5. ดักจับ Error กรณีต่างๆ เพื่อแจ้งเตือนเป็นภาษาไทย
+        if (result.type == ResultType.noAppToOpen) {
+          throw Exception("ไม่มีแอปสำหรับเปิดไฟล์ Excel กรุณาติดตั้ง Google Sheets หรือ Microsoft Excel");
+        } else if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+        
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว (รหัสข้อผิดพลาด: ${response.statusCode})");
+      }
+    } catch (e) {
+      // โยน Error ออกไปให้หน้าจอ UI จัดการแสดง SnackBar สีแดง
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 }
