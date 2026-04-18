@@ -6,6 +6,8 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/comment_model.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'auth_service.dart' show AuthService;
 import 'package:frontend/config.dart';
 
@@ -284,5 +286,34 @@ class ClassworkSimpleService {
       );
     }
     throw _errorFrom(res);
+  }
+
+  static Future<void> exportAssignmentReport(String assignmentId, String token) async {
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/classwork-simple/assignments/$assignmentId/export');
+      
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '${dir.path}/assignment_report_$timestamp.xlsx'; 
+        
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final result = await OpenFilex.open(filePath);
+        if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("เกิดข้อผิดพลาด: $e");
+    }
   }
 }

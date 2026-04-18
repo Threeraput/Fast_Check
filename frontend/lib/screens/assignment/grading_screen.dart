@@ -7,7 +7,7 @@ import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 class GradingScreen extends StatefulWidget {
   final String assignmentId;
   final String title;
@@ -117,9 +117,50 @@ class _GradingScreenState extends State<GradingScreen> {
       );
     }
   }
+  // 🌟 เพิ่มตัวแปรเช็คสถานะการโหลด
+  bool _isDownloading = false;
+
+  // 🌟 ฟังก์ชันดาวน์โหลดรายงานสำหรับงานชิ้นนี้
+  Future<void> _downloadAssignmentReport() async {
+    setState(() {
+      _isDownloading = true; 
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String realToken = prefs.getString('accessToken') ?? ''; 
+      
+      if (realToken.isEmpty) {
+        throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
+      }
+      
+      // 🚨 เรียกใช้ Service ดาวน์โหลด (ใช้ assignmentId ของหน้านี้)
+      // ปล. อย่าลืมเอาฟังก์ชัน exportAssignmentReport ที่เราสร้างไว้รอบที่แล้ว 
+      // ไปใส่ไว้ในไฟล์ ClassworkSimpleService.dart ด้วยนะครับ
+      await ClassworkSimpleService.exportAssignmentReport(widget.assignmentId, realToken);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ดาวน์โหลดและเปิดไฟล์สำเร็จ!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false; 
+        });
+      }
+    }
+  }
 
   String _resolveFileUrl(String relativePath) {
-    const base = 'http://192.168.1.103:8000'; // ให้ตรงกับ API_BASE_URL ของคุณ
+    const base = 'http://192.168.1.41:8000'; // ให้ตรงกับ API_BASE_URL ของคุณ
     var path = relativePath.trim();
 
     if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -149,6 +190,26 @@ class _GradingScreenState extends State<GradingScreen> {
         ),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
+        
+        // 🌟 เติมปุ่มดาวน์โหลดลงไปตรงนี้ครับ!
+        actions: [
+          _isDownloading 
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Center(
+                    child: SizedBox(
+                      width: 24, 
+                      height: 24, 
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)
+                    )
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.download_rounded),
+                  tooltip: 'ดาวน์โหลดรายงาน (Excel)',
+                  onPressed: _downloadAssignmentReport,
+                ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
