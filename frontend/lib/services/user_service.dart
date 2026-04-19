@@ -161,4 +161,27 @@ class UserService {
 
     return fullUrl;
   }
+  // 🌟 ฟังก์ชันเช็คสถานะก่อนอนุญาตให้เปลี่ยนรูปใบหน้า
+  static Future<Map<String, dynamic>> checkCanChangeFace(String token) async {
+    try {
+      // ปรับ URL ให้ตรงกับที่ตั้งไว้ใน FastAPI 
+      final url = Uri.parse('${AppConfig.baseUrl}/attendance/active-sessions/check-face-change');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // แปลงข้อมูล JSON ที่ได้จากหลังบ้านกลับมาเป็น Map
+        return jsonDecode(utf8.decode(response.bodyBytes)); 
+      } else {
+        throw Exception('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${response.statusCode})');
+      }
+    } catch (e) {
+      throw Exception('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: $e');
+    }
+  }
 }

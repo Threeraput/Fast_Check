@@ -5,6 +5,7 @@ import 'package:frontend/models/classroom.dart';
 import 'package:frontend/screens/home/archived_classes_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/class_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'class_details_screen.dart';
 import 'create_class_screen.dart';
 import 'join_class_sheet.dart';
@@ -411,9 +412,62 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                       leading: const Icon(Icons.face_retouching_natural),
                       title: const Text('ลงทะเบียน/เปลี่ยนใบหน้า'),
                       onTap: () async {
-                        Navigator.pushReplacementNamed(context, '/upload-face');
+                        // 1️⃣ ปิดหน้าต่าง Drawer ก่อน
+                        Navigator.pop(context);
+
+                        // 2️⃣ โชว์ Loading หมุนๆ บล็อกหน้าจอไว้
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(
+                            child: CircularProgressIndicator(color: Colors.blueAccent),
+                          ),
+                        );
+
+                        try {
+                          // ดึง Token (🚨 อย่าลืม import 'package:shared_preferences/shared_preferences.dart'; ไว้บนสุด)
+                          final prefs = await SharedPreferences.getInstance();
+                          final token = prefs.getString('accessToken') ?? '';
+
+                          // 3️⃣ ยิง API เช็คสถานะ (🚨 เปลี่ยน UserService เป็นชื่อ Service ที่คุณเอาฟังก์ชันไปใส่ไว้)
+                          final result = await UserService.checkCanChangeFace(token);
+
+                          // 4️⃣ ปิด Loading หมุนๆ
+                          if (context.mounted) Navigator.pop(context);
+
+                          // 5️⃣ ตรวจสอบเงื่อนไข
+                          if (result['can_change_face'] == true) {
+                            // ✅ อนุญาต -> พาไปหน้าอัปโหลดรูป
+                            if (context.mounted) {
+                              Navigator.pushNamed(context, '/upload-face'); 
+                            }
+                          } else {
+                            // 🚫 ไม่อนุญาต -> โชว์แจ้งเตือน
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    result['message'] ?? 'ไม่สามารถเปลี่ยนใบหน้าได้ในขณะนี้',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  backgroundColor: Colors.redAccent,
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          // ปิด Loading กรณีเกิด Error
+                          if (context.mounted) Navigator.pop(context);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.orange),
+                            );
+                          }
+                        }
                       },
                     ),
+                
                     // ListTile(
                     //   leading: const Icon(Icons.delete_forever),
                     //   title: const Text('ลบใบหน้า'),
