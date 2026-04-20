@@ -42,10 +42,9 @@ def calculate_distance(
     try:
         return float(geodesic(coords1, coords2).meters)
     except Exception as e:
-        # ส่วนใหญ่เกิดจากค่าพิกัดไม่ถูกต้อง
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Location calculation failed: {e}",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"ข้อมูลพิกัดไม่ถูกต้อง ทำให้ไม่สามารถคำนวณระยะทางได้: {e}",
         )
 
 

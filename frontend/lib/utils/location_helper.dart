@@ -8,7 +8,7 @@ class LocationHelper {
       throw Exception('กรุณาอนุญาตการเข้าถึงตำแหน่งที่ตั้ง');
     }
     return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      desiredAccuracy: LocationAccuracy.best,
     );
   }
 
