@@ -1,5 +1,6 @@
 // lib/screens/grading_screen.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/config.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/users.dart';
@@ -8,6 +9,8 @@ import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+const String API_BASE_URL = AppConfig.uploadsfileUrl;
 class GradingScreen extends StatefulWidget {
   final String assignmentId;
   final String title;
@@ -160,7 +163,7 @@ class _GradingScreenState extends State<GradingScreen> {
   }
 
   String _resolveFileUrl(String relativePath) {
-    const base = 'http://192.168.1.41:8000'; // ให้ตรงกับ API_BASE_URL ของคุณ
+    const base = API_BASE_URL; // ให้ตรงกับ API_BASE_URL ของคุณ
     var path = relativePath.trim();
 
     if (path.startsWith('http://') || path.startsWith('https://')) {
