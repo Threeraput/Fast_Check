@@ -17,6 +17,7 @@ from app.services.face_recognition_service import get_face_embedding, compare_fa
 from app.services.location_service import (
     PROXIMITY_THRESHOLD,
     is_within_proximity,
+    log_student_location,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ def decide_status_by_hard_times(
         return AttendanceStatus.ABSENT
     if now < s:
         return AttendanceStatus.PRESENT
-    if (now >= s and now < l):
+    if now >= s and now < l:
         return AttendanceStatus.PRESENT
     if now >= s and now < l:
         return AttendanceStatus.PRESENT
@@ -162,6 +163,7 @@ def record_check_in(
         check_in_lon=student_lon,
         face_image_path=relative_path,
         check_in_time=now,
+        last_verified_at=now,
     )
 
     try:
@@ -206,7 +208,10 @@ def handle_reverification(
     if not session:
         raise HTTPException(status_code=404, detail="Attendance session not found.")
     if session.anchor_lat is None or session.anchor_lon is None:
-        raise HTTPException(status_code=400, detail="Re-verification unavailable: teacher anchor location is not set.")
+        raise HTTPException(
+            status_code=400,
+            detail="Re-verification unavailable: teacher anchor location is not set.",
+        )
 
     end_aware = _ensure_aware_utc(session.end_time)
     if end_aware and datetime.now(timezone.utc) > end_aware:
@@ -328,3 +333,87 @@ def manual_override_attendance(
 
 def identify_user(image_bytes: bytes) -> Tuple[Optional[uuid.UUID], Optional[float]]:
     raise NotImplementedError("identify_user must be implemented")
+
+
+def handle_silent_location_update(
+    db: Session,
+    session_id: uuid.UUID,
+    student_id: uuid.UUID,
+    student_lat: float,
+    student_lon: float,
+) -> dict:
+    """
+    ฟังก์ชันลับสำหรับรับพิกัดเบื้องหลังจากระบบสุ่มตรวจ
+    หน้าที่: บันทึกประวัติพิกัดลง Log -> เช็คระยะ -> ถ้าอยู่ในระยะให้อัปเดตเวลา
+    """
+    # 1. หา Session
+    session = (
+        db.query(AttendanceSession)
+        .filter(AttendanceSession.session_id == session_id)
+        .first()
+    )
+    if not session:
+        return {"status": "ignored", "reason": "Session not found"}
+
+    # 2. หาข้อมูลการเข้าเรียนของนักเรียนคนนี้
+    attendance = (
+        db.query(Attendance)
+        .filter(
+            Attendance.session_id == session_id, Attendance.student_id == student_id
+        )
+        .first()
+    )
+    if not attendance:
+        return {"status": "ignored", "reason": "No attendance record"}
+
+    valid_statuses = [
+        AttendanceStatus.PRESENT,
+        AttendanceStatus.PRESENT.value,
+        AttendanceStatus.LATE,
+        AttendanceStatus.LATE.value,
+    ]
+    if attendance.status not in valid_statuses:
+        return {
+            "status": "ignored",
+            "reason": f"Student status is {attendance.status}, ignoring check",
+        }
+
+    # ---------------------------------------------------------
+    #  บันทึกพิกัดเก็บไว้เป็นหลักฐาน (Log)
+    # ไม่ว่าจะอยู่ในระยะหรือนอกระยะ เราก็จะเก็บหมดเพื่อกางแผนที่ดูได้
+    # ---------------------------------------------------------
+    try:
+        log_student_location(
+            db=db,
+            student_id=student_id,
+            class_id=session.class_id,
+            latitude=student_lat,
+            longitude=student_lon,
+            is_silent_check=True,
+        )
+    except Exception as e:
+        # ถ้าบันทึก Log พัง (เช่น DB มีปัญหาชั่วคราว) ให้แค่ปริ้นท์ Error แต่ปล่อยให้ระบบเช็คระยะทำงานต่อ
+        logger.error(f"Silent Check-in: Failed to log location for {student_id}: {e}")
+
+    # 3. ตรวจสอบระยะทาง
+    t_lat = float(session.anchor_lat)
+    t_lon = float(session.anchor_lon)
+    radius = float(getattr(session, "radius_meters", PROXIMITY_THRESHOLD))
+
+    if is_within_proximity(student_lat, student_lon, t_lat, t_lon, threshold=radius):
+        # 4. ถ้าอยู่ในระยะ ให้อัปเดตเวลาล่าสุด
+        attendance.last_verified_at = datetime.now(timezone.utc)
+        print(
+            f"📍 [SILENT CHECK SUCCESS] นักเรียน {student_id} ยืนยันพิกัดสำเร็จ! (แอปแอบส่งพิกัดมาให้แล้ว)"
+        )
+        try:
+            db.commit()
+            return {"status": "success", "message": "Location verified silently"}
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update silent location for {student_id}: {e}")
+            raise HTTPException(
+                status_code=500, detail="Database error during silent update"
+            )
+    else:
+        return {"status": "ignored", "reason": "Student is out of range"}

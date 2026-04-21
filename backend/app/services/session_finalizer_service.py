@@ -37,7 +37,7 @@ def handle_finalize_session(db: Session, session_id: Union[UUID, str]) -> int:
 
     # 3) ปิด session
     session.is_active = False
-    session.closed_at = datetime.now(timezone.utc)
+    #session.closed_at = datetime.now(timezone.utc)
     db.add(session)
     db.commit()
 

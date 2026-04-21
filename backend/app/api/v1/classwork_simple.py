@@ -14,14 +14,20 @@ from app.database import get_db
 from app.core.deps import get_current_user, role_required
 from app.models.user import User
 from app.schemas.classwork_new_schema import (
-    AssignmentCreate, AssignmentResponse,
-    SubmissionResponse, AssignmentWithMySubmission, GradeSubmission,
+    AssignmentCreate,
+    AssignmentResponse,
+    SubmissionResponse,
+    AssignmentWithMySubmission,
+    GradeSubmission,
 )
 from app.models.classwork_enums import SubmissionLateness
 from app.services.simple_classwork_service import (
-    create_assignment, submit_pdf,
-    list_assignments_for_student, list_submissions_for_teacher,
-    grade_submission , _ensure_teacher_of_class
+    create_assignment,
+    submit_pdf,
+    list_assignments_for_student,
+    list_submissions_for_teacher,
+    grade_submission,
+    _ensure_teacher_of_class,
 )
 from app.models.classwork_assignment import ClassworkAssignment
 from app.models.classwork_submission import ClassworkSubmission
@@ -32,12 +38,16 @@ from app.models.association import class_students
 
 router = APIRouter(prefix="/classwork-simple", tags=["Classwork (Simple)"])
 
+
 # -----------------------------
 # ครู: สร้างงานระดับคลาส
 # -----------------------------
-@router.post("/assignments", response_model=AssignmentResponse,
-             dependencies=[Depends(role_required(["teacher"]))],
-             status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/assignments",
+    response_model=AssignmentResponse,
+    dependencies=[Depends(role_required(["teacher"]))],
+    status_code=status.HTTP_201_CREATED,
+)
 def create_assignment_route(
     payload: AssignmentCreate,
     db: Session = Depends(get_db),
@@ -53,10 +63,12 @@ def create_assignment_route(
     )
     return asg
 
+
 # -----------------------------
 # นักเรียน: รายการงานในคลาส + สถานะของฉัน
 # -----------------------------
 # app/api/v1/classwork_simple.py
+
 
 @router.get(
     "/student/{class_id}/assignments",
@@ -83,24 +95,29 @@ def list_my_assignments_route(
                 "graded": sub.graded,
                 "score": sub.score,
             }
-        resp.append(AssignmentWithMySubmission(
-            assignment_id=asg.assignment_id,
-            class_id=asg.class_id,
-            teacher_id=asg.teacher_id,
-            title=asg.title,
-            max_score=asg.max_score,
-            due_date=asg.due_date,
-            computed_status=computed,
-            my_submission=mymini,
-        ))
+        resp.append(
+            AssignmentWithMySubmission(
+                assignment_id=asg.assignment_id,
+                class_id=asg.class_id,
+                teacher_id=asg.teacher_id,
+                title=asg.title,
+                max_score=asg.max_score,
+                due_date=asg.due_date,
+                computed_status=computed,
+                my_submission=mymini,
+            )
+        )
     return resp
 
 
 # -----------------------------
 # นักเรียน: ส่งไฟล์ PDF
 # -----------------------------
-@router.post("/assignments/{assignment_id}/submit", response_model=SubmissionResponse,
-             dependencies=[Depends(role_required(["student"]))])
+@router.post(
+    "/assignments/{assignment_id}/submit",
+    response_model=SubmissionResponse,
+    dependencies=[Depends(role_required(["student"]))],
+)
 async def submit_assignment_pdf_route(
     assignment_id: UUID,
     file: UploadFile = File(...),
@@ -109,29 +126,39 @@ async def submit_assignment_pdf_route(
 ):
     if file.content_type not in {"application/pdf"}:
         raise HTTPException(400, "Only PDF is allowed")
-    sub = await submit_pdf(db, assignment_id=assignment_id, student_id=me.user_id, file=file)
+    sub = await submit_pdf(
+        db, assignment_id=assignment_id, student_id=me.user_id, file=file
+    )
     return sub
+
 
 # -----------------------------
 # ครู: ดูการส่งทั้งหมดของงานหนึ่ง
 # -----------------------------
-@router.get("/assignments/{assignment_id}/submissions",
-            response_model=List[SubmissionResponse],
-            dependencies=[Depends(role_required(["teacher"]))])
+@router.get(
+    "/assignments/{assignment_id}/submissions",
+    response_model=List[SubmissionResponse],
+    dependencies=[Depends(role_required(["teacher"]))],
+)
 def list_submissions_for_teacher_route(
     assignment_id: UUID,
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
-    items = list_submissions_for_teacher(db, assignment_id=assignment_id, teacher_id=me.user_id)
+    items = list_submissions_for_teacher(
+        db, assignment_id=assignment_id, teacher_id=me.user_id
+    )
     return items
+
 
 # -----------------------------
 # ครู: ให้คะแนน
 # -----------------------------
-@router.post("/assignments/{assignment_id}/grade",
-             response_model=SubmissionResponse,
-             dependencies=[Depends(role_required(["teacher"]))])
+@router.post(
+    "/assignments/{assignment_id}/grade",
+    response_model=SubmissionResponse,
+    dependencies=[Depends(role_required(["teacher"]))],
+)
 def grade_submission_route(
     assignment_id: UUID,
     payload: GradeSubmission,  # { student_id, score }
@@ -147,6 +174,7 @@ def grade_submission_route(
     )
     return sub
 
+
 @router.get(
     "/teacher/{class_id}/assignments",
     response_model=List[AssignmentResponse],
@@ -161,6 +189,7 @@ def list_assignments_for_class_route(
     _ = _ensure_teacher_of_class(db, teacher_id=me.user_id, class_id=class_id)
     # ดึงรายการงาน
     from app.models.classwork_assignment import ClassworkAssignment
+
     items = (
         db.query(ClassworkAssignment)
         .filter(ClassworkAssignment.class_id == class_id)
@@ -169,43 +198,43 @@ def list_assignments_for_class_route(
     )
     return items
 
+
 # -----------------------------
 # คอมเมนต์: สร้างคอมเมนต์ใหม่ (ทั้งครูและนักเรียน)
 # -----------------------------
 @router.post(
-    "/assignments/{assignment_id}/comments", 
+    "/assignments/{assignment_id}/comments",
     response_model=CommentResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_assignment_comment(
     assignment_id: UUID = Path(..., description="UUID ของงานที่ต้องการคอมเมนต์"),
     comment_in: CommentCreate = Body(...),
     db: Session = Depends(get_db),
-    me: User = Depends(get_current_user) # ไม่บังคับ Role เพราะทั้งครูและเด็กก็คอมเมนต์ได้
+    me: User = Depends(get_current_user),  # ไม่บังคับ Role เพราะทั้งครูและเด็กก็คอมเมนต์ได้
 ):
     new_comment = classwork_service.create_comment(
         db=db,
         assignment_id=assignment_id,
         user_id=me.user_id,
-        content=comment_in.content
+        content=comment_in.content,
     )
     return new_comment
+
 
 # -----------------------------
 # คอมเมนต์: ดึงคอมเมนต์ทั้งหมดของงานชิ้นนั้น
 # -----------------------------
 @router.get(
-    "/assignments/{assignment_id}/comments", 
-    response_model=List[CommentResponse]
+    "/assignments/{assignment_id}/comments", response_model=List[CommentResponse]
 )
 async def get_assignment_comments(
     assignment_id: UUID = Path(..., description="UUID ของงานที่ต้องการดูคอมเมนต์"),
     db: Session = Depends(get_db),
-    me: User = Depends(get_current_user)
+    me: User = Depends(get_current_user),
 ):
     comments = classwork_service.get_comments_by_assignment(
-        db=db, 
-        assignment_id=assignment_id
+        db=db, assignment_id=assignment_id
     )
     return comments
 

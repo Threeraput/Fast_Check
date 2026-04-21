@@ -7,6 +7,7 @@ from app.models.attendance_session import AttendanceSession
 from app.models.attendance_report import AttendanceReport
 from app.models.attendance_report_detail import AttendanceReportDetail
 from app.models.association import class_students
+from app.models.attendance_enums import AttendanceStatus
 
 
 def generate_reports_for_class(db: Session, class_id: str):
@@ -70,12 +71,13 @@ def generate_reports_for_class(db: Session, class_id: str):
                 .first()
             )
 
-            status = "Absent"
+            # 2. ใช้ค่าเริ่มต้นเป็น Enum ABSENT
+            status = AttendanceStatus.ABSENT.value
             check_in_time = None
             is_reverified = False
             current_face_path = None
-            current_reverify_time = None  #  เตรียมตัวแปรเวลาสุ่มตรวจ
-            current_reverify_path = None  #  เตรียมตัวแปรรูปสุ่มตรวจ
+            current_reverify_time = None
+            current_reverify_path = None
 
             if not record:
                 absent += 1
@@ -84,31 +86,30 @@ def generate_reports_for_class(db: Session, class_id: str):
                 is_reverified = record.is_reverified
                 current_face_path = record.face_image_path
 
-                #  ดึงข้อมูลการสุ่มตรวจ (ถ้ามี) จาก Model Attendance
                 current_reverify_time = getattr(record, "reverify_time", None)
                 current_reverify_path = getattr(record, "reverify_image_path", None)
 
-                if not record.is_reverified:
-                    status = "LeftEarly"
+                # ดึงสถานะปัจจุบันมาเป็น String ก่อนเพื่อความชัวร์ (รองรับทั้งแบบ Object และ String)
+                status = (
+                    record.status.value
+                    if hasattr(record.status, "value")
+                    else str(record.status)
+                )
+
+                # 3. เทียบเงื่อนไขด้วยค่าจาก Enum (.value) โดยตรง
+                if status == AttendanceStatus.PRESENT.value:
+                    attended += 1
+                elif status == AttendanceStatus.LATE.value:
+                    late += 1
+                elif status == AttendanceStatus.ABSENT.value:
+                    absent += 1
+                elif status == AttendanceStatus.LEFT_EARLY.value:
                     left_early += 1
-                else:
-                    # ดึงค่าจาก Enum หรือ String
-                    status = (
-                        record.status.value
-                        if hasattr(record.status, "value")
-                        else str(record.status)
-                    )
-                    if status == "Present":
-                        attended += 1
-                    elif status == "Late":
-                        late += 1
-                    elif status == "Absent":
-                        absent += 1
 
                 if record.is_reverified:
                     reverified += 1
 
-            #  บันทึกรายละเอียดพร้อมเวลาและรูปถ่ายทั้ง 2 ชุด (Check-in และ Re-verify)
+            # บันทึกรายละเอียดลง Detail
             db.add(
                 AttendanceReportDetail(
                     report_id=report.report_id,
@@ -117,12 +118,13 @@ def generate_reports_for_class(db: Session, class_id: str):
                     check_in_time=check_in_time,
                     is_reverified=is_reverified,
                     session_start=session.start_time,
-                    face_image_path=current_face_path,  # รูปตอนเช็คอิน
-                    reverify_time=current_reverify_time,  # ✅ เวลาที่สุ่มตรวจ
-                    reverify_image_path=current_reverify_path,  # ✅ รูปตอนสุ่มตรวจ
+                    face_image_path=current_face_path,
+                    reverify_time=current_reverify_time,
+                    reverify_image_path=current_reverify_path,
                 )
             )
 
+        # สรุปยอดรวมทั้งหมดลงใน Report หลัก
         report.total_sessions = total_effective
         report.attended_sessions = attended
         report.late_sessions = late

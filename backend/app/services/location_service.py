@@ -21,29 +21,30 @@ def _validate_coords(lat: float, lon: float) -> None:
     if lat is None or lon is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Latitude/Longitude are required."
+            detail="Latitude/Longitude are required.",
         )
     if not (-90.0 <= float(lat) <= 90.0 and -180.0 <= float(lon) <= 180.0):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid latitude/longitude range."
+            detail="Invalid latitude/longitude range.",
         )
 
 
 # -----------------------------
 # Distance helpers
 # -----------------------------
-def calculate_distance(coords1: Tuple[float, float], coords2: Tuple[float, float]) -> float:
+def calculate_distance(
+    coords1: Tuple[float, float], coords2: Tuple[float, float]
+) -> float:
     """
     คำนวณระยะทาง (เมตร) ระหว่าง 2 พิกัด (lat, lon).
     """
     try:
         return float(geodesic(coords1, coords2).meters)
     except Exception as e:
-        # ส่วนใหญ่เกิดจากค่าพิกัดไม่ถูกต้อง
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Location calculation failed: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"ข้อมูลพิกัดไม่ถูกต้อง ทำให้ไม่สามารถคำนวณระยะทางได้: {e}",
         )
 
 
@@ -52,7 +53,7 @@ def is_within_proximity(
     student_lon: float,
     teacher_lat: float,
     teacher_lon: float,
-    threshold: float | None = None
+    threshold: float | None = None,
 ) -> bool:
     """
     ตรวจว่านักเรียนอยู่ในรัศมีที่กำหนดจากครูหรือไม่
@@ -67,7 +68,9 @@ def is_within_proximity(
 # -----------------------------
 # DB operations
 # -----------------------------
-def get_latest_teacher_location(db: Session, teacher_id: uuid.UUID, class_id: uuid.UUID) -> TeacherLocation:
+def get_latest_teacher_location(
+    db: Session, teacher_id: uuid.UUID, class_id: uuid.UUID
+) -> TeacherLocation:
     """
     ดึงตำแหน่ง 'ล่าสุด' ของครูในคลาสที่กำหนด
     * แนะนำให้มีดัชนี (teacher_id, class_id, timestamp DESC) ที่ตาราง teacher_locations
@@ -86,45 +89,57 @@ def get_latest_teacher_location(db: Session, teacher_id: uuid.UUID, class_id: uu
         # 404 เหมาะสมกว่า 400 เพราะคือ resource ไม่พบ
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Teacher's location anchor is not available for this class."
+            detail="Teacher's location anchor is not available for this class.",
         )
     return latest
 
 
-def log_student_location(db: Session, student_id: uuid.UUID, class_id: uuid.UUID, latitude: float, longitude: float):
+def log_student_location(
+    db: Session,
+    student_id: uuid.UUID,
+    class_id: uuid.UUID,
+    latitude: float,
+    longitude: float,
+    is_silent_check: bool = False,
+):
     _validate_coords(latitude, longitude)
     new_log = StudentLocation(
         student_id=student_id,
         class_id=class_id,
         latitude=latitude,
-        longitude=longitude
+        longitude=longitude,
+        is_silent_check=is_silent_check,
     )
     try:
         db.add(new_log)
-        db.commit()          
-        db.refresh(new_log)
-        return new_log
-    except Exception:
-        db.rollback()        
-        raise
-
-
-def update_teacher_location_log(db: Session, teacher_id: uuid.UUID, class_id: uuid.UUID, latitude: float, longitude: float):
-    _validate_coords(latitude, longitude)
-    new_log = TeacherLocation(
-        teacher_id=teacher_id,
-        class_id=class_id,
-        latitude=latitude,
-        longitude=longitude
-    )
-    try:
-        db.add(new_log)
-        db.commit()         
+        db.commit()
         db.refresh(new_log)
         return new_log
     except Exception:
         db.rollback()
         raise
+
+
+def update_teacher_location_log(
+    db: Session,
+    teacher_id: uuid.UUID,
+    class_id: uuid.UUID,
+    latitude: float,
+    longitude: float,
+):
+    _validate_coords(latitude, longitude)
+    new_log = TeacherLocation(
+        teacher_id=teacher_id, class_id=class_id, latitude=latitude, longitude=longitude
+    )
+    try:
+        db.add(new_log)
+        db.commit()
+        db.refresh(new_log)
+        return new_log
+    except Exception:
+        db.rollback()
+        raise
+
 
 # -----------------------------
 # Convenience helper (optional)

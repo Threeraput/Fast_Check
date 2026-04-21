@@ -24,6 +24,7 @@ class AttendanceSession(Base):
     # Anchor Point สำหรับ Geofencing ณ เวลาประกาศ
     anchor_lat = Column(Numeric(9, 6), nullable=False)
     anchor_lon = Column(Numeric(9, 6), nullable=False)
+    is_active = Column(Boolean, default=True)
     
     # คอนสเตรนต์ให้ลำดับเวลา valid
     __table_args__ = (

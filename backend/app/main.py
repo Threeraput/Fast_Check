@@ -24,6 +24,8 @@ from app.api.v1 import attendance_report
 from app.api.v1 import attendance_report_detail
 from pathlib import Path
 from app.core.config import settings
+from app.core.scheduler import start_scheduler, shutdown_scheduler
+from app.core.firebase import init_firebase
 
 
 MEDIA_ROOT = Path("media")
@@ -32,14 +34,18 @@ MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 Starting up application...")
     db_session = next(get_db())
     try:
         Base.metadata.create_all(bind=engine)
         initialize_roles_permissions(db_session)
     finally:
         db_session.close()
+        init_firebase()
+        start_scheduler()
     yield
-
+    print("🛑 Shutting down application...")
+    shutdown_scheduler()
 
 app = FastAPI(
     title="Face Attendance API", version="1.0.0", lifespan=lifespan, debug=True

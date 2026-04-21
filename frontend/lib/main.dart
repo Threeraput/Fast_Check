@@ -9,12 +9,14 @@ import 'package:frontend/screens/face_recognition/verify_face_route.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
-import 'screens/home/home_screen.dart';
 import 'screens/auth/otp_verification_screen.dart';
 import 'screens/auth/forgot_password_screen.dart';
 import 'screens/auth/reset_password_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/face_recognition/camera_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'services/fcm_service.dart';
 
 List<CameraDescription> cameras = const [];
 
@@ -30,6 +32,11 @@ Future<void> _bootstrap() async {
 
 Future<void> main() async {
   await _bootstrap();
+  // ----- Firebase -----
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await FCMService.initialize(); // เรียกใช้งานระบบดึง Token
+  // ---------------------------------
+
   final accessToken = await AuthService.getAccessToken();
   runApp(MyApp(initialRoute: accessToken != null ? '/home' : '/login'));
 }
@@ -57,7 +64,6 @@ class MyApp extends StatelessWidget {
         // เปลี่ยนให้ /home ไปที่ ClassroomHomeScreen แทน HomeScreen
         return MaterialPageRoute(builder: (_) => const ClassroomHomeScreen());
       case '/verify-otp':
-        
         {
           final email = settings.arguments as String?;
           return MaterialPageRoute(
