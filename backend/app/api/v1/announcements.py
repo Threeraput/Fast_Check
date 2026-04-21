@@ -110,7 +110,6 @@ def delete_announcement_route(
 # ระบบคอมเมนต์ประกาศ (Announcement Comments)
 # ==========================================
 
-
 # ทั้งครู/นักเรียน คอมเมนต์ประกาศได้
 @router.post(
     "/{announcement_id}/comments",

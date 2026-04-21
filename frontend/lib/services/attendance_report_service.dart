@@ -54,7 +54,7 @@ class AttendanceReportService {
   }
 
   // -------------------------------------------------------------
-  // 🧑‍🎓 นักเรียน
+  // นักเรียน
   // -------------------------------------------------------------
 
   /// นักเรียนดูรายงานรวมของตัวเอง
@@ -66,7 +66,7 @@ class AttendanceReportService {
     try {
       final res = await _get(url, token);
 
-      // ✅ รองรับทุกเคสแบบไม่ทำให้ UI ล้ม
+      // รองรับทุกเคสแบบไม่ทำให้ UI ล้ม
       if (res.statusCode == 200) {
         final raw = json.decode(res.body);
         if (raw is List) {
@@ -114,7 +114,7 @@ class AttendanceReportService {
   }
 
   // -------------------------------------------------------------
-  // 👩‍🏫 ครู
+  // ครู
   // -------------------------------------------------------------
 
   /// ครูสร้างรายงานใหม่ทั้งคลาส
@@ -241,7 +241,8 @@ class AttendanceReportService {
       throw Exception('Network error while fetching student daily reports');
     }
   }
- // 🌟 ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง - Clean Code)
+
+ // ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง - Clean Code)
   static Future<void> exportDetailedReport(String classId, String token) async {
     try {
       final url = Uri.parse('${AppConfig.baseUrl}/attendance/reports/details/class/$classId/export/detailed');
@@ -258,7 +259,7 @@ class AttendanceReportService {
         final dir = await getTemporaryDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         
-        // 2. 🚨 เซฟไฟล์เป็น .xlsx ให้ตรงกับที่ Backend ส่งมา
+        // 2. เซฟไฟล์เป็น .xlsx ให้ตรงกับที่ Backend ส่งมา
         final filePath = '${dir.path}/detailed_report_$timestamp.xlsx'; 
         
         // 3. เขียนไฟล์ลงเครื่อง

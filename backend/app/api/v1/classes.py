@@ -70,7 +70,6 @@ def _serialize_classroom(obj) -> ClassroomResponse:
         "teacher": _user_payload(getattr(obj, "teacher", None)),
         "students": [_user_payload(s) for s in _safe_list(getattr(obj, "students", []))],
 
-        # 👉 สิ่งที่คุณต้องพิมพ์เพิ่มเข้าไปคือบรรทัดนี้ครับ!
         "is_archived": getattr(obj, "is_archived", False),
     }
     return ClassroomResponse.model_validate(payload)
@@ -110,7 +109,6 @@ async def create_classroom(
 # ------------------------------------
 @router.get("/taught", response_model=List[ClassroomResponse])
 async def get_taught_classes(
-    # 👉 1. เพิ่มบรรทัดนี้เข้าไป เพื่อรับค่าจากหน้าบ้าน
     is_archived: bool = Query(False, description="ดึงห้องเรียนที่ถูกซ่อนหรือไม่"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -121,7 +119,7 @@ async def get_taught_classes(
             detail="Access denied. You are not authorized as a teacher/admin.",
         )
     # classes = class_service.get_taught_classes(db, current_user.user_id)
-    # 👉 2. ส่งค่า is_archived ต่อไปให้ class_service
+    # ส่งค่า is_archived ต่อไปให้ class_service
     classes = class_service.get_taught_classes(db, current_user.user_id, is_archived=is_archived)
     return _serialize_classroom_list(classes)
 

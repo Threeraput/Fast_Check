@@ -45,11 +45,11 @@ class ClassService {
   }
 
   /// 2) GET /classes/taught (ห้องเรียนที่สอน)
-  // 👉 1. เพิ่มพารามิเตอร์ {bool isArchived = false} เข้ามา
+  // 1. เพิ่มพารามิเตอร์ {bool isArchived = false} เข้ามา
   static Future<List<Classroom>> getTaughtClasses({bool isArchived = false}) async {
     // final url = Uri.parse('$API_BASE_URL/classes/taught');
     
-    // 👉 2. เติม ?is_archived=$isArchived ต่อท้าย URL
+    // 2. เติม ?is_archived=$isArchived ต่อท้าย URL
     final url = Uri.parse('$API_BASE_URL/classes/taught?is_archived=$isArchived');
     final res = await http.get(url, headers: await _headers());
     if (res.statusCode == 200) {

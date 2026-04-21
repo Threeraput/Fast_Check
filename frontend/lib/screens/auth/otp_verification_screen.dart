@@ -218,7 +218,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       decoration: InputDecoration(
                         counterText: '',
                         enabledBorder: OutlineInputBorder(
-                          // ✅ เพิ่มอันนี้
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
                             color: Colors.black54, // สีกรอบตอนปกติ

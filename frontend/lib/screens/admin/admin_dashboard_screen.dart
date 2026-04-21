@@ -3,7 +3,7 @@ import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/admin.dart';
 import 'package:frontend/services/admin_service.dart';
-// ✅ ใช้สำหรับ URL รูปโปรไฟล์จริง
+// ใช้สำหรับ URL รูปโปรไฟล์จริง
 import 'package:frontend/services/user_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -52,7 +52,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     super.dispose();
   }
 
-  // ✅ helper แสดงรูปโปรไฟล์จริง ถ้าไม่มีใช้ตัวอักษรแรกแทน
+  // helper แสดงรูปโปรไฟล์จริง ถ้าไม่มีใช้ตัวอักษรแรกแทน
   CircleAvatar _avatarFor(User u, {double radius = 20}) {
     final abs = UserService.absoluteAvatarUrl(u.avatarUrl);
     if (abs != null && abs.isNotEmpty) {
@@ -432,7 +432,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         itemBuilder: (context, index) {
           final user = _pendingTeachers[index];
           return ListTile(
-            leading: _avatarFor(user, radius: 20), // ✅ ใช้รูปจริง
+            leading: _avatarFor(user, radius: 20), // ใช้รูปจริง
             title: Text(user.displayName),
             subtitle: Text('อีเมล: ${user.email ?? '-'}'),
             trailing: ElevatedButton(

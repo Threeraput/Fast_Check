@@ -55,7 +55,7 @@ class AnnouncementDto {
 }
 
 class AnnouncementService {
-  /// ✅ แนบ token ทุกครั้ง
+  /// แนบ token ทุกครั้ง
   static Future<Map<String, String>> _authHeaders() async {
     final t = await AuthService.getAccessToken();
     return {
@@ -65,7 +65,7 @@ class AnnouncementService {
     };
   }
 
-  /// ✅ สร้างประกาศและคืน DTO กลับมา
+  /// สร้างประกาศและคืน DTO กลับมา
   static Future<AnnouncementDto> createDto({
     required String classId,
     required String title,
@@ -96,7 +96,7 @@ class AnnouncementService {
     return AnnouncementDto.fromJson(jsonDecode(res.body));
   }
 
-  /// ✅ ดึงรายการประกาศของคลาส
+  /// ดึงรายการประกาศของคลาส
   static Future<List<AnnouncementDto>> listForClass(String classId) async {
     final url = Uri.parse('$API_BASE_URL/announcements/class/$classId');
     final res = await http.get(url, headers: await _authHeaders());
@@ -107,7 +107,7 @@ class AnnouncementService {
     return arr.map((e) => AnnouncementDto.fromJson(e)).toList();
   }
 
-  /// ✅ ใช้สำหรับ feed service (คืนค่า Map)
+  /// ใช้สำหรับ feed service (คืนค่า Map)
   static Future<List<Map<String, dynamic>>> listByClassId(
     String classId,
   ) async {
@@ -125,7 +125,7 @@ class AnnouncementService {
     }
   }
 
-  /// ✅ สำหรับ CreateAnnouncementScreen (ไม่ต้องการ object)
+  /// สำหรับ CreateAnnouncementScreen (ไม่ต้องการ object)
   static Future<bool> create({
     required String classId,
     required String title,
@@ -157,7 +157,7 @@ class AnnouncementService {
     return true;
   }
 
-  /// ✏️ อัปเดตประกาศ (PATCH /announcements/{id})
+  /// อัปเดตประกาศ (PATCH /announcements/{id})
   static Future<AnnouncementDto> update({
     required String announcementId,
     String? title,
@@ -188,7 +188,7 @@ class AnnouncementService {
     return AnnouncementDto.fromJson(jsonDecode(res.body));
   }
 
-  /// 🗑️ ลบประกาศ (DELETE /announcements/{id})
+  /// ลบประกาศ (DELETE /announcements/{id})
   static Future<void> delete(String announcementId) async {
     final url = Uri.parse('$API_BASE_URL/announcements/$announcementId');
     final res = await http.delete(url, headers: await _authHeaders());

@@ -16,7 +16,7 @@ import 'package:frontend/screens/profile/profile_screen.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:frontend/screens/admin/admin_dashboard_screen.dart';
 
-// ✅ ใช้ API แอดมินสำหรับดึง/เพิ่ม/ลบคลาสทั้งหมดในระบบ
+// ใช้ API แอดมินสำหรับดึง/เพิ่ม/ลบคลาสทั้งหมดในระบบ
 import 'package:frontend/services/admin_service.dart';
 
 class ClassroomHomeScreen extends StatefulWidget {
@@ -31,7 +31,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   Future<List<Classroom>>? _futureTaught;
   Future<List<Classroom>>? _futureJoined;
 
-  // ✅ แอดมิน: โหลด "คลาสทั้งหมดในระบบ"
+  // แอดมิน: โหลด "คลาสทั้งหมดในระบบ"
   Future<List<_AdminClassItem>>? _futureAllClasses;
 
   bool get _isTeacher =>
@@ -138,7 +138,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   }
 
   // =========================
-  // ✅ ADMIN: โหลดคลาสทั้งหมดในระบบ
+  // ADMIN: โหลดคลาสทั้งหมดในระบบ
   // =========================
   Future<List<_AdminClassItem>> _fetchAllClassesForAdmin() async {
     final page = await AdminService.listClasses(limit: 200, offset: 0);
@@ -162,7 +162,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   }
 
   // =========================
-  // ✅ ADMIN: เพิ่มคลาสใหม่ (ชื่อ + teacher_id)
+  // ADMIN: เพิ่มคลาสใหม่ (ชื่อ + teacher_id)
   // =========================
   Future<void> _adminCreateClass() async {
     final nameCtrl = TextEditingController();
@@ -234,7 +234,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   }
 
   // =========================
-  // ✅ ADMIN: ลบคลาส
+  // ADMIN: ลบคลาส
   // =========================
   Future<void> _adminDeleteClass(String classId, String className) async {
     final confirm = await showDialog<bool>(
@@ -412,10 +412,10 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                       leading: const Icon(Icons.face_retouching_natural),
                       title: const Text('ลงทะเบียน/เปลี่ยนใบหน้า'),
                       onTap: () async {
-                        // 1️⃣ ปิดหน้าต่าง Drawer ก่อน
+                        // 1️ ปิดหน้าต่าง Drawer ก่อน
                         Navigator.pop(context);
 
-                        // 2️⃣ โชว์ Loading หมุนๆ บล็อกหน้าจอไว้
+                        // 2️ โชว์ Loading หมุนๆ บล็อกหน้าจอไว้
                         showDialog(
                           context: context,
                           barrierDismissible: false,
@@ -429,20 +429,20 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                           final prefs = await SharedPreferences.getInstance();
                           final token = prefs.getString('accessToken') ?? '';
 
-                          // 3️⃣ ยิง API เช็คสถานะ (🚨 เปลี่ยน UserService เป็นชื่อ Service ที่คุณเอาฟังก์ชันไปใส่ไว้)
+                          // 3️ ยิง API เช็คสถานะ (🚨 เปลี่ยน UserService เป็นชื่อ Service ที่คุณเอาฟังก์ชันไปใส่ไว้)
                           final result = await UserService.checkCanChangeFace(token);
 
-                          // 4️⃣ ปิด Loading หมุนๆ
+                          // 4️ ปิด Loading หมุนๆ
                           if (context.mounted) Navigator.pop(context);
 
-                          // 5️⃣ ตรวจสอบเงื่อนไข
+                          // 5️ ตรวจสอบเงื่อนไข
                           if (result['can_change_face'] == true) {
-                            // ✅ อนุญาต -> พาไปหน้าอัปโหลดรูป
+                            // อนุญาต -> พาไปหน้าอัปโหลดรูป
                             if (context.mounted) {
                               Navigator.pushNamed(context, '/upload-face'); 
                             }
                           } else {
-                            // 🚫 ไม่อนุญาต -> โชว์แจ้งเตือน
+                            // ไม่อนุญาต -> โชว์แจ้งเตือน
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -612,7 +612,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         ],
       ),
       drawer: _buildDrawer(),
-      // ✅ แอดมิน: มีปุ่มเพิ่มคลาสเท่านั้น
+      // แอดมิน: มีปุ่มเพิ่มคลาสเท่านั้น
       floatingActionButton: _isAdmin
           ? FloatingActionButton.extended(
               onPressed: _adminCreateClass,
@@ -801,7 +801,7 @@ class _AdminClasses extends StatelessWidget {
                     'Teacher: ${it.teacherName}  •  Students: ${it.studentCount}',
                     style: TextStyle(color: Colors.white.withOpacity(0.92)),
                   ),
-                  // ✅ แอดมิน: มีปุ่มลบเท่านั้น
+                  // แอดมิน: มีปุ่มลบเท่านั้น
                   trailing: IconButton(
                     tooltip: 'ลบคลาส',
                     onPressed: () => onDelete(it.classId, it.name),

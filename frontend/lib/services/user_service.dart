@@ -62,7 +62,7 @@ class UserService {
   }
 
   // -------------------------
-  // ✏️ อัปเดตข้อมูลโปรไฟล์ (ยกเว้น email)
+  // อัปเดตข้อมูลโปรไฟล์ (ยกเว้น email)
   // -------------------------
   static Future<User> updateUser({
     required String userId,
@@ -161,7 +161,7 @@ class UserService {
 
     return fullUrl;
   }
-  // 🌟 ฟังก์ชันเช็คสถานะก่อนอนุญาตให้เปลี่ยนรูปใบหน้า
+  // ฟังก์ชันเช็คสถานะก่อนอนุญาตให้เปลี่ยนรูปใบหน้า
   static Future<Map<String, dynamic>> checkCanChangeFace(String token) async {
     try {
       // ปรับ URL ให้ตรงกับที่ตั้งไว้ใน FastAPI 

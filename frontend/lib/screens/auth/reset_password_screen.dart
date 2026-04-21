@@ -21,7 +21,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _isLoading = false;
   String? _passwordError;
 
-  // ✅ สถานะตรวจสอบรหัสผ่าน
+  // สถานะตรวจสอบรหัสผ่าน
   bool hasUppercase = false;
   bool hasLowercase = false;
   bool hasNumber = false;
@@ -35,7 +35,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.initState();
     _otpControllers = List.generate(_otpLength, (_) => TextEditingController());
 
-    // ✅ ตรวจสอบรหัสผ่านขณะพิมพ์
+    // ตรวจสอบรหัสผ่านขณะพิมพ์
     _newPasswordController.addListener(() {
       _checkPasswordStatus(_newPasswordController.text);
       if (_passwordError != null) {
@@ -54,10 +54,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
-  // ✅ รวมค่า OTP ทั้งหมด
+  // รวมค่า OTP ทั้งหมด
   String get _otp => _otpControllers.map((e) => e.text).join();
 
-  /// ✅ ตรวจสอบแต่ละเงื่อนไขของรหัสผ่าน
+  /// ตรวจสอบแต่ละเงื่อนไขของรหัสผ่าน
   void _checkPasswordStatus(String password) {
     setState(() {
       hasUppercase = password.contains(RegExp(r'[A-Z]'));
@@ -68,7 +68,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
   }
 
-  /// ✅ ตรวจสอบรหัสผ่านว่าผ่านทุกข้อหรือไม่
+  /// ตรวจสอบรหัสผ่านว่าผ่านทุกข้อหรือไม่
   bool _isPasswordSecure(String password) {
     return hasUppercase &&
         hasLowercase &&
@@ -148,7 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
   }
 
-  /// ✅ Widget แสดง checklist เงื่อนไขรหัสผ่าน
+  /// Widget แสดง checklist เงื่อนไขรหัสผ่าน
   Widget _buildPasswordChecklist() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +185,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
-  /// ✅ ช่องกรอก OTP แบบแยกช่อง
+  /// ช่องกรอก OTP แบบแยกช่อง
   Widget _buildOtpFields() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,

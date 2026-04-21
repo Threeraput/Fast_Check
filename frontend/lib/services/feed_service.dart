@@ -29,7 +29,7 @@ bool _truthy(Map<String, dynamic>? m, List<String> keys) {
   return false;
 }
 
-// ✅ ช่วย dedupe โดยใช้ id+kind เป็นกุญแจ
+// ช่วย dedupe โดยใช้ id+kind เป็นกุญแจ
 List<FeedItem> _uniqByIdKind(Iterable<FeedItem> items) {
   final seen = <String>{};
   final out = <FeedItem>[];
@@ -42,7 +42,7 @@ List<FeedItem> _uniqByIdKind(Iterable<FeedItem> items) {
 }
 
 class FeedService {
-  /// ✅ ดึงฟีดพื้นฐาน (เช็คชื่อ) + ✅ รวม "ประกาศ" + ✅ ต่อท้าย "งาน (ครู)"
+  /// ดึงฟีดพื้นฐาน (เช็คชื่อ) + รวม "ประกาศ" + ต่อท้าย "งาน (ครู)"
   static Future<List<FeedItem>> getClassFeed(String classId) async {
     final items = <FeedItem>[];
 
@@ -86,7 +86,7 @@ class FeedService {
       print('⚠️ โหลด session feed ไม่สำเร็จ: $e');
     }
 
-    // 2) ✅ ประกาศ (announcements)
+    // 2) ประกาศ (announcements)
     try {
       final anns = await AnnouncementService.listByClassId(classId);
       for (final a in anns) {
@@ -114,7 +114,7 @@ class FeedService {
       print('⚠️ โหลดประกาศไม่สำเร็จ: $e');
     }
 
-    // 3) ✅ งาน (สำหรับครู) — ของเดิม
+    // 3) งาน (สำหรับครู) — ของเดิม
     try {
       final asgs =
           await ClassworkSimpleService.listAssignmentsForClassAsTeacherTyped(
@@ -143,7 +143,7 @@ class FeedService {
       print('⚠️ โหลด assignments (ครู) ไม่สำเร็จ: $e');
     }
 
-    // ✅ เรียงลำดับ
+    // เรียงลำดับ
     items.sort((a, b) {
       final aKind = a.extra['kind']?.toString();
       final bKind = b.extra['kind']?.toString();
@@ -167,13 +167,13 @@ class FeedService {
     return items;
   }
 
-  /// ✅ ฟีดสำหรับนักเรียน (เช็คชื่อ + งานนักเรียน + ประกาศ)
+  /// ฟีดสำหรับนักเรียน (เช็คชื่อ + งานนักเรียน + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForStudentWithAssignments(
     String classId,
   ) async {
     final result = <FeedItem>[];
 
-    // ✳️ ดึง base แค่ครั้งเดียว
+    // ดึง base แค่ครั้งเดียว
     final base = await getClassFeed(classId);
 
     // 1) รวม "ประกาศ" จาก base ครั้งเดียว
@@ -249,10 +249,10 @@ class FeedService {
       print('⚠️ โหลด assignments (นักเรียน) ไม่สำเร็จ: $e');
     }
 
-    // ✅ กันพลาด: dedupe อีกรอบ
+    // กันพลาด dedupe อีกรอบ
     final deduped = _uniqByIdKind(result);
 
-    // ✅ เรียงลำดับ (เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด)
+    // เรียงลำดับ (เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด)
     deduped.sort((a, b) {
       final now = DateTime.now();
       final aKind = a.extra['kind']?.toString();
@@ -283,7 +283,7 @@ class FeedService {
     return deduped;
   }
 
-  /// ✅ ฟีดของครู (เช็คชื่อ + งานครู + ประกาศ)
+  /// ฟีดของครู (เช็คชื่อ + งานครู + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForTeacherWithAssignments(
     String classId,
   ) async {

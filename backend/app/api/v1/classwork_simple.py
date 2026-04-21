@@ -240,12 +240,12 @@ async def get_assignment_comments(
 
 @router.get("/assignments/{assignment_id}/export")
 def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db)):
-    # 1️⃣ ดึงข้อมูล Assignment เพื่อเอาหัวข้อและคะแนนเต็ม
+    # 1️.ดึงข้อมูล Assignment เพื่อเอาหัวข้อและคะแนนเต็ม
     assignment = db.query(ClassworkAssignment).filter(ClassworkAssignment.assignment_id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="ไม่พบข้อมูลงานที่ระบุ")
 
-    # 2️⃣ ดึงรายชื่อนักเรียนในคลาส และ Join กับข้อมูลการส่งงาน (Left Join)
+    # 2.ดึงรายชื่อนักเรียนในคลาส และ Join กับข้อมูลการส่งงาน (Left Join)
     # หมายเหตุ: ผมสมมติว่าคุณมีตารางเชื่อมระหว่าง User กับ Class ชื่อ ClassMember หรือคล้ายๆ กัน
     # ในที่นี้ผมจะ Query จาก User ที่มีความเกี่ยวข้องกับ class_id ของงานนี้
     results = (
@@ -259,7 +259,7 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
             ClassworkSubmission.graded
         )
         .select_from(User)
-        # 🌟 เปลี่ยนจาก class_students.c.user_id เป็น class_students.c.student_id
+        # เปลี่ยนจาก class_students.c.user_id เป็น class_students.c.student_id
         .join(class_students, User.user_id == class_students.c.student_id) 
         .filter(class_students.c.class_id == assignment.class_id)
         .outerjoin(ClassworkSubmission, 
@@ -270,7 +270,7 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
         .all()
     )
 
-    # 3️⃣ สร้างไฟล์ Excel
+    # 3️.สร้างไฟล์ Excel
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "รายงานการส่งงาน"
@@ -284,7 +284,7 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
     headers = ["รหัสนักศึกษา", "ชื่อ-นามสกุล", "วันที่ส่ง", "สถานะ", "สถานะการตรวจ", "คะแนน"]
     ws.append(headers)
 
-    # 4️⃣ วนลูปใส่ข้อมูลนักเรียน
+    # 4️.วนลูปใส่ข้อมูลนักเรียน
     for r in results:
         full_name = f"{r.first_name or ''} {r.last_name or ''}".strip()
         submit_date = r.submitted_at.strftime("%d/%m/%Y %H:%M") if r.submitted_at else "ยังไม่ส่ง"
@@ -307,7 +307,7 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
             score_display
         ])
 
-    # 5️⃣ ส่งไฟล์กลับ
+    # 5️.ส่งไฟล์กลับ
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)

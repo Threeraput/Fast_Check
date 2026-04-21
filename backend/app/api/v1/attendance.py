@@ -25,7 +25,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
-from app.models.user_face_sample import UserFaceSample  # ✅ เช็คว่าผู้ใช้มี sample หรือยัง
+from app.models.user_face_sample import UserFaceSample  # เช็คว่าผู้ใช้มี sample หรือยัง
 
 from app.schemas.attendance_schema import (
     AttendanceCheckIn,
@@ -189,11 +189,11 @@ async def re_verify_check_in(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # ✅ ตรวจ role
+    # ตรวจ role
     if "student" not in [role.name for role in current_user.roles]:
         raise HTTPException(status_code=403, detail="Access denied.")
 
-    # ✅ ตรวจไฟล์รูป
+    # ตรวจไฟล์รูป
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=400, detail="Invalid file type. Only images are allowed."
@@ -202,7 +202,7 @@ async def re_verify_check_in(
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
 
-    # ✅ ตรวจว่าผู้ใช้มี Face Sample หรือไม่
+    # ตรวจว่าผู้ใช้มี Face Sample หรือไม่
     try:
         has_sample = (
             db.query(UserFaceSample)
@@ -219,7 +219,7 @@ async def re_verify_check_in(
             detail="No face samples found for this user. Please register your face first.",
         )
 
-    # ✅ ใช้ logic เดียวกับ check-in
+    # ใช้ logic เดียวกับ check-in
     try:
         embedding = get_face_embedding(io.BytesIO(image_bytes))
         result = compare_faces(db, current_user.user_id, embedding)
@@ -232,13 +232,13 @@ async def re_verify_check_in(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Face service error: {e}")
 
-    # ✅ ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
+    # ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
     if not matched:
         raise HTTPException(
             status_code=403, detail="Face verification failed for this user."
         )
 
-    # ✅ ถ้าผ่าน ให้เรียก handle_reverification
+    # ถ้าผ่าน ให้เรียก handle_reverification
     try:
         result = handle_reverification(
             db=db,

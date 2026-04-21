@@ -12,7 +12,7 @@ import 'package:frontend/widgets/feed_cards.dart';
 import 'package:frontend/models/feed_item.dart';
 import 'package:intl/intl.dart';
 
-// ✅ ใช้สำหรับ URL รูปโปรไฟล์
+// ใช้สำหรับ URL รูปโปรไฟล์
 import 'package:frontend/services/user_service.dart';
 
 class ClassDetailsScreen extends StatefulWidget {
@@ -140,7 +140,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),
-            label: 'Report', // ✅ หน้ารายงานใหม่
+            label: 'Report',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people_outline),

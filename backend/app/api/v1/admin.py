@@ -78,7 +78,7 @@ async def approve_user_as_teacher(
         updated_at=approved_user.updated_at,
         last_login_at=approved_user.last_login_at,
         roles=user_roles,
-        # ✅ ส่ง avatar_url ออกไปเพื่อให้ Frontend แสดงรูปจริงได้
+        # ส่ง avatar_url ออกไปเพื่อให้ Frontend แสดงรูปจริงได้
         avatar_url=getattr(approved_user, "avatar_url", None),
     )
 
@@ -104,14 +104,14 @@ async def get_pending_teachers(
                 updated_at=user.updated_at,
                 last_login_at=user.last_login_at,
                 roles=user_roles,
-                # ✅ ส่ง avatar_url ออกด้วย
+                # ส่ง avatar_url ออกด้วย
                 avatar_url=getattr(user, "avatar_url", None),
             )
         )
     return response_list
 
 # ===========================
-# ✅ Admin - List all users (with search, role filter, pagination)
+# Admin - List all users (with search, role filter, pagination)
 # ===========================
 @router.get("/users", response_model=AdminUsersPage)
 async def admin_list_users(
@@ -161,7 +161,7 @@ async def admin_list_users(
                 updated_at=u.updated_at,
                 last_login_at=u.last_login_at,
                 roles=[r.name for r in u.roles],
-                # ✅ ส่ง avatar_url ออกด้วย
+                # ส่ง avatar_url ออกด้วย
                 avatar_url=getattr(u, "avatar_url", None),
             )
         )
@@ -169,7 +169,7 @@ async def admin_list_users(
     return AdminUsersPage(total=total, limit=limit, offset=offset, items=items)
 
 # ===========================
-# ✅ Admin - Delete user
+# Admin - Delete user
 # ===========================
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_delete_user(
@@ -185,7 +185,7 @@ async def admin_delete_user(
     return None
 
 # ===========================
-# ✅ Admin - System summary report
+# Admin - System summary report
 # ===========================
 @router.get("/reports/summary", response_model=SystemSummaryReport)
 async def admin_system_summary(
@@ -237,7 +237,7 @@ async def admin_system_summary(
     )
 
 # ===========================
-# ✅ Admin - List all classes (search + pagination)
+# Admin - List all classes (search + pagination)
 # ===========================
 @router.get("/classes", response_model=AdminClassesPage)
 async def admin_list_classes(
@@ -299,7 +299,7 @@ async def admin_list_classes(
                     updated_at=teacher.updated_at,
                     last_login_at=teacher.last_login_at,
                     roles=[r.name for r in teacher.roles],
-                    avatar_url=getattr(teacher, "avatar_url", None),  # ✅ ส่ง avatar_url
+                    avatar_url=getattr(teacher, "avatar_url", None),  # ส่ง avatar_url
                 ) if teacher else None,
             )
         )
@@ -311,7 +311,7 @@ async def admin_list_classes(
         items=items,
     )
 # ===========================
-# ✅ Admin - Create class (แก้ 500 จาก code = NULL)
+# Admin - Create class (แก้ 500 จาก code = NULL)
 # ===========================
 @router.post("/classes", response_model=AdminClassSummary, status_code=status.HTTP_201_CREATED)
 def admin_create_class(

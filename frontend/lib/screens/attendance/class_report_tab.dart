@@ -24,7 +24,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
   bool _hasError = false;
   String _errorMsg = '';
 
-  // 🌟 เพิ่มสถานะสำหรับการดาวน์โหลด
+  // เพิ่มสถานะสำหรับการดาวน์โหลด
   bool _isDownloading = false;
 
   List<AttendanceReport> _reports = [];
@@ -117,10 +117,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
     });
 
     try {
-      // 🌟 1. เปิดกระเป๋า SharedPreferences
+      // 1. เปิดกระเป๋า SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       
-      // 🌟 2. หยิบ Token ออกมาโดยใช้ Key คำว่า 'accessToken' ให้ตรงเป๊ะ!
+      // 2. หยิบ Token ออกมาโดยใช้ Key คำว่า 'accessToken' ให้ตรงเป๊ะ!
       String realToken = prefs.getString('accessToken') ?? ''; 
       
       if (realToken.isEmpty) {
@@ -129,7 +129,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
 
       print('=== [UI DEBUG] เริ่มกดปุ่มดาวน์โหลด ===');
       
-      // 🌟 3. ส่ง Token จริงไปให้ Service ลุย!
+      // 3. ส่ง Token จริงไปให้ Service ลุย!
       await AttendanceReportService.exportDetailedReport(widget.classId, realToken);
       
       if (mounted) {
@@ -199,7 +199,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
 
           const SizedBox(height: 12), // เว้นระยะนิดนึง
 
-          // 🌟 ปุ่มดาวน์โหลดรายงาน (Excel) ของใหม่
+          // ปุ่มดาวน์โหลดรายงาน (Excel) ของใหม่
           ElevatedButton.icon(
             onPressed: _isDownloading ? null : _downloadReport, // ถ้าโหลดอยู่จะกดซ้ำไม่ได้
             icon: _isDownloading
@@ -479,7 +479,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
               ),
               const SizedBox(height: 16),
 
-              // ✅ เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
+              // เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(

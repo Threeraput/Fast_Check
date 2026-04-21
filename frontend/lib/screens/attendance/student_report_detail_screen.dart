@@ -66,7 +66,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     }
   }
 
-  // ✅ 1. ฟังก์ชันจัดกลุ่ม: ดึงมาเฉพาะ "วัน เดือน ปี"
+  // 1. ฟังก์ชันจัดกลุ่ม: ดึงมาเฉพาะ "วัน เดือน ปี"
   String _formatDateOnly(String? dateTimeStr) {
     if (dateTimeStr == null || dateTimeStr.isEmpty) return "ไม่ระบุวันที่";
     try {
@@ -78,7 +78,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     }
   }
 
-  // ✅ 2. ฟังก์ชันจัดกลุ่มข้อมูลแยกตาม "วันที่"
+  // 2. ฟังก์ชันจัดกลุ่มข้อมูลแยกตาม "วันที่"
   Map<String, List<AttendanceReportDetail>> _groupByDate(
     List<AttendanceReportDetail> details,
   ) {
@@ -134,7 +134,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             return const Center(child: Text('ยังไม่มีข้อมูลรายวัน'));
           }
 
-          // ✅ นำข้อมูลมาจัดกลุ่มตาม "วันที่"
+          // นำข้อมูลมาจัดกลุ่มตาม "วันที่"
           final groupedDetails = _groupByDate(snapshot.data!);
           final dateKeys = groupedDetails.keys.toList();
 

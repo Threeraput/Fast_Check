@@ -16,7 +16,7 @@ import 'package:frontend/services/class_service.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/users.dart';
 
-// ✅ ใช้สำหรับแปลง avatarUrl ให้เป็น URL เต็ม
+// ใช้สำหรับแปลง avatarUrl ให้เป็น URL เต็ม
 import 'package:frontend/services/user_service.dart';
 
 class StudentClassView extends StatefulWidget {
@@ -183,7 +183,7 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
           Text('Announcements', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
 
-          // ✅ ฟีด Stream จริง (feed_cards)
+          // ฟีด Stream จริง (feed_cards)
           FutureBuilder<List<FeedItem>>(
             future: _futureFeed,
             builder: (context, snap) {
@@ -240,7 +240,7 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
   @override
   void initState() {
     super.initState();
-    // ✅ โหลดเฉพาะ feed ที่เหมาะกับนักเรียน (รวม assignments)
+    // โหลดเฉพาะ feed ที่เหมาะกับนักเรียน (รวม assignments)
     _future = FeedService.getClassFeedForStudentWithAssignments(widget.classId);
   }
 
@@ -281,7 +281,7 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
                 );
               }
               final items = (snap.data ?? const <FeedItem>[])
-                  // ✅ แสดงเฉพาะการ์ด assignment ในแท็บ Classwork
+                  // แสดงเฉพาะการ์ด assignment ในแท็บ Classwork
                   .where((f) => (f.extra['kind']?.toString() == 'assignment'))
                   .toList();
 

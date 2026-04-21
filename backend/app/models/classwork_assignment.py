@@ -33,7 +33,6 @@ class ClassworkAssignment(Base):
     classroom = relationship("Class", back_populates="assignments")
     teacher = relationship("User", foreign_keys=[teacher_id], back_populates="class_assignments")
 
-    # 👉 สิ่งที่ต้องเติมเพิ่มเข้าไป:
     comments = relationship(
         "AssignmentComment",
         back_populates="assignment",

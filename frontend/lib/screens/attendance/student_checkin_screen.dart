@@ -131,7 +131,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       final msg = e.toString().replaceFirst('Exception: ', '');
       print('🧩 [StudentCheckinScreen] error: $msg');
 
-      // ✅ ตรวจว่ามีคำว่า 403 หรือข้อความที่เกี่ยวกับรัศมี
+      // ตรวจว่ามีคำว่า 403 หรือข้อความที่เกี่ยวกับรัศมี
       if (msg.contains('403') ||
           msg.contains('นอกระยะ') ||
           msg.contains('รัศมี')) {
@@ -148,21 +148,18 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
             ),
             actions: [
               TextButton(
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.blueAccent
-                ),
+                style: TextButton.styleFrom(backgroundColor: Colors.blueAccent),
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  style: TextStyle(
-                    color: Colors.white
-                  ),
-                  'ตกลง'),
+                  style: TextStyle(color: Colors.white),
+                  'ตกลง',
+                ),
               ),
             ],
           ),
         );
       } else {
-        // 🧩 Error อื่น ๆ แสดง SnackBar ตามปกติ
+        // Error อื่น ๆ แสดง SnackBar ตามปกติ
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(msg)));
@@ -178,9 +175,9 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
         future: _init,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(
-              color: Colors.blue,
-            ));
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.blue),
+            );
           }
           if (snap.hasError) {
             return Center(child: Text(snap.error.toString()));
@@ -208,6 +205,40 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Card(
+                  color: Colors.orange.shade50, // พื้นหลังสีส้มอ่อน
+                  elevation: 0, // ปิดเงาให้ดูแบนราบสไตล์ Modern
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.orange.shade200), // ขอบสีส้ม
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons
+                          .warning_amber_rounded, // เปลี่ยนไอคอนเป็นเครื่องหมายเตือน
+                      color: Colors.orange.shade700,
+                      size: 32,
+                    ),
+                    title: Text(
+                      'ข้อควรระวัง',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'กรุณาถ่ายให้เห็นใบหน้าของคุณเพียงคนเดียวเท่านั้น (ห้ามมีบุคคลอื่นในเฟรม)',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
@@ -224,7 +255,8 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               color: Colors.blue,
-                              strokeWidth: 2),
+                              strokeWidth: 2,
+                            ),
                           )
                         : const Icon(Icons.check_circle),
                     label: Text(

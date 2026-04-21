@@ -94,7 +94,7 @@ class _ArchivedClassesScreenState extends State<ArchivedClassesScreen> {
                   itemBuilder: (context, index) {
                     final classData = archivedClasses[index];
                     return Card(
-                      color: Colors.grey.shade200, // สีการ์ดหม่นๆ ให้ดูเหมือนถูกเก็บ
+                      color: Colors.grey.shade200,
                       margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
                         // ป้องกันกรณีชื่อเป็น null

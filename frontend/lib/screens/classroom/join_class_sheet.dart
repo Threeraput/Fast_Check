@@ -25,7 +25,7 @@ class UpperCaseTextFormatter extends TextInputFormatter {
 class _JoinClassSheetState extends State<JoinClassSheet> {
   final _codeCtl = TextEditingController();
   bool _loading = false;
-  String? _errorText; // ✅ เก็บข้อความ error ใต้กล่องข้อความ
+  String? _errorText; // เก็บข้อความ error ใต้กล่องข้อความ
 
   Future<void> _join() async {
     final code = _codeCtl.text.trim();
@@ -69,7 +69,7 @@ class _JoinClassSheetState extends State<JoinClassSheet> {
         msg = 'เกิดข้อผิดพลาดในการเข้าร่วมคลาส';
       }
 
-      // ✅ แสดงข้อความในกล่องข้อความ
+      // แสดงข้อความในกล่องข้อความ
       setState(() => _errorText = msg);
     } finally {
       if (mounted) setState(() => _loading = false);

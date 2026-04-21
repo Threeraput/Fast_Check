@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.user_face_sample import UserFaceSample
 from app.schemas.face_schema import FaceSampleResponse
 from uuid import UUID
-from datetime import datetime, timezone, timedelta # 👈 เพิ่ม timedelta และ datetime
+from datetime import datetime, timezone, timedelta 
 
 # ฟังก์ชันสำหรับประมวลผลรูปภาพและดึง face embedding
 def get_face_embedding(image_path: str) -> bytes:
@@ -48,7 +48,7 @@ def get_face_embedding(image_path: str) -> bytes:
         )
 
 
-# 🛠️ ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน
+# ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน
 def create_face_sample(db: Session, user_id: UUID, image_url: str, embedding: bytes) -> FaceSampleResponse:
     now = datetime.now(timezone.utc)
     

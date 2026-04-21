@@ -120,10 +120,10 @@ class _GradingScreenState extends State<GradingScreen> {
       );
     }
   }
-  // 🌟 เพิ่มตัวแปรเช็คสถานะการโหลด
+  // เพิ่มตัวแปรเช็คสถานะการโหลด
   bool _isDownloading = false;
 
-  // 🌟 ฟังก์ชันดาวน์โหลดรายงานสำหรับงานชิ้นนี้
+  // ฟังก์ชันดาวน์โหลดรายงานสำหรับงานชิ้นนี้
   Future<void> _downloadAssignmentReport() async {
     setState(() {
       _isDownloading = true; 
@@ -137,8 +137,7 @@ class _GradingScreenState extends State<GradingScreen> {
         throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
       }
       
-      // 🚨 เรียกใช้ Service ดาวน์โหลด (ใช้ assignmentId ของหน้านี้)
-      // ปล. อย่าลืมเอาฟังก์ชัน exportAssignmentReport ที่เราสร้างไว้รอบที่แล้ว 
+      // เรียกใช้ Service ดาวน์โหลด (ใช้ assignmentId ของหน้านี้)
       // ไปใส่ไว้ในไฟล์ ClassworkSimpleService.dart ด้วยนะครับ
       await ClassworkSimpleService.exportAssignmentReport(widget.assignmentId, realToken);
       
@@ -194,7 +193,7 @@ class _GradingScreenState extends State<GradingScreen> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         
-        // 🌟 เติมปุ่มดาวน์โหลดลงไปตรงนี้ครับ!
+        // เติมปุ่มดาวน์โหลดรายงานเข้าไปใน AppBar
         actions: [
           _isDownloading 
               ? const Padding(

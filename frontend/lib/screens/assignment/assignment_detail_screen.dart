@@ -77,7 +77,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
       appBar: AppBar(
         title: const Text('รายละเอียดงาน'),
         actions: [
-          // 👈 3. ใส่ if ครอบไว้ แปลว่า "ถ้าเป็นครู ค่อยโชว์ปุ่มนี้!"
+          // ใส่ if ครอบไว้ แปลว่า "ถ้าเป็นครู ค่อยโชว์ปุ่มนี้"
           if (widget.isTeacher) 
             IconButton(
               icon: const Icon(Icons.assignment_ind_outlined),

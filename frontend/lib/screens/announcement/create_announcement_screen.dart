@@ -48,13 +48,13 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
          return Theme(
           data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.blue, // 🔵 สีวงกลมวันที่เลือก
-            onPrimary: Colors.white, // 🔵 สีตัวเลขในวงกลม
+            primary: Colors.blue, // สีวงกลมวันที่เลือก
+            onPrimary: Colors.white, // สีตัวเลขในวงกลม
             surface: Colors.white, // พื้นหลัง popup
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
+              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
               textStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
@@ -72,15 +72,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       return Theme(
         data: Theme.of(context).copyWith(
           colorScheme: ColorScheme.light(
-            primary: Colors.lightBlue, // 🔵 สีไฮไลต์วงกลมรอบตัวเลข
-            secondary: Colors.lightBlueAccent, // 🔵 สีเวลาที่เลือก
+            primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
+            secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
             onPrimary: Colors.white, // สีตัวเลขในวงกลม
             surface: Colors.white,
             onSurface: Colors.black87, // สีข้อความทั่วไป
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
+              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
             ),
           ),
         ),
@@ -135,7 +135,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   @override
   void initState() {
     super.initState();
-    // 🟦 เพิ่ม listener เพื่ออัปเดตตัวอย่างแบบเรียลไทม์
+    // เพิ่ม listener เพื่ออัปเดตตัวอย่างแบบเรียลไทม์
     _titleCtl.addListener(() => setState(() {}));
     _bodyCtl.addListener(() => setState(() {}));
   }
@@ -247,7 +247,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           title: const Text('ปักหมุด (Pinned)'),
                           controlAffinity: ListTileControlAffinity.leading,
                           contentPadding: EdgeInsets.zero,
-                          activeColor: Colors.blueAccent, // ✅ สีเมื่อถูกเลือก
+                          activeColor: Colors.blueAccent, // สีเมื่อถูกเลือก
                           checkColor: Colors.white,
                         ),
                         const Divider(height: 1),
@@ -257,9 +257,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           title: const Text('แสดงให้นักเรียนเห็น'),
                           contentPadding: EdgeInsets.zero,
                           activeColor:
-                              Colors.blueAccent, // ✅ สีของสวิตช์ตอนเปิด
+                              Colors.blueAccent, // สีของสวิตช์ตอนเปิด
                           activeTrackColor: Colors
-                              .blue[100], // ✅ สีพื้นหลังตอนเปิด (อ่อนกว่า)
+                              .blue[100], // สีพื้นหลังตอนเปิด (อ่อนกว่า)
                         ),
                       ],
                     ),

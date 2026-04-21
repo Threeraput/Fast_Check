@@ -45,10 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
             final hasFace = await FaceService.checkHasFace(user.userId);
 
             if (hasFace) {
-              // 👩‍🎓 มีใบหน้าแล้ว → ไปหน้า classroom
+              // มีใบหน้าแล้ว → ไปหน้า classroom
               Navigator.pushReplacementNamed(context, '/home');
             } else {
-              // 👩‍🎓 ยังไม่มีใบหน้า → ไปหน้า classroom เหมือนกัน
+              // ยังไม่มีใบหน้า → ไปหน้า classroom เหมือนกัน
               // แต่ถามก่อนว่าต้องการลงทะเบียนไหม
               final consent = await showDialog<bool>(
                 context: context,

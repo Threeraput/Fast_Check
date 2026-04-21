@@ -20,7 +20,7 @@ router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Detai
 
 
 # ---------------------------------------------------------
-# 1️⃣ นักเรียนดูรายงานรายวันของตัวเอง
+# นักเรียนดูรายงานรายวันของตัวเอง
 # ---------------------------------------------------------
 @router.get("/my", response_model=list[AttendanceReportDetailResponse])
 def get_my_daily_reports(
@@ -47,7 +47,7 @@ def get_my_daily_reports(
     if not results:
         raise HTTPException(status_code=404, detail="No daily reports found")
 
-    # ✅ แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema (ทั้ง 2 รูป)
+    # แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema (ทั้ง 2 รูป)
     for r in results:
         r.face_image_url = r.face_image_path
         r.reverify_image_url = r.reverify_image_path
@@ -56,12 +56,12 @@ def get_my_daily_reports(
 
 
 # ---------------------------------------------------------
-# 2️⃣ ครูดูรายงานรายวันของคลาส (ดูภาพรวมราย Session ของทั้งห้อง)
+# ครูดูรายงานรายวันของคลาส (ดูภาพรวมราย Session ของทั้งห้อง)
 # ---------------------------------------------------------
 @router.get(
     "/class/{class_id}",
     response_model=list[AttendanceReportDetailResponse],
-    dependencies=[Depends(role_required(["teacher", "admin"]))],  # ✅ เพิ่ม admin เผื่อไว้
+    dependencies=[Depends(role_required(["teacher", "admin"]))],  # เพิ่ม admin เผื่อไว้
 )
 def get_class_daily_reports(
     class_id: UUID, db: Session = Depends(get_db)
@@ -90,7 +90,7 @@ def get_class_daily_reports(
 
 
 # ---------------------------------------------------------
-# 3️⃣ ครูดูรายงานรายวัน "เจาะจงรายบุคคล" (ดูย้อนหลังรายคน)
+# ครูดูรายงานรายวัน "เจาะจงรายบุคคล" (ดูย้อนหลังรายคน)
 # ---------------------------------------------------------
 @router.get(
     "/student/{student_id}",
@@ -120,7 +120,7 @@ def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
     return results
 
 # ---------------------------------------------------------
-# 📊 ส่งออกรายงานการเข้าเรียนรายวัน (Detailed Excel Export)
+# ส่งออกรายงานการเข้าเรียนรายวัน (Detailed Excel Export)
 # ---------------------------------------------------------
 @router.get(
     "/class/{class_id}/export/detailed",
@@ -129,7 +129,7 @@ def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
 def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     """ดาวน์โหลดไฟล์ Excel รายงานการเข้าเรียนแบบรายวันของทั้งคลาส"""
     
-    # 1️⃣ ดึงข้อมูลโดยการ Join 4 ตารางเข้าด้วยกัน
+    # 1️.ดึงข้อมูลโดยการ Join 4 ตารางเข้าด้วยกัน
     results = (
         db.query(
             AttendanceSession.start_time.label("session_start"),
@@ -152,7 +152,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     if not results:
         raise HTTPException(status_code=404, detail="ไม่มีข้อมูลสำหรับการส่งออก")
 
-    # 2️⃣ เตรียมตัวช่วยแปลภาษาและฟอร์แมตวันที่
+    # 2.เตรียมตัวช่วยแปลภาษาและฟอร์แมตวันที่
     def translate_status(status_str: str) -> str:
         s = status_str.lower()
         if s == "present": return "เข้าเรียน"
@@ -166,7 +166,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
             return "-"
         return dt.strftime(fmt)
 
-    # 🌟 3️⃣ สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
+    # 3.สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "รายงานรายวัน"
@@ -175,7 +175,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     headers = ["วันที่เรียน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "เวลาเริ่มคาบ", "เวลาที่เช็คชื่อ", "สถานะ", "สุ่มตรวจซ้ำ", "เวลาตรวจซ้ำ"]
     ws.append(headers)
 
-    # 🌟 4️⃣ วนลูปข้อมูลใส่ตาราง Excel (ใช้แค่ลูปนี้ลูปเดียว)
+    # 4.วนลูปข้อมูลใส่ตาราง Excel (ใช้แค่ลูปนี้ลูปเดียว)
     for r in results:
         # แปลงร่างข้อมูลที่ดึงมาจาก Database (r) ให้อยู่ในรูปแบบ String สวยๆ
         date_str = format_dt(r.session_start, "%d/%m/%Y")
@@ -197,12 +197,12 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
             reverify_time
         ])
 
-    # 🌟 5️⃣ บันทึกไฟล์ Excel ลงในหน่วยความจำ
+    # 5.บันทึกไฟล์ Excel ลงในหน่วยความจำ
     output = io.BytesIO()
     wb.save(output) # 🚨 จุดนี้ที่หายไป! ต้องสั่ง save ข้อมูลลง output ก่อน
     output.seek(0)  # 🚨 และต้องรีเซ็ตเคอร์เซอร์กลับไปจุดเริ่มต้นเพื่อให้อ่านไฟล์ได้
     
-    # 🌟 6️⃣ ส่งไฟล์กลับไปให้หน้าบ้านโหลด
+    # 6.ส่งไฟล์กลับไปให้หน้าบ้านโหลด
     return Response(
         content=output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
