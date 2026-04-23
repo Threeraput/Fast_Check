@@ -15,6 +15,7 @@ import '../../services/face_service.dart';
 import 'package:frontend/screens/profile/profile_screen.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:frontend/screens/admin/admin_dashboard_screen.dart';
+import 'dart:async'; // สำหรับใช้งาน Timer (Debounce)
 
 // ใช้ API แอดมินสำหรับดึง/เพิ่ม/ลบคลาสทั้งหมดในระบบ
 import 'package:frontend/services/admin_service.dart';
@@ -34,6 +35,19 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   // แอดมิน: โหลด "คลาสทั้งหมดในระบบ"
   Future<List<_AdminClassItem>>? _futureAllClasses;
 
+  // --------------------------------------------------
+  // ตัวแปรสำหรับระบบค้นหา (เพิ่มใหม่)
+  // --------------------------------------------------
+  final TextEditingController _searchCtrl = TextEditingController();
+  Timer? _debounce;
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
   bool get _isTeacher =>
       _me?.roles.contains('teacher') == true ||
       _me?.roles.contains('admin') == true;
@@ -62,6 +76,21 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
       _futureTaught = null;
     }
   }
+
+  // --------------------------------------------------
+  // ฟังก์ชันหน่วงเวลาค้นหา (เพิ่มใหม่)
+  // --------------------------------------------------
+  void _onSearchChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      setState(() {
+        _searchQuery = value;
+      });
+      _refresh(); // สั่งรีเฟรชเพื่อโหลดข้อมูลใหม่
+    });
+  }
+  // --------------------------------------------------
 
   Future<void> _loadMe() async {
     final cached = await AuthService.getCurrentUserFromLocal();
@@ -141,7 +170,13 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   // ADMIN: โหลดคลาสทั้งหมดในระบบ
   // =========================
   Future<List<_AdminClassItem>> _fetchAllClassesForAdmin() async {
-    final page = await AdminService.listClasses(limit: 200, offset: 0);
+    final fetchLimit = _searchQuery.trim().isEmpty ? 5 : 200;
+    // เพิ่ม q: _searchQuery ตรงนี้
+    final page = await AdminService.listClasses(
+      q: _searchQuery, 
+      limit: fetchLimit, 
+      offset: 0
+    );
     final items = (page['items'] as List<dynamic>? ?? []);
     return items.map((e) {
       final m = e as Map<String, dynamic>;
@@ -636,20 +671,74 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
               ),
             )
           : _isAdmin
-          ? _AdminClasses(
-              futureAll: _futureAllClasses,
-              onDelete: _adminDeleteClass,
-              onRefresh: _refresh,
-            )
-          : (_isTeacher
-                ? _TeacherClasses(
-                    futureTaught: _futureTaught,
-                    onRefresh: _refresh,
-                  )
-                : _StudentClasses(
-                    futureJoined: _futureJoined,
-                    onRefresh: _refresh,
-                  )),
+              // --- ส่วนที่เปลี่ยนสำหรับหน้า Admin ---
+              ? Column(
+                  children: [
+                    // กล่องค้นหา
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: _onSearchChanged,
+                        decoration: InputDecoration(
+                          hintText: 'ค้นหาชื่อคลาส',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    _onSearchChanged(''); // ล้างค่าแล้วโหลดใหม่
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 💡 เพิ่มข้อความบอกสถานะตรงนี้
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _searchQuery.trim().isEmpty 
+                              ? 'คลาสล่าสุด' 
+                              : '🔍 ผลการค้นหาสำหรับ "$_searchQuery"',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // ลิสต์รายการคลาส
+                    Expanded(
+                      child: _AdminClasses(
+                        futureAll: _futureAllClasses,
+                        onDelete: _adminDeleteClass,
+                        onRefresh: _refresh,
+                      ),
+                    ),
+                  ],
+                )
+              // ---------------------------------
+              : (_isTeacher
+                  ? _TeacherClasses(
+                      futureTaught: _futureTaught,
+                      onRefresh: _refresh,
+                    )
+                  : _StudentClasses(
+                      futureJoined: _futureJoined,
+                      onRefresh: _refresh,
+                    )),
     );
   }
 }

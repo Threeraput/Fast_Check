@@ -482,19 +482,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               text: 'Users',
             ),
             Tab(
-              icon: Icon(Icons.analytics_outlined, color: Colors.black),
-              text: 'Reports',
-            ),
-            Tab(
               icon: Icon(Icons.how_to_reg_outlined, color: Colors.black),
               text: 'Approvals',
+            ),
+            Tab(
+              icon: Icon(Icons.analytics_outlined, color: Colors.black),
+              text: 'Reports',
             ),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
-        children: [_usersTab(), _reportsTab(), _approvalsTab()],
+        children: [_usersTab(), _approvalsTab(), _reportsTab()],
       ),
     );
   }
