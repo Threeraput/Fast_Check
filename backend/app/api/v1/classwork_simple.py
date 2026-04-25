@@ -200,6 +200,74 @@ def list_assignments_for_class_route(
 
 
 # -----------------------------
+# ครู: ดูงานที่นักเรียนคนหนึ่งส่งในคลาส (รวมทุกงาน)
+# -----------------------------
+@router.get(
+    "/teacher/{class_id}/student/{student_id}/submissions",
+    response_model=List[AssignmentWithMySubmission],
+    dependencies=[Depends(role_required(["teacher"]))],
+)
+def get_student_submissions_for_class_route(
+    class_id: UUID,
+    student_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    # ตรวจสอบว่าครูเป็นครูของคลาส
+    _ = _ensure_teacher_of_class(db, teacher_id=me.user_id, class_id=class_id)
+    
+    # ดึงรายการงานทั้งหมดในคลาส
+    from app.models.classwork_assignment import ClassworkAssignment
+    from app.models.classwork_submission import ClassworkSubmission
+    
+    assignments = (
+        db.query(ClassworkAssignment)
+        .filter(ClassworkAssignment.class_id == class_id)
+        .order_by(ClassworkAssignment.due_date.asc())
+        .all()
+    )
+    
+    resp: List[AssignmentWithMySubmission] = []
+    for asg in assignments:
+        # ดึงการส่งงานของนักเรียนคนนี้ (ถ้ามี)
+        sub = (
+            db.query(ClassworkSubmission)
+            .filter(
+                ClassworkSubmission.assignment_id == asg.assignment_id,
+                ClassworkSubmission.student_id == student_id,
+            )
+            .first()
+        )
+        
+        computed = SubmissionLateness.NOT_SUBMITTED
+        mymini = None
+        if sub:
+            computed = sub.submission_status
+            mymini = {
+                "content_url": sub.content_url,
+                "submitted_at": sub.submitted_at,
+                "submission_status": sub.submission_status,
+                "graded": sub.graded,
+                "score": sub.score,
+            }
+        
+        resp.append(
+            AssignmentWithMySubmission(
+                assignment_id=asg.assignment_id,
+                class_id=asg.class_id,
+                teacher_id=asg.teacher_id,
+                title=asg.title,
+                max_score=asg.max_score,
+                due_date=asg.due_date,
+                computed_status=computed,
+                my_submission=mymini,
+            )
+        )
+    
+    return resp
+
+
+# -----------------------------
 # คอมเมนต์: สร้างคอมเมนต์ใหม่ (ทั้งครูและนักเรียน)
 # -----------------------------
 @router.post(

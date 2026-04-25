@@ -154,6 +154,23 @@ class ClassworkSimpleService {
     throw _errorFrom(res);
   }
 
+  // ============ TEACHER: ดูงานที่นักเรียนส่งในคลาส ============
+  static Future<List<dynamic>> getStudentSubmissionsForClass(
+    String classId,
+    String studentId,
+  ) async {
+    final url = Uri.parse(
+      '$_base/teacher/$classId/student/$studentId/submissions',
+    );
+    final res = await http
+        .get(url, headers: await _headersAuthOnly())
+        .timeout(_kTimeout);
+    if (res.statusCode == 200) {
+      return (json.decode(res.body) as List).cast<dynamic>();
+    }
+    throw _errorFrom(res);
+  }
+
   // =======================
   // ====== TYPED API ======
   // =======================
@@ -288,10 +305,15 @@ class ClassworkSimpleService {
     throw _errorFrom(res);
   }
 
-  static Future<void> exportAssignmentReport(String assignmentId, String token) async {
+  static Future<void> exportAssignmentReport(
+    String assignmentId,
+    String token,
+  ) async {
     try {
-      final url = Uri.parse('${AppConfig.baseUrl}/classwork-simple/assignments/$assignmentId/export');
-      
+      final url = Uri.parse(
+        '${AppConfig.baseUrl}/classwork-simple/assignments/$assignmentId/export',
+      );
+
       final response = await http.get(
         url,
         headers: {'Authorization': 'Bearer $token'},
@@ -300,8 +322,8 @@ class ClassworkSimpleService {
       if (response.statusCode == 200) {
         final dir = await getTemporaryDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final filePath = '${dir.path}/assignment_report_$timestamp.xlsx'; 
-        
+        final filePath = '${dir.path}/assignment_report_$timestamp.xlsx';
+
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
 

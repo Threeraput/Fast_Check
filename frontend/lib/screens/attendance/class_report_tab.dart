@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/attendance_report.dart';
 import 'package:frontend/models/attendance_report_detail.dart';
+import 'package:frontend/screens/classwork/classwork_report_detail_screen.dart';
 import 'package:frontend/services/attendance_report_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'student_report_detail_screen.dart';
@@ -499,6 +500,35 @@ class _ClassReportTabState extends State<ClassReportTab> {
                   },
                   icon: const Icon(Icons.photo_library),
                   label: const Text('ดูประวัติรายวันและรูปถ่าย'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade50,
+                    foregroundColor: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context); // ปิด Dialog
+                    // import หน้าต่างนี้ไว้ด้านบนไฟล์ด้วยนะครับ ถ้ายังไม่มี
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            // ไปที่ไฟล์ student_report_detail_screen.dart
+                              ClassworkReportDetailScreen(
+                              studentId: report.studentId,
+                              classId: report.classId, // เพิ่ม classId
+                              userRole: 'teacher', // กำหนดเป็น teacher
+                            ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.assignment),
+                  label: const Text('ดูประวัติการส่งงาน'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade50,
                     foregroundColor: Colors.blue,

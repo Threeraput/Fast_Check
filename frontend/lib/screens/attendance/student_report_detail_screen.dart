@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import '../../models/attendance_report_detail.dart';
 import '../../services/attendance_report_service.dart';
@@ -224,9 +225,15 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               GestureDetector(
-                                onTap: () => d.faceImageUrl != null
-                                    ? _showImageDialog(d.faceImageUrl!)
-                                    : null,
+                                // ✅ 1. แก้ไขตอนกดขยายรูปเช็คชื่อ
+                                onTap: () {
+                                  if (d.faceImageUrl != null) {
+                                    final validUrl = UserService.absoluteAvatarUrl(d.faceImageUrl);
+                                    if (validUrl != null) {
+                                      _showImageDialog(validUrl);
+                                    }
+                                  }
+                                },
                                 child: Container(
                                   width: 50,
                                   height: 50,
@@ -236,12 +243,12 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                   ),
                                   child: d.faceImageUrl != null
                                       ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                          // ✅ 2. แก้ไขตอนแสดงรูปเช็คชื่อ
                                           child: Image.network(
-                                            d.faceImageUrl!,
+                                            UserService.absoluteAvatarUrl(d.faceImageUrl) ?? '',
                                             fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.grey),
                                           ),
                                         )
                                       : const Icon(
@@ -262,7 +269,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                         fontSize: 13,
                                       ),
                                     ),
-                                    // ใช้เวลา (HH:mm) แทนการโชว์วันที่ซ้ำ
                                     Text(
                                       'เวลา: ${_formatTime(d.checkInTime)} น.',
                                       style: TextStyle(
@@ -283,9 +289,15 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 GestureDetector(
-                                  onTap: () => d.reverifyImageUrl != null
-                                      ? _showImageDialog(d.reverifyImageUrl!)
-                                      : null,
+                                  // ✅ 3. แก้ไขตอนกดขยายรูปสุ่มตรวจ
+                                  onTap: () {
+                                    if (d.reverifyImageUrl != null) {
+                                      final validUrl = UserService.absoluteAvatarUrl(d.reverifyImageUrl);
+                                      if (validUrl != null) {
+                                        _showImageDialog(validUrl);
+                                      }
+                                    }
+                                  },
                                   child: Container(
                                     width: 50,
                                     height: 50,
@@ -295,12 +307,12 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                     ),
                                     child: d.reverifyImageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
+                                            borderRadius: BorderRadius.circular(8),
+                                            // ✅ 4. แก้ไขตอนแสดงรูปสุ่มตรวจ
                                             child: Image.network(
-                                              d.reverifyImageUrl!,
+                                              UserService.absoluteAvatarUrl(d.reverifyImageUrl) ?? '',
                                               fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.verified, color: Colors.blue),
                                             ),
                                           )
                                         : const Icon(
@@ -312,8 +324,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'ตรวจสอบซ้ำ',
@@ -323,7 +334,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                           fontSize: 13,
                                         ),
                                       ),
-                                      // ใช้เวลา (HH:mm) แทนการโชว์วันที่ซ้ำ
                                       Text(
                                         'เวลา: ${_formatTime(d.reverifyTime)} น.',
                                         style: TextStyle(
