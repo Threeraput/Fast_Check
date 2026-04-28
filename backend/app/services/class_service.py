@@ -79,6 +79,14 @@ def create_classroom(
     - ถ้า code ชน UNIQUE → retry อัตโนมัติ
     - ถ้า name ชน (แล้วแต่ constraint ของคุณ) → แจ้ง 400
     """
+    # 🚨 เพิ่มโค้ด 4 บรรทัดนี้ เพื่อวิ่งไปถาม DB ว่ามีชื่อนี้หรือยัง
+    existing_class = db.query(ClassModel).filter(ClassModel.name == name).first()
+    if existing_class:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ชื่อห้องเรียนนี้มีอยู่แล้ว กรุณาตั้งชื่อใหม่"
+        )
+    
     for attempt in range(3):  # ลองซัก 3 ครั้งกรณี code ชนบน DB
         unique_code = generate_unique_code(db)
 

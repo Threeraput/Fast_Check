@@ -132,7 +132,8 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     # 1️.ดึงข้อมูลโดยการ Join 4 ตารางเข้าด้วยกัน
     results = (
         db.query(
-            AttendanceSession.start_time.label("session_start"),
+            AttendanceSession.start_time,
+            AttendanceSession.end_time,
             User.student_id.label("student_code"),
             User.first_name,
             User.last_name,
@@ -161,46 +162,50 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
         if s in ["left_early", "leftearly"]: return "กลับก่อน"
         return status_str
 
-    def format_dt(dt: datetime, fmt: str = "%d/%m/%Y %H:%M") -> str:
+    def format_dt(dt: datetime, fmt: str = "%d/%m/%Y %H:%M:%S") -> str:
         if not dt:
             return "-"
         return dt.strftime(fmt)
 
-    # 3.สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
+    # สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "รายงานรายวัน"
 
     # เขียนหัวตาราง
-    headers = ["วันที่เรียน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "เวลาเริ่มคาบ", "เวลาที่เช็คชื่อ", "สถานะ", "สุ่มตรวจซ้ำ", "เวลาตรวจซ้ำ"]
+    headers = ["วันที่เรียน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "เวลาเริ่มคาบ", "เวลาสิ้นสุดคาบ", "เวลาที่เช็คชื่อ", "สถานะ", "สุ่มตรวจซ้ำ", "เวลาตรวจซ้ำ"]
     ws.append(headers)
 
-    # 4.วนลูปข้อมูลใส่ตาราง Excel (ใช้แค่ลูปนี้ลูปเดียว)
+    # 3. วนลูปข้อมูลใส่ตาราง Excel
     for r in results:
-        # แปลงร่างข้อมูลที่ดึงมาจาก Database (r) ให้อยู่ในรูปแบบ String สวยๆ
-        date_str = format_dt(r.session_start, "%d/%m/%Y")
-        session_time = format_dt(r.session_start, "%H:%M")
-        check_in_time = format_dt(r.check_in_time, "%H:%M")
-        reverify_time = format_dt(r.reverify_time, "%H:%M")
+        # แปลงข้อมูลเวลาให้เป็นแบบเต็ม (Full Datetime)
+        date_str = format_dt(r.start_time, "%d/%m/%Y")
+        start_time_full = format_dt(r.start_time, "%d/%m/%Y %H:%M:%S")
+        end_time_full = format_dt(r.end_time, "%d/%m/%Y %H:%M:%S")
+        
+        check_in_full = format_dt(r.check_in_time, "%d/%m/%Y %H:%M:%S")
+        reverify_full = format_dt(r.reverify_time, "%d/%m/%Y %H:%M:%S")
+        
         full_name = f"{r.first_name or ''} {r.last_name or ''}".strip()
         reverified_text = "ใช่" if r.is_reverified else "-"
 
-        # ใส่ข้อมูลลงไปทีละบรรทัด 
+        # 4. ใส่ข้อมูลลงไปทีละบรรทัดตามลำดับ Headers
         ws.append([
             date_str,
             r.student_code or "-",
             full_name or "ไม่ระบุชื่อ",
-            session_time,
-            check_in_time,
+            start_time_full,    # เวลาเริ่มคาบแบบเต็ม
+            end_time_full,      # เวลาสิ้นสุดคาบแบบเต็ม
+            check_in_full,      # เวลาที่นักเรียนกดเช็คชื่อ
             translate_status(r.status),
             reverified_text,
-            reverify_time
+            reverify_full
         ])
 
     # 5.บันทึกไฟล์ Excel ลงในหน่วยความจำ
     output = io.BytesIO()
-    wb.save(output) # 🚨 จุดนี้ที่หายไป! ต้องสั่ง save ข้อมูลลง output ก่อน
-    output.seek(0)  # 🚨 และต้องรีเซ็ตเคอร์เซอร์กลับไปจุดเริ่มต้นเพื่อให้อ่านไฟล์ได้
+    wb.save(output) # ต้องสั่ง save ข้อมูลลง output ก่อน
+    output.seek(0)  # และต้องรีเซ็ตเคอร์เซอร์กลับไปจุดเริ่มต้นเพื่อให้อ่านไฟล์ได้
     
     # 6.ส่งไฟล์กลับไปให้หน้าบ้านโหลด
     return Response(

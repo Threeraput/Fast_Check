@@ -296,7 +296,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('ลบคลาสสำเร็จ')));
+        ).showSnackBar(const SnackBar(content: Text('จัดเก็บคลาสสำเร็จ')));
         _refresh();
       } catch (e) {
         if (!mounted) return;
@@ -1060,7 +1060,7 @@ class _ClassCard extends StatelessWidget {
                         await ClassService.deleteClassroom(c.classId!);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ลบคลาสสำเร็จ')),
+                            const SnackBar(content: Text('จัดเก็บคลาสสำเร็จ')),
                           );
                           onRefresh?.call();
                         }
