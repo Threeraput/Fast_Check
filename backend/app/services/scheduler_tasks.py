@@ -33,8 +33,28 @@ def finalize_attendance_job(session_id: uuid.UUID):
         )
 
         for record in records:
-            if record.last_verified_at is None:
-                record.status = AttendanceStatus.LEFT_EARLY
+            # เช็คว่า last_verified_at เป็น None หรือเท่ากับตอนเช็คชื่อครั้งแรกเป๊ะๆ
+            if (
+                record.last_verified_at is None
+                or record.last_verified_at == record.check_in_time
+            ):
+
+                # กฎข้อ 1: มาตรงเวลา แต่ไม่ผ่านสุ่มตรวจ = หนีเรียน
+                if record.status == AttendanceStatus.PRESENT:
+                    print(
+                        f"🚨 [LEFT_EARLY] นักเรียน {record.student_id} มาตรงเวลาแต่หายตัวไประหว่างคาบ (หนีเรียน)"
+                    )
+                    record.status = AttendanceStatus.LEFT_EARLY
+
+                # กฎข้อ 2: มาสาย อาจจะเข้าหลังรอบสุ่มตรวจ = ยกประโยชน์ให้จำเลย
+                elif record.status == AttendanceStatus.LATE:
+                    print(
+                        f"⚠️ [LATE_SPARED] นักเรียน {record.student_id} เช็คชื่อสายและพลาดรอบสุ่มตรวจ (ให้คงสถานะสายไว้)"
+                    )
+            else:
+                print(
+                    f"✅ [STILL HERE] นักเรียน {record.student_id} ผ่านการสุ่มตรวจ (เวลาอัปเดตแล้ว)"
+                )
 
         db.flush()
 
@@ -76,7 +96,7 @@ def trigger_silent_check_job(session_id: uuid.UUID):
         tokens = [r[0] for r in records if r[0]]
 
         if not tokens:
-            logger.info("⚠️ [FCM] ไม่มีนักเรียนให้ส่ง Push (หรือยังไม่มีใครอัปเดต fcm_token)")
+            print("⚠️ [FCM] ไม่มีนักเรียนให้ส่ง Push (หรือยังไม่มีใครอัปเดต fcm_token)")
             return
 
         # สร้าง Data Message (ไม่ส่งเสียงร้อง แต่แอปจะทำงานเบื้องหลัง)
@@ -91,11 +111,11 @@ def trigger_silent_check_job(session_id: uuid.UUID):
 
         # สั่งยิงผ่าน Firebase
         response = messaging.send_each_for_multicast(message)
-        logger.info(
+        print(
             f"✅ [FCM] ยิงสำเร็จ {response.success_count} เครื่อง, ล้มเหลว {response.failure_count} เครื่อง"
         )
 
     except Exception as e:
-        logger.error(f"❌ [FCM] เกิดข้อผิดพลาดในการยิง: {str(e)}")
+        print(f"❌ [FCM] เกิดข้อผิดพลาดในการยิง: {str(e)}")
     finally:
         db.close()

@@ -1,5 +1,5 @@
 # backend/app/api/v1/sessions.py
-from datetime import timedelta
+from datetime import datetime, timedelta
 import random
 import uuid
 from typing import List
@@ -69,12 +69,22 @@ async def open_attendance_session(
         # 4. เวลาที่สุ่มได้ = late_cutoff_time + offset
         check_time = new_session.late_cutoff_time + timedelta(seconds=offset)
 
-        # จองคิวงานสุ่มตรวจ (Print Log)
+        # ปรับปรุง Log ตรงนี้ให้มีกรอบและดูเวลาได้ง่ายๆ
+        current_time_str = datetime.now().strftime("%H:%M:%S")
+        print("\n" + "=" * 60)
+        print(f"⏰ [{current_time_str}] [ตั้งเวลาsilent check] คลาสเปิดสำเร็จแล้ว!")
+        print(f"📍 Session ID: {new_session.session_id}")
+        print(
+            f"🎯: ระบบจะแอบยิงพิกัดตรวจนักเรียนตอนเวลา -> {check_time.strftime('%H:%M:%S')} (UTC)"
+        )
+        print("=" * 60 + "\n")
+
+        # จองคิวงานสุ่มตรวจ
         scheduler.add_job(
-            trigger_silent_check_job, 
+            trigger_silent_check_job,
             trigger="date",
             run_date=check_time,
-            args=[new_session.session_id], 
+            args=[new_session.session_id],
             id=f"silent_push_{new_session.session_id}",
             replace_existing=True,
         )

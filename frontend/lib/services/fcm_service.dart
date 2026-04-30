@@ -24,13 +24,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     print("📍 [SILENT PUSH] ยามล่องหนสั่งตรวจพิกัด! Session ID: $sessionId");
 
     try {
-      // 1. แอบดึงพิกัด GPS ปัจจุบันของนักเรียน
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.best,
       );
       print("🌍 ได้พิกัดมาแล้ว: ${position.latitude}, ${position.longitude}");
 
-      // 2. ดึง Access Token ในเครื่องเพื่อยืนยันตัวตน
       final accessToken = await AuthService.getAccessToken();
       if (accessToken == null) {
         print(
@@ -39,10 +37,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         return;
       }
 
-      // 3. ยิง API รายงานพิกัดกลับไปให้ Backend (ยามล่องหน)
-      // 🚨 หมายเหตุ: Backend ของคุณต้องมี API เส้นทางนี้นะครับ
       final url = Uri.parse('${AppConfig.baseUrl}/attendance/silent-check');
-
       final response = await http.post(
         url,
         headers: {
@@ -56,7 +51,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         }),
       );
 
-      // 4. เช็คผลลัพธ์
       if (response.statusCode == 200) {
         print("✅ [SILENT CHECK] ส่งพิกัดรายงานยามล่องหนสำเร็จ!");
       } else {
@@ -80,14 +74,64 @@ class FCMService {
     // 1. ขออนุญาตส่งแจ้งเตือน (สำคัญมากสำหรับ Android 13+ และ iOS)
     await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-    // 2. ลงทะเบียนฟังก์ชันหูทิพย์ให้ระบบรู้จัก
+    // 2. ลงทะเบียนฟังก์ชันหูทิพย์ให้ระบบรู้จัก โหมดพับจอ
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    // 3. ดึง Token ประจำเครื่อง
+    // ✨ 3. [เพิ่มใหม่] ลงทะเบียนหูทิพย์ โหมดเปิดจอ (Foreground)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      print(
+        "🔔 [FCM Foreground] ได้รับข้อความขณะเปิดแอป: ${message.messageId}",
+      );
+
+      if (message.data['type'] == 'SILENT_CHECK') {
+        final sessionId = message.data['session_id'];
+        print(
+          "📍 [SILENT PUSH] ยามล่องหนสั่งตรวจพิกัด! (หน้าจอเปิดอยู่) Session ID: $sessionId",
+        );
+
+        try {
+          Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.best,
+          );
+          print(
+            "🌍 ได้พิกัด Foreground: ${position.latitude}, ${position.longitude}",
+          );
+
+          final accessToken = await AuthService.getAccessToken();
+          if (accessToken == null) return;
+
+          final url = Uri.parse('${AppConfig.baseUrl}/attendance/silent-check');
+          final response = await http.post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'session_id': sessionId,
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+            }),
+          );
+
+          if (response.statusCode == 200) {
+            print("✅ [SILENT CHECK Foreground] ส่งพิกัดสำเร็จ!");
+          } else {
+            print(
+              "❌ [SILENT CHECK Foreground] พลาด: ${response.statusCode} - ${response.body}",
+            );
+          }
+        } catch (e) {
+          print("❌ [SILENT CHECK Foreground] Error: $e");
+        }
+      }
+    });
+
+    // 4. ดึง Token ประจำเครื่อง
     String? fcmToken = await messaging.getToken();
     print("🔑 [FCM TOKEN ของเครื่องนี้]: $fcmToken");
 
-    // 4. ถ้าดึง Token ได้ ให้ส่งไปเก็บที่ Database ทันที
+    // 5. ถ้าดึง Token ได้ ให้ส่งไปเก็บที่ Database ทันที
     if (fcmToken != null) {
       await _sendTokenToBackend(fcmToken);
     }
@@ -103,7 +147,6 @@ class FCMService {
       }
 
       final url = Uri.parse('${AppConfig.baseUrl}/users/fcm-token');
-
       final response = await http.put(
         url,
         headers: {

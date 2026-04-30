@@ -96,6 +96,11 @@ def record_check_in(
         raise HTTPException(
             status_code=400, detail="Check-in window for this session has closed."
         )
+    if session.anchor_lat is None or session.anchor_lon is None:
+        raise HTTPException(
+            status_code=400,
+            detail="ไม่สามารถเช็คชื่อได้ เนื่องจากไม่พบพิกัดจุดศูนย์กลางของคลาสเรียน (Anchor location missing)",
+        )
 
     t_lat = float(session.anchor_lat)
     t_lon = float(session.anchor_lon)
@@ -107,11 +112,11 @@ def record_check_in(
     ):
         raise HTTPException(
             status_code=403,
-            detail="Location check failed. You are too far from the classroom teacher.",
+            detail="ไม่สามารถเช็คชื่อได้ เนื่องจากคุณอยู่ห่างจากห้องเรียนเกินกว่าที่กำหนด (Location check failed)",
         )
 
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="Image is required for check-in.")
+        raise HTTPException(status_code=400, detail="ไม่สามารถเช็คชื่อได้ เนื่องจากไม่พบรูปภาพ (Image is required for check-in)")
 
     # --- Face Verification Logic ---
     try:
