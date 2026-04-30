@@ -229,6 +229,8 @@ class ClassworkSimpleService {
         .get(url, headers: await _headersAuthOnly())
         .timeout(_kTimeout);
     if (res.statusCode == 200) {
+      // 🚨 พิมพ์ดู JSON ดิบๆ จากหลังบ้าน
+      print('🔍 DEBUG BACKEND JSON (Teacher): ${res.body}');
       return decodeList(res.body, (m) => ClassworkAssignment.fromJson(m));
     }
     throw _errorFrom(res);
@@ -336,6 +338,33 @@ class ClassworkSimpleService {
       }
     } catch (e) {
       throw Exception("เกิดข้อผิดพลาด: $e");
+    }
+  }
+  // ฟังก์ชันสำหรับเปิด/ปิดการรับงาน
+  static Future<void> toggleSubmissionStatus(String assignmentId, bool isAccepting) async {
+    // 1. เปลี่ยนมาใช้ $_base ให้เหมือนฟังก์ชันอื่น
+    final url = Uri.parse('$_base/assignments/$assignmentId/toggle-status'); 
+    
+    try {
+      final response = await http.patch(
+        url,
+        // 2. ใช้ _headersJson() ถูกต้องแล้วครับ เพราะเราส่ง body เป็น json
+        headers: await _headersJson(), 
+        body: jsonEncode({
+          'is_accepting': isAccepting,
+        }),
+      );
+
+      print('=== STATUS CODE: ${response.statusCode} ===');
+      print('=== BODY: ${response.body} ===');
+
+      // เช็คผลลัพธ์
+      if (response.statusCode != 200) {
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
+        throw Exception(error['detail'] ?? 'เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }

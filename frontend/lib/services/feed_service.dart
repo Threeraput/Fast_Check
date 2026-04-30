@@ -135,6 +135,8 @@ class FeedService {
               'title': a.title,
               'due_date': a.dueDate.toIso8601String(),
               'max_score': a.maxScore,
+
+              'is_accepting_submissions': a.isAcceptingSubmissions,
             },
           ),
         );
@@ -241,6 +243,7 @@ class FeedService {
               'max_score': a.maxScore,
               'computed_status': latenessToString(v.computedStatus),
               'my_submission': v.mySubmission?.toJson(),
+              'is_accepting_submissions': a.isAcceptingSubmissions,
             },
           ),
         );

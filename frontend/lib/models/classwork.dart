@@ -116,6 +116,7 @@ class ClassworkAssignment {
 
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isAcceptingSubmissions; // เพิ่มตัวแปรนี้
 
   ClassworkAssignment({
     required this.assignmentId,
@@ -126,9 +127,11 @@ class ClassworkAssignment {
     required this.dueDate,
     required this.createdAt,
     required this.updatedAt,
+    required this.isAcceptingSubmissions,
   });
 
   factory ClassworkAssignment.fromJson(Map<String, dynamic> j) {
+    print('📦 DEBUG MODEL parsing: ${j['title']} -> is_accepting: ${j['is_accepting_submissions']}');
     return ClassworkAssignment(
       assignmentId: j['assignment_id']?.toString() ?? '',
       classId: j['class_id']?.toString() ?? '',
@@ -146,6 +149,7 @@ class ClassworkAssignment {
       updatedAt:
           DateTime.tryParse(j['updated_at']?.toString() ?? '')?.toLocal() ??
           DateTime.now(),
+      isAcceptingSubmissions: j['is_accepting_submissions'] ?? true,
     );
   }
 
@@ -158,6 +162,7 @@ class ClassworkAssignment {
     'due_date': dueDate.toUtc().toIso8601String(),
     'created_at': createdAt.toUtc().toIso8601String(),
     'updated_at': updatedAt.toUtc().toIso8601String(),
+    'is_accepting_submissions': isAcceptingSubmissions,
   };
 }
 

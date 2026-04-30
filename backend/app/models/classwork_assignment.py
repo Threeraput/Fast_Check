@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Text
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean, UniqueConstraint, Index, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -18,6 +18,8 @@ class ClassworkAssignment(Base):
     title = Column(String(255), nullable=False)
     max_score = Column(Integer, nullable=False, default=100)
     due_date = Column(DateTime(timezone=True), nullable=False)
+
+    is_accepting_submissions = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),

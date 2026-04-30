@@ -5,10 +5,11 @@ import openpyxl
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Response, UploadFile, File, HTTPException, status, Body, Path
-from app.schemas.classwork_new_schema import CommentCreate, CommentResponse
+from app.schemas.classwork_new_schema import CommentCreate, CommentResponse, ToggleSubmissionRequest
 from app.services import classwork_service
 from sqlalchemy.orm import Session
 from datetime import datetime
+from app.models.classwork_assignment import ClassworkAssignment
 
 from app.database import get_db
 from app.core.deps import get_current_user, role_required
@@ -103,6 +104,7 @@ def list_my_assignments_route(
                 title=asg.title,
                 max_score=asg.max_score,
                 due_date=asg.due_date,
+                is_accepting_submissions=asg.is_accepting_submissions,
                 computed_status=computed,
                 my_submission=mymini,
             )
@@ -124,8 +126,24 @@ async def submit_assignment_pdf_route(
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
+    # ค้นหาชิ้นงานนี้ในฐานข้อมูล
+    assignment = db.query(ClassworkAssignment).filter(ClassworkAssignment.assignment_id == assignment_id).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="ไม่พบชิ้นงานนี้")
+
+    # ด่านตรวจสกัด (The Guard): เช็คว่าสวิตช์ปิดอยู่หรือไม่?
+    if not assignment.is_accepting_submissions:
+        # ถ้าสวิตช์เป็น False (ปิดรับ) จะถูกเตะออกตรงนี้ทันที ไฟล์ไม่ทันได้อัปโหลด!
+        raise HTTPException(
+            status_code=403, 
+            detail="หมดเวลา หรือ อาจารย์ปิดรับการส่งงานชิ้นนี้แล้ว"
+        )
+
+    # --- โค้ดเดิมของคุณ (ปล่อยผ่านด่านมาได้ ค่อยเช็คว่าเป็น PDF ไหม) ---
     if file.content_type not in {"application/pdf"}:
-        raise HTTPException(400, "Only PDF is allowed")
+        raise HTTPException(status_code=400, detail="Only PDF is allowed")
+        
     sub = await submit_pdf(
         db, assignment_id=assignment_id, student_id=me.user_id, file=file
     )
@@ -259,6 +277,7 @@ def get_student_submissions_for_class_route(
                 title=asg.title,
                 max_score=asg.max_score,
                 due_date=asg.due_date,
+                is_accepting_submissions=asg.is_accepting_submissions,
                 computed_status=computed,
                 my_submission=mymini,
             )
@@ -386,3 +405,75 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+# ========================================================
+# API เส้นใหม่: อาจารย์เปิด/ปิดสวิตช์รับงาน
+# ========================================================
+@router.patch(
+    "/assignments/{assignment_id}/toggle-status",
+    dependencies=[Depends(role_required(["teacher", "admin"]))],
+)
+def toggle_submission_status_route(
+    assignment_id: UUID,
+    payload: ToggleSubmissionRequest, # ดึงจาก Schema ที่เพิ่งสร้างใหม่
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    from app.models.classwork_assignment import ClassworkAssignment
+    
+    # 1. หางานชิ้นนี้ให้เจอ
+    assignment = db.query(ClassworkAssignment).filter(ClassworkAssignment.assignment_id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="ไม่พบชิ้นงานนี้")
+
+    # 2. เช็คว่าคนกดสวิตช์คืออาจารย์เจ้าของวิชาใช่หรือไม่
+    if assignment.teacher_id != me.user_id:
+        raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์แก้สถานะงานชิ้นนี้")
+
+    # 3. อัปเดตข้อมูลและบันทึก
+    assignment.is_accepting_submissions = payload.is_accepting
+    db.commit()
+    
+    return {
+        "message": "อัปเดตสถานะสำเร็จ",
+        "is_accepting_submissions": assignment.is_accepting_submissions
+    }
+
+
+# ========================================================
+# API เส้นส่งงาน: เพิ่ม "ยามเฝ้าประตู" ดักนักเรียน
+# ========================================================
+@router.post(
+    "/assignments/{assignment_id}/submit",
+    response_model=SubmissionResponse,
+    dependencies=[Depends(role_required(["student"]))],
+)
+async def submit_assignment_pdf_route(
+    assignment_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    from app.models.classwork_assignment import ClassworkAssignment
+
+    # 1.เช็คว่าอาจารย์เปิดรับงานอยู่ไหม?
+    assignment = db.query(ClassworkAssignment).filter(ClassworkAssignment.assignment_id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="ไม่พบชิ้นงานนี้")
+        
+    if not assignment.is_accepting_submissions:
+        # ถ้าสวิตช์ปิดอยู่ ให้เตะกลับไปเลยพร้อม Error 403
+        raise HTTPException(
+            status_code=403, 
+            detail="หมดเวลา หรือ อาจารย์ปิดรับการส่งงานชิ้นนี้แล้ว"
+        )
+
+    # 2. เช็คไฟล์ (ของเดิมของคุณ)
+    if file.content_type not in {"application/pdf"}:
+        raise HTTPException(400, "Only PDF is allowed")
+        
+    # ถ้าผ่านทุกด่าน ค่อยให้ส่งไฟล์เข้าฐานข้อมูล
+    sub = await submit_pdf(
+        db, assignment_id=assignment_id, student_id=me.user_id, file=file
+    )
+    return sub

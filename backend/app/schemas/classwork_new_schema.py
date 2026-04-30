@@ -31,6 +31,7 @@ class AssignmentResponse(BaseModel):
     title: str
     max_score: int
     due_date: datetime
+    is_accepting_submissions: bool
     created_at: datetime
     updated_at: datetime
 
@@ -97,6 +98,7 @@ class AssignmentWithMySubmission(BaseModel):
     title: str
     max_score: int
     due_date: datetime
+    is_accepting_submissions: bool
 
     # สถานะคำนวณของฉัน ณ ตอนเรียก (ถ้ายังไม่เคยส่ง = Not_Submitted)
     computed_status: SubmissionLateness
@@ -163,3 +165,7 @@ class CommentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ToggleSubmissionRequest(BaseModel):
+    """ใช้รับค่าตอนอาจารย์กดเปิด/ปิดสวิตช์รับงาน"""
+    is_accepting: bool

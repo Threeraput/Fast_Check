@@ -13,11 +13,13 @@ class AssignmentDetailScreen extends StatefulWidget {
   final String assignmentId;
   final String title;
   final String? classId;
+  final bool isAcceptingSubmissions;
   const AssignmentDetailScreen({
     super.key,
     required this.assignmentId,
     required this.title,
     this.classId,
+    this.isAcceptingSubmissions = true,
   });
 
   @override
@@ -28,10 +30,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
   late Future<List<ClassworkSubmission>> _future;
   final _scoreControllers = <String, TextEditingController>{};
   final Map<String, User> _userIndex = {};
+  late bool _isAccepting;
 
   @override
   void initState() {
     super.initState();
+    _isAccepting = widget.isAcceptingSubmissions;
     _future = ClassworkSimpleService.getSubmissionsForAssignment(
       widget.assignmentId,
     );
