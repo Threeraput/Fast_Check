@@ -52,6 +52,7 @@ def _user_payload(u) -> Optional[Dict[str, Any]]:
         "is_active": getattr(u, "is_active", None),
         "created_at": getattr(u, "created_at", None),
         "updated_at": getattr(u, "updated_at", None),
+        "avatar_url": getattr(u, "avatar_url", None),
         # roles -> เป็น list[str]
         "roles": _role_names(u),
     }
