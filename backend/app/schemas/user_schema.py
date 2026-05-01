@@ -101,3 +101,6 @@ class TokenData(BaseModel):
 
 class FCMTokenUpdate(BaseModel):
     fcm_token: str
+
+class SwitchRoleRequest(BaseModel):
+    target_role: str = Field(..., description="Role ที่ต้องการสลับ ('student' หรือ 'teacher')")

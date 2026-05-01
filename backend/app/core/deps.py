@@ -1,12 +1,13 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+import jwt
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
 
 # Import from your project's files
 from app.database import get_db
-from app.core.security import decode_access_token # ใช้เพื่อถอดรหัส token
+from app.core.security import ALGORITHM, SECRET_KEY, decode_access_token # ใช้เพื่อถอดรหัส token
 from app.models.user import User
 from app.models.role import Role
 from app.models.association import user_roles # Import association table
@@ -76,3 +77,14 @@ def role_required(required_roles: list[str]):
             )
         return current_user
     return decorator
+
+def get_roles_from_token(token: str = Depends(oauth2_scheme)):
+    try:
+        # ถอดรหัสตั๋วใบนี้เพื่อดึงบทบาทออกมาใช้
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("roles", []) # ดึง array ของบทบาทออกมา
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )

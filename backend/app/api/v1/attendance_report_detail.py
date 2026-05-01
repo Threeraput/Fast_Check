@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.attendance_report_detail import AttendanceReportDetail
 from app.schemas.attendance_report_detail_schema import AttendanceReportDetailResponse
-from app.core.deps import get_current_user, role_required
+from app.core.deps import get_current_user, get_roles_from_token, role_required
 from app.models.user import User
 
 # อย่าลืม Import Model ที่ต้องใช้ ถ้าอันไหนมีอยู่แล้วด้านบนก็ไม่ต้องใส่ซ้ำนะครับ
@@ -24,15 +24,13 @@ router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Detai
 # ---------------------------------------------------------
 @router.get("/my", response_model=list[AttendanceReportDetailResponse])
 def get_my_daily_reports(
-    db: Session = Depends(get_db), me: User = Depends(get_current_user)
+    db: Session = Depends(get_db), 
+    me: User = Depends(get_current_user), 
+    token_roles: list = Depends(get_roles_from_token)
 ):
     """ให้นักเรียนดูรายงานรายวันของตัวเอง"""
-    # ตรวจสอบสิทธิ์ว่าเป็น student หรือไม่
-    roles_list = [
-        r.name.lower() if hasattr(r, "name") else str(r).lower()
-        for r in getattr(me, "roles", [])
-    ]
-    if "student" not in roles_list:
+    
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
     # ปรับปรุงการ Query: ดึงข้อมูลพร้อมกับข้อมูลรูปภาพและเวลาเริ่มคาบที่บันทึกไว้

@@ -31,6 +31,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   bool _loading = true;
   bool _error = false;
   bool _isTeacher = false;
+  bool _isSwapped = false; // 1. เพิ่มตัวแปรเช็คร่างจำแลง
 
   Classroom? _classroom;
   User? _me;
@@ -43,20 +44,29 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
 
   Future<void> _bootstrap() async {
     try {
+      // 2. อ่าน Role ปัจจุบันจาก Token โดยตรง ชัวร์ที่สุด!
+      final currentRoles = await AuthService.getTokenRoles();
+      final isSwapped = await AuthService.isCurrentlySwapped();
+
       final me = await AuthService.getCurrentUserFromLocal();
+      // เช็คจาก currentRoles ที่เพิ่งแกะสดๆ ร้อนๆ แทน
       final isTeacher =
-          me?.roles.contains('teacher') == true ||
-          me?.roles.contains('admin') == true;
+          currentRoles.contains('teacher') || currentRoles.contains('admin');
 
       Classroom? cls;
       if (isTeacher) {
-        // ครูใช้รายละเอียดคลาส (ควรรวม teacher + students พร้อม avatar_url)
+        // ครูใช้รายละเอียดคลาส
         cls = await ClassService.getClassroomDetails(widget.classId);
+      } else {
+        // 3. นักเรียนก็ต้องโหลดข้อมูลคลาสเหมือนกันนะ!
+        // (เปลี่ยนชื่อฟังก์ชัน API ตามที่คุณเขียนไว้หลังบ้านครับ)
+        cls = await ClassService.getStudentClassroomDetails(widget.classId);
       }
 
       setState(() {
         _me = me;
         _isTeacher = isTeacher;
+        _isSwapped = isSwapped; // เก็บไว้ใช้โชว์ปุ่มแดงด้านบน
         _classroom = cls;
         _loading = false;
       });
@@ -88,6 +98,36 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
     }
   }
 
+  Widget _buildSwappedBanner() {
+    return Container(
+      width: double.infinity,
+      color: Colors.red.shade600,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            '⚠️ คุณอยู่ในโหมดนักเรียน',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.red.shade700,
+            ),
+            onPressed: () async {
+              final success = await AuthService.switchRole('teacher');
+              if (success && context.mounted) {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+            child: const Text('กลับสู่โหมดอาจารย์'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _classroom?.name ?? widget.className ?? 'Classroom';
@@ -101,7 +141,11 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
             )
           : _error
           ? const Center(child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'))
-          : _buildBody(),
+          : Column(
+              children: [
+                Expanded(child: _buildBody()),
+              ],
+            ),
       floatingActionButton: _currentIndex == 1 && _isTeacher
           ? FloatingActionButton.extended(
               backgroundColor: Colors.blueAccent,
@@ -278,10 +322,9 @@ class _StreamTabState extends State<_StreamTab> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      style: TextStyle(
-                        color: Colors.white
-                      ),
-                      'Code: ${c.code ?? '-'}'),
+                      style: TextStyle(color: Colors.white),
+                      'Code: ${c.code ?? '-'}',
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       style: const TextStyle(color: Colors.white70),

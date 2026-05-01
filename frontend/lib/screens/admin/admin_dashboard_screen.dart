@@ -77,7 +77,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     });
     try {
       final me = await AuthService.getCurrentUserFromLocal();
-      final isAdmin = me?.roles.any((r) => r.toLowerCase() == 'admin') == true;
+      final tokenRoles = await AuthService.getTokenRoles();
+      final isAdmin = tokenRoles.any((r) => r.toLowerCase() == 'admin');
       if (!isAdmin) {
         _guardErr = 'เฉพาะผู้ดูแลระบบเท่านั้น';
         if (mounted) Navigator.pop(context);
@@ -437,14 +438,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             subtitle: Text('อีเมล: ${user.email ?? '-'}'),
             trailing: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent
+                backgroundColor: Colors.blueAccent,
               ),
               onPressed: () => _approveTeacher(user.userId),
               child: const Text(
                 'อนุมัติ',
-              style: TextStyle(
-                color: Colors.white
-              ),
+                style: TextStyle(color: Colors.white),
               ),
             ),
           );

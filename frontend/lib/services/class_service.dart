@@ -10,11 +10,19 @@ class ClassService {
   // ===== Headers =====
   static Future<Map<String, String>> _headers() async {
     final token = await AuthService.getAccessToken();
-    return {
+    final headers = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
+
+    if (token != null) {
+      print('🔐 [_HEADERS] Token loaded: ${token.substring(0, 50)}...');
+    } else {
+      print('⚠️ [_HEADERS] NO TOKEN FOUND!');
+    }
+
+    return headers;
   }
 
   // ===== Utilities =====
@@ -46,11 +54,15 @@ class ClassService {
 
   /// 2) GET /classes/taught (ห้องเรียนที่สอน)
   // 1. เพิ่มพารามิเตอร์ {bool isArchived = false} เข้ามา
-  static Future<List<Classroom>> getTaughtClasses({bool isArchived = false}) async {
+  static Future<List<Classroom>> getTaughtClasses({
+    bool isArchived = false,
+  }) async {
     // final url = Uri.parse('$API_BASE_URL/classes/taught');
-    
+
     // 2. เติม ?is_archived=$isArchived ต่อท้าย URL
-    final url = Uri.parse('$API_BASE_URL/classes/taught?is_archived=$isArchived');
+    final url = Uri.parse(
+      '$API_BASE_URL/classes/taught?is_archived=$isArchived',
+    );
     final res = await http.get(url, headers: await _headers());
     if (res.statusCode == 200) {
       final list = (json.decode(res.body) as List).cast<dynamic>();
@@ -64,10 +76,10 @@ class ClassService {
   /// 11) PATCH /classes/{class_id}/restore (กู้คืนห้องเรียน)
   static Future<void> restoreClassroom(String classId) async {
     final url = Uri.parse('$API_BASE_URL/classes/$classId/restore');
-    
+
     // ใช้ http.patch เพราะเราแค่เข้าไปอัปเดตข้อมูลบางส่วน
     final res = await http.patch(url, headers: await _headers());
-    
+
     if (res.statusCode == 200) return; // สำเร็จ
     throw _errorFrom(res);
   }
@@ -75,11 +87,26 @@ class ClassService {
   /// 3) POST /classes/join (นักเรียนเข้าร่วม)
   static Future<void> joinClassroom(String code) async {
     final url = Uri.parse('$API_BASE_URL/classes/join');
+    final headers = await _headers();
+    final token = headers['Authorization'];
+
+    print('🔍 [DEBUG] Join Class Request:');
+    print('   URL: $url');
+    print(
+      '   Token: ${token != null ? token.substring(0, 20) + '...' : 'NO TOKEN'}',
+    );
+
     final res = await http.post(
       url,
-      headers: await _headers(),
+      headers: headers,
       body: json.encode({'code': code}),
     );
+
+    print('   Response: ${res.statusCode}');
+    if (res.statusCode != 200) {
+      print('   Body: ${res.body}');
+    }
+
     if (res.statusCode == 200) return;
     try {
       final data = json.decode(res.body);
@@ -179,5 +206,62 @@ class ClassService {
     if (res.statusCode == 403) throw Exception('Forbidden');
     if (res.statusCode == 404) throw Exception('Class not found');
     throw Exception('HTTP ${res.statusCode}: ${res.body}');
+  }
+
+  // 2. เพิ่มฟังก์ชันใหม่สำหรับนักเรียนโดยเฉพาะ (GET /classes/{class_id} ที่ครูใช้กับนักเรียนไม่ได้)
+  static Future<Classroom?> getStudentClassroomDetails(String classId) async {
+    try {
+      final token = await AuthService.getAccessToken();
+
+      // เปลี่ยน URL ตรงนี้ให้เป็น API เส้นที่นักเรียนมีสิทธิ์เรียกได้ของหลังบ้านคุณ
+      // เช่น /api/v1/student/classes/{classId} หรือ /api/v1/classes/{classId}
+      final response = await http.get(
+        Uri.parse('http://<IP_หลังบ้าน>/api/v1/student/classes/$classId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        // แปลง JSON กลับเป็น Model Classroom ของคุณ
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return Classroom.fromJson(data);
+      } else {
+        print('ดึงข้อมูลคลาสนักเรียนไม่สำเร็จ: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getStudentClassroomDetails: $e');
+      return null;
+    }
+  }
+
+  // 3. เพิ่มฟังก์ชันใหม่สำหรับนักเรียนโดยเฉพาะ (GET /classes/enrolled ที่ครูใช้กับนักเรียนไม่ได้)
+  static Future<List<Classroom>> getEnrolledClasses({
+    bool isArchived = false,
+  }) async {
+    try {
+      final token = await AuthService.getAccessToken();
+
+      // เปลี่ยน URL ตรงนี้ให้ตรงกับ API ของนักเรียนในหลังบ้าน FastAPI ของคุณ
+      // เช่น /api/v1/classes/enrolled หรือ /api/v1/student/classes
+      final url = Uri.parse(
+        'http://<IP_หลังบ้าน>/api/v1/classes/enrolled?is_archived=$isArchived',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data.map((json) => Classroom.fromJson(json)).toList();
+      } else {
+        print('โหลดคลาสของนักเรียนพลาด: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error getEnrolledClasses: $e');
+      return [];
+    }
   }
 }
