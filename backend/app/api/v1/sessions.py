@@ -20,6 +20,13 @@ from app.services.scheduler_tasks import (
     trigger_silent_check_job,
 )
 
+NETWORK_GRACE_SECONDS = 30
+SHORT_SESSION_MAX_MINUTES = 10
+SHORT_SESSION_RANDOM_MIN_MINUTES = 5
+SHORT_SESSION_RANDOM_MAX_MINUTES = 10
+LONG_SESSION_RANDOM_MIN_MINUTES = 15
+LONG_SESSION_RANDOM_MAX_MINUTES = 30
+
 router = APIRouter(prefix="/sessions", tags=["Attendance Sessions"])
 
 
@@ -45,53 +52,68 @@ async def open_attendance_session(
     )
 
     # ------------------------------------------------------------
-    #  ส่วนที่เพิ่ม: จองคิวงานอัตโนมัติ
+    # จองคิวงานอัตโนมัติ: สุ่ม silent check หลัง end_time
     # ------------------------------------------------------------
+    start_time = new_session.start_time
+    end_time = new_session.end_time
+    session_duration_seconds = max((end_time - start_time).total_seconds(), 0.0)
+    session_duration_minutes = session_duration_seconds / 60.0
 
-    # จองคิวเช็คบิลเมื่อถึงเวลา end_time
+    if session_duration_seconds <= 0:
+        random_offset_minutes = LONG_SESSION_RANDOM_MIN_MINUTES
+        print(
+            f"[⌛SCHEDULER] Invalid session duration for {new_session.session_id}. "
+            f"🔙Fallback offset={random_offset_minutes} minutes after end_time."
+        )
+    elif session_duration_minutes <= SHORT_SESSION_MAX_MINUTES:
+        random_offset_minutes = random.randint(
+            SHORT_SESSION_RANDOM_MIN_MINUTES,
+            SHORT_SESSION_RANDOM_MAX_MINUTES,
+        )
+    else:
+        random_offset_minutes = random.randint(
+            LONG_SESSION_RANDOM_MIN_MINUTES,
+            LONG_SESSION_RANDOM_MAX_MINUTES,
+        )
+
+    check_time = end_time + timedelta(minutes=random_offset_minutes)
+    finalize_time = check_time + timedelta(seconds=NETWORK_GRACE_SECONDS)
+
+    scheduler.add_job(
+        trigger_silent_check_job,
+        trigger="date",
+        run_date=check_time,
+        args=[new_session.session_id],
+        id=f"silent_push_{new_session.session_id}",
+        replace_existing=True,
+    )
+
     scheduler.add_job(
         finalize_attendance_job,
         trigger="date",
-        run_date=new_session.end_time,
+        run_date=finalize_time,
         args=[new_session.session_id],
         id=f"finalize_{new_session.session_id}",
         replace_existing=True,
     )
 
-    # สุ่มเวลาเพื่อส่งสัญญาณตรวจ (Silent Check)
-    duration = (new_session.end_time - new_session.late_cutoff_time).total_seconds()
+    new_session.silent_check_scheduled_at = check_time
+    db.commit()
+    db.refresh(new_session)
 
-    # 2. เงื่อนไข: ถ้าเวลาระหว่าง late_cutoff_time ถึง end_time มากกว่า 10 วินาที ถึงจะทำการสุ่มตรวจ
-    if duration > 10:
-        # 3. ลด Buffer เหลือแค่ 10 วินาที (จากเดิม 60)
-        offset = random.randint(10, int(duration) - 10)
-
-        # 4. เวลาที่สุ่มได้ = late_cutoff_time + offset
-        check_time = new_session.late_cutoff_time + timedelta(seconds=offset)
-
-        # ปรับปรุง Log ตรงนี้ให้มีกรอบและดูเวลาได้ง่ายๆ
-        current_time_str = datetime.now().strftime("%H:%M:%S")
-        print("\n" + "=" * 60)
-        print(f"⏰ [{current_time_str}] [ตั้งเวลาsilent check] คลาสเปิดสำเร็จแล้ว!")
-        print(f"📍 Session ID: {new_session.session_id}")
-        print(
-            f"🎯: ระบบจะแอบยิงพิกัดตรวจนักเรียนตอนเวลา -> {check_time.strftime('%H:%M:%S')} (UTC)"
-        )
-        print("=" * 60 + "\n")
-
-        # จองคิวงานสุ่มตรวจ
-        scheduler.add_job(
-            trigger_silent_check_job,
-            trigger="date",
-            run_date=check_time,
-            args=[new_session.session_id],
-            id=f"silent_push_{new_session.session_id}",
-            replace_existing=True,
-        )
-
-        new_session.silent_check_scheduled_at = check_time
-        db.commit()
-        db.refresh(new_session)
+    print("\n" + "=" * 72)
+    print("[⌛SILENT CHECK SCHEDULED]")
+    print(f"Session ID              : {new_session.session_id}")
+    print(f"Start Time (UTC)        : {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"End Time (UTC)          : {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Session Duration        : {session_duration_minutes:.2f} minutes")
+    print(f"Random Offset After End : {random_offset_minutes} minutes")
+    print(f"Silent Check Time (UTC) : {check_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(
+        f"Finalize Time (UTC)     : {finalize_time.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"(includes {NETWORK_GRACE_SECONDS}s network grace)"
+    )
+    print("=" * 72 + "\n")
 
     return new_session
 

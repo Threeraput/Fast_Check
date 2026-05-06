@@ -13,6 +13,8 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
+NETWORK_GRACE_SECONDS = 30
+
 
 def _ensure_aware_utc(dt):
     if dt is None:
@@ -31,20 +33,9 @@ def _is_pending_silent_check(record: Attendance) -> bool:
 
 
 def _derive_late_grace_window(record: Attendance, session: AttendanceSession) -> timedelta:
-    session_end = _ensure_aware_utc(session.end_time)
-    late_cutoff = _ensure_aware_utc(session.late_cutoff_time)
-    check_in_time = _ensure_aware_utc(record.check_in_time)
-
-    if not session_end or not late_cutoff or not check_in_time:
-        return timedelta(0)
-
-    late_phase_seconds = max((session_end - late_cutoff).total_seconds(), 0.0)
-    remaining_seconds = max((session_end - check_in_time).total_seconds(), 0.0)
-    if remaining_seconds <= 0:
-        return timedelta(0)
-
-    grace_seconds = min(remaining_seconds, max(60.0, late_phase_seconds / 2.0))
-    return timedelta(seconds=grace_seconds)
+    _ = record
+    _ = session
+    return timedelta(seconds=NETWORK_GRACE_SECONDS)
 
 
 def _should_spare_late_student(
