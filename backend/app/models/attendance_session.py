@@ -19,6 +19,7 @@ class AttendanceSession(Base):
     start_time = Column(DateTime(timezone=True), default=func.now() , nullable=False)
     late_cutoff_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False) 
+    silent_check_scheduled_at = Column(DateTime(timezone=True), nullable=True)
     radius_meters = Column(Integer, nullable=False)
     reverify_enabled = Column(Boolean, nullable=False, server_default="false") 
     # Anchor Point สำหรับ Geofencing ณ เวลาประกาศ

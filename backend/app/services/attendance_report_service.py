@@ -10,6 +10,19 @@ from app.models.association import class_students
 from app.models.attendance_enums import AttendanceStatus
 
 
+def _to_report_status(raw_status: str) -> str:
+    """Map attendance status to values accepted by reportstatus enum."""
+    mapping = {
+        AttendanceStatus.PRESENT.value: "Present",
+        AttendanceStatus.LATE.value: "Late",
+        AttendanceStatus.ABSENT.value: "Absent",
+        AttendanceStatus.LEFT_EARLY.value: "LeftEarly",
+        AttendanceStatus.UNVERIFIED_FACE.value: "Absent",
+        AttendanceStatus.MANUAL_OVERRIDE.value: "Present",
+    }
+    return mapping.get(raw_status, "Absent")
+
+
 def generate_reports_for_class(db: Session, class_id: str):
     now = datetime.now(timezone.utc)
 
@@ -53,7 +66,10 @@ def generate_reports_for_class(db: Session, class_id: str):
         )
 
         if not report:
-            report = AttendanceReport(class_id=class_id, student_id=student_id)
+            report = AttendanceReport(
+                class_id=class_id,
+                student_id=student_id,
+            )
             db.add(report)
             db.flush()
 
@@ -109,18 +125,21 @@ def generate_reports_for_class(db: Session, class_id: str):
                 if record.is_reverified:
                     reverified += 1
 
+            report_status = _to_report_status(status)
+
             # บันทึกรายละเอียดลง Detail
             db.add(
                 AttendanceReportDetail(
                     report_id=report.report_id,
                     session_id=session.session_id,
-                    status=status,
+                    status=report_status,
                     check_in_time=check_in_time,
                     is_reverified=is_reverified,
                     session_start=session.start_time,
                     face_image_path=current_face_path,
                     reverify_time=current_reverify_time,
                     reverify_image_path=current_reverify_path,
+                    created_at=now,
                 )
             )
 

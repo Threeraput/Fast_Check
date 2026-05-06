@@ -1,15 +1,69 @@
 # backend/app/services/scheduler_tasks.py
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.attendance import Attendance
+from app.models.attendance_session import AttendanceSession
 from app.models.attendance_enums import AttendanceStatus
 from app.services.session_finalizer_service import handle_finalize_session
 from firebase_admin import messaging
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_aware_utc(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _is_pending_silent_check(record: Attendance) -> bool:
+    if record.last_verified_at is None:
+        return True
+    check_in_time = _ensure_aware_utc(record.check_in_time)
+    last_verified_at = _ensure_aware_utc(record.last_verified_at)
+    return check_in_time is not None and last_verified_at == check_in_time
+
+
+def _derive_late_grace_window(record: Attendance, session: AttendanceSession) -> timedelta:
+    session_end = _ensure_aware_utc(session.end_time)
+    late_cutoff = _ensure_aware_utc(session.late_cutoff_time)
+    check_in_time = _ensure_aware_utc(record.check_in_time)
+
+    if not session_end or not late_cutoff or not check_in_time:
+        return timedelta(0)
+
+    late_phase_seconds = max((session_end - late_cutoff).total_seconds(), 0.0)
+    remaining_seconds = max((session_end - check_in_time).total_seconds(), 0.0)
+    if remaining_seconds <= 0:
+        return timedelta(0)
+
+    grace_seconds = min(remaining_seconds, max(60.0, late_phase_seconds / 2.0))
+    return timedelta(seconds=grace_seconds)
+
+
+def _should_spare_late_student(
+    record: Attendance,
+    session: AttendanceSession,
+    silent_check_at: datetime | None,
+) -> bool:
+    if silent_check_at is None:
+        return True
+
+    check_in_time = _ensure_aware_utc(record.check_in_time)
+    if check_in_time is None:
+        return False
+
+    if check_in_time >= silent_check_at:
+        return True
+
+    grace_deadline = check_in_time + _derive_late_grace_window(record, session)
+    return silent_check_at <= grace_deadline
 
 
 def finalize_attendance_job(session_id: uuid.UUID):
@@ -20,6 +74,17 @@ def finalize_attendance_job(session_id: uuid.UUID):
 
     db: Session = SessionLocal()
     try:
+        session = (
+            db.query(AttendanceSession)
+            .filter(AttendanceSession.session_id == session_id)
+            .first()
+        )
+        if not session:
+            print(f"⚠️ [Scheduler] ไม่พบ Session: {session_id}")
+            return
+
+        silent_check_at = _ensure_aware_utc(session.silent_check_scheduled_at)
+
         # 1. ปรับสถานะคนที่ไม่รอดจากการสุ่มตรวจ
         records = (
             db.query(Attendance)
@@ -33,27 +98,39 @@ def finalize_attendance_job(session_id: uuid.UUID):
         )
 
         for record in records:
-            # เช็คว่า last_verified_at เป็น None หรือเท่ากับตอนเช็คชื่อครั้งแรกเป๊ะๆ
-            if (
-                record.last_verified_at is None
-                or record.last_verified_at == record.check_in_time
-            ):
-
-                # กฎข้อ 1: มาตรงเวลา แต่ไม่ผ่านสุ่มตรวจ = หนีเรียน
-                if record.status == AttendanceStatus.PRESENT:
-                    print(
-                        f"🚨 [LEFT_EARLY] นักเรียน {record.student_id} มาตรงเวลาแต่หายตัวไประหว่างคาบ (หนีเรียน)"
-                    )
-                    record.status = AttendanceStatus.LEFT_EARLY
-
-                # กฎข้อ 2: มาสาย อาจจะเข้าหลังรอบสุ่มตรวจ = ยกประโยชน์ให้จำเลย
-                elif record.status == AttendanceStatus.LATE:
-                    print(
-                        f"⚠️ [LATE_SPARED] นักเรียน {record.student_id} เช็คชื่อสายและพลาดรอบสุ่มตรวจ (ให้คงสถานะสายไว้)"
-                    )
-            else:
+            if not _is_pending_silent_check(record):
                 print(
                     f"✅ [STILL HERE] นักเรียน {record.student_id} ผ่านการสุ่มตรวจ (เวลาอัปเดตแล้ว)"
+                )
+                continue
+
+            if silent_check_at is None:
+                print(
+                    f"⚠️ [SKIP SILENT CHECK] Session {session_id} ไม่มีเวลาสุ่มตรวจ จึงไม่ปรับสถานะนักเรียน {record.student_id}"
+                )
+                continue
+
+            # กฎข้อ 1: มาตรงเวลา แต่ไม่ผ่านสุ่มตรวจ = หนีเรียน
+            if record.status == AttendanceStatus.PRESENT:
+                print(
+                    f"🚨 [LEFT_EARLY] นักเรียน {record.student_id} มาตรงเวลาแต่หายตัวไประหว่างคาบ (หนีเรียน)"
+                )
+                record.status = AttendanceStatus.LEFT_EARLY
+
+            # กฎข้อ 2: มาสาย จะรอดเฉพาะกรณีเข้าหลังรอบสุ่ม หรือรอบสุ่มเกิดเร็วเกินไปหลังเช็คชื่อ
+            elif record.status == AttendanceStatus.LATE:
+                if _should_spare_late_student(record, session, silent_check_at):
+                    print(
+                        f"⚠️ [LATE_SPARED] นักเรียน {record.student_id} เช็คชื่อสายใกล้รอบสุ่มหรือหลังรอบสุ่ม (ให้คงสถานะสายไว้)"
+                    )
+                else:
+                    print(
+                        f"🚨 [LEFT_EARLY_LATE] นักเรียน {record.student_id} เช็คชื่อสายก่อนรอบสุ่ม แต่ไม่ผ่านการยืนยันภายหลัง"
+                    )
+                    record.status = AttendanceStatus.LEFT_EARLY
+            else:
+                print(
+                    f"ℹ️ [SKIP STATUS] นักเรียน {record.student_id} มีสถานะ {record.status} จึงไม่เข้ากฎสุ่มตรวจ"
                 )
 
         db.flush()

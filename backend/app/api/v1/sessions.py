@@ -89,6 +89,10 @@ async def open_attendance_session(
             replace_existing=True,
         )
 
+        new_session.silent_check_scheduled_at = check_time
+        db.commit()
+        db.refresh(new_session)
+
     return new_session
 
 
