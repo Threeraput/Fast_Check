@@ -8,6 +8,7 @@ from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
 from app.models.attendance_enums import AttendanceStatus
 from app.services.session_finalizer_service import handle_finalize_session
+from app.services.attendance_report_service import generate_reports_for_class
 from firebase_admin import messaging
 from app.models.user import User
 
@@ -131,6 +132,14 @@ def finalize_attendance_job(session_id: uuid.UUID):
 
         db.commit()
         print(f"✅ [Scheduler] ปิด Session และเช็คบิลเรียบร้อยแล้ว")
+
+        # 3. Auto-generate attendance report
+        try:
+            class_id = str(session.class_id)
+            generate_reports_for_class(db, class_id)
+            print(f"✅ [Scheduler] สร้างรายงานอัตโนมัติสำเร็จสำหรับ class {class_id}")
+        except Exception as report_err:
+            print(f"⚠️ [Scheduler] สร้างรายงานอัตโนมัติไม่สำเร็จ: {report_err}")
 
     except Exception as e:
         db.rollback()

@@ -114,28 +114,34 @@ class _ClassReportTabState extends State<ClassReportTab> {
 
   Future<void> _downloadReport() async {
     setState(() {
-      _isDownloading = true; 
+      _isDownloading = true;
     });
 
     try {
       // 1. เปิดกระเป๋า SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 2. หยิบ Token ออกมาโดยใช้ Key คำว่า 'accessToken' ให้ตรงเป๊ะ!
-      String realToken = prefs.getString('accessToken') ?? ''; 
-      
+      String realToken = prefs.getString('accessToken') ?? '';
+
       if (realToken.isEmpty) {
         throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
       }
 
       print('=== [UI DEBUG] เริ่มกดปุ่มดาวน์โหลด ===');
-      
+
       // 3. ส่ง Token จริงไปให้ Service ลุย!
-      await AttendanceReportService.exportDetailedReport(widget.classId, realToken);
-      
+      await AttendanceReportService.exportDetailedReport(
+        widget.classId,
+        realToken,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ดาวน์โหลดและเปิดไฟล์สำเร็จ!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('ดาวน์โหลดและเปิดไฟล์สำเร็จ!'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
@@ -148,7 +154,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
     } finally {
       if (mounted) {
         setState(() {
-          _isDownloading = false; 
+          _isDownloading = false;
         });
       }
     }
@@ -186,28 +192,16 @@ class _ClassReportTabState extends State<ClassReportTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ปุ่มสร้างรายงานใหม่
+          // ปุ่มดาวน์โหลดรายงาน (Excel)
           ElevatedButton.icon(
-            onPressed: _generateReport,
-            icon: const Icon(Icons.refresh, color: Colors.blueAccent),
-            label: const Text('สร้างรายงานใหม่', style: TextStyle(
-              color: Colors.black,
-            ),),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
-          ),
-
-          const SizedBox(height: 12), // เว้นระยะนิดนึง
-
-          // ปุ่มดาวน์โหลดรายงาน (Excel) ของใหม่
-          ElevatedButton.icon(
-            onPressed: _isDownloading ? null : _downloadReport, // ถ้าโหลดอยู่จะกดซ้ำไม่ได้
+            onPressed: _isDownloading
+                ? null
+                : _downloadReport, // ถ้าโหลดอยู่จะกดซ้ำไม่ได้
             icon: _isDownloading
                 ? const SizedBox(
-                    width: 20, 
-                    height: 20, 
-                    child: CircularProgressIndicator(strokeWidth: 2)
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.download, color: Colors.white),
             label: Text(
@@ -215,7 +209,8 @@ class _ClassReportTabState extends State<ClassReportTab> {
               style: const TextStyle(color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade600, // ใช้สีเขียวให้สื่อถึง Excel
+              backgroundColor:
+                  Colors.green.shade600, // ใช้สีเขียวให้สื่อถึง Excel
               minimumSize: const Size.fromHeight(48),
             ),
           ),
@@ -492,7 +487,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                       MaterialPageRoute(
                         builder: (context) =>
                             // ไปที่ไฟล์ student_report_detail_screen.dart
-                              StudentReportDetailScreen(
+                            StudentReportDetailScreen(
                               studentId: report.studentId,
                             ),
                       ),
@@ -519,7 +514,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                       MaterialPageRoute(
                         builder: (context) =>
                             // ไปที่ไฟล์ student_report_detail_screen.dart
-                              ClassworkReportDetailScreen(
+                            ClassworkReportDetailScreen(
                               studentId: report.studentId,
                               classId: report.classId, // เพิ่ม classId
                               userRole: 'teacher', // กำหนดเป็น teacher
