@@ -3,7 +3,7 @@ import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/admin.dart';
 import 'package:frontend/services/admin_service.dart';
-// ✅ ใช้สำหรับ URL รูปโปรไฟล์จริง
+// ใช้สำหรับ URL รูปโปรไฟล์จริง
 import 'package:frontend/services/user_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -52,7 +52,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     super.dispose();
   }
 
-  // ✅ helper แสดงรูปโปรไฟล์จริง ถ้าไม่มีใช้ตัวอักษรแรกแทน
+  // helper แสดงรูปโปรไฟล์จริง ถ้าไม่มีใช้ตัวอักษรแรกแทน
   CircleAvatar _avatarFor(User u, {double radius = 20}) {
     final abs = UserService.absoluteAvatarUrl(u.avatarUrl);
     if (abs != null && abs.isNotEmpty) {
@@ -77,7 +77,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     });
     try {
       final me = await AuthService.getCurrentUserFromLocal();
-      final isAdmin = me?.roles.any((r) => r.toLowerCase() == 'admin') == true;
+      final tokenRoles = await AuthService.getTokenRoles();
+      final isAdmin = tokenRoles.any((r) => r.toLowerCase() == 'admin');
       if (!isAdmin) {
         _guardErr = 'เฉพาะผู้ดูแลระบบเท่านั้น';
         if (mounted) Navigator.pop(context);
@@ -432,19 +433,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         itemBuilder: (context, index) {
           final user = _pendingTeachers[index];
           return ListTile(
-            leading: _avatarFor(user, radius: 20), // ✅ ใช้รูปจริง
+            leading: _avatarFor(user, radius: 20), // ใช้รูปจริง
             title: Text(user.displayName),
             subtitle: Text('อีเมล: ${user.email ?? '-'}'),
             trailing: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent
+                backgroundColor: Colors.blueAccent,
               ),
               onPressed: () => _approveTeacher(user.userId),
               child: const Text(
                 'อนุมัติ',
-              style: TextStyle(
-                color: Colors.white
-              ),
+                style: TextStyle(color: Colors.white),
               ),
             ),
           );
@@ -482,19 +481,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               text: 'Users',
             ),
             Tab(
-              icon: Icon(Icons.analytics_outlined, color: Colors.black),
-              text: 'Reports',
-            ),
-            Tab(
               icon: Icon(Icons.how_to_reg_outlined, color: Colors.black),
               text: 'Approvals',
+            ),
+            Tab(
+              icon: Icon(Icons.analytics_outlined, color: Colors.black),
+              text: 'Reports',
             ),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
-        children: [_usersTab(), _reportsTab(), _approvalsTab()],
+        children: [_usersTab(), _approvalsTab(), _reportsTab()],
       ),
     );
   }

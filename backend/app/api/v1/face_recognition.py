@@ -46,7 +46,7 @@ async def upload_face_for_user(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file.")
 
-    # 💡 1. ดึงข้อมูลรูปเก่ามาเตรียมไว้ (เพื่อที่จะลบไฟล์ขยะทิ้ง ถ้าอัปเดตสำเร็จ)
+    # 1. ดึงข้อมูลรูปเก่ามาเตรียมไว้ (เพื่อที่จะลบไฟล์ขยะทิ้ง ถ้าอัปเดตสำเร็จ)
     old_sample = db.query(UserFaceSample).filter(UserFaceSample.user_id == current_user.user_id).first()
     old_image_path = None
     if old_sample and old_sample.image_url:
@@ -76,7 +76,7 @@ async def upload_face_for_user(
         with open(file_path, "wb") as buffer:
             buffer.write(content)
 
-        # 🚀 5. เรียกใช้ Service อัปเดตข้อมูล (ที่จะมีระบบดัก 30 วันอยู่ข้างใน)
+        # 5. เรียกใช้ Service อัปเดตข้อมูล (ที่จะมีระบบดัก 30 วันอยู่ข้างใน)
         face_sample = create_face_sample(db, current_user.user_id, image_url, embedding)
 
         # 6. ถ้าอัปเดตผ่านฉลุย ให้ลบไฟล์รูปภาพอันเก่าทิ้งซะ จะได้ไม่เปลืองฮาร์ดดิสก์
@@ -172,7 +172,7 @@ async def verify_face(
 # ... (โค้ด router, UPLOAD_DIR, upload-face, verify-face) ...
 
 # -----------------------------------------------------------
-# 🚨 ล็อกสิทธิ์การลบ! ให้นักเรียนลบหน้าตัวเองไม่ได้ ป้องกันช่องโหว่รีเซ็ตเวลา
+# ล็อกสิทธิ์การลบ ให้นักเรียนลบหน้าตัวเองไม่ได้ ป้องกันช่องโหว่รีเซ็ตเวลา
 # -----------------------------------------------------------
 @router.delete("/delete-face-sample/{sample_id}", status_code=status.HTTP_200_OK)
 async def delete_face_sample(

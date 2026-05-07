@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/users.dart'; // ตรวจสอบให้แน่ใจว่า import ถูกต้อง
 import '../models/token.dart';
@@ -66,13 +67,37 @@ class AuthService {
     return prefs.getString('accessToken');
   }
 
+  static Future<Map<String, dynamic>> getTokenPayload() async {
+    final token = await getAccessToken();
+    if (token == null) return {};
+    try {
+      return JwtDecoder.decode(token);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<List<String>> getTokenRoles() async {
+    final payload = await getTokenPayload();
+    final roles = payload['roles'];
+    if (roles is List) {
+      return roles.map((e) => e.toString()).toList();
+    }
+    return [];
+  }
+
   static Future<User?> getCurrentUserFromLocal() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString('currentUser');
-    if (userJson != null) {
-      return User.fromJson(json.decode(userJson));
+    if (userJson == null) return null;
+
+    final user = User.fromJson(json.decode(userJson));
+    final payload = await getTokenPayload();
+    final tokenRoles = payload['roles'];
+    if (tokenRoles is List) {
+      return user.copyWith(roles: tokenRoles.map((e) => e.toString()).toList());
     }
-    return null;
+    return user;
   }
 
   static Future<void> logout() async {
@@ -154,7 +179,6 @@ class AuthService {
     }
   }
 
-
   static Future<List<User>> getPendingTeachers() async {
     final url = Uri.parse('$API_BASE_URL/admin/pending-teachers');
     final accessToken = await getAccessToken();
@@ -205,4 +229,99 @@ class AuthService {
   }
 
   static Future getCurrentUser() async {}
+
+  /// ฟังก์ชันสำหรับสลับบทบาท (Switch Role)
+  static Future<bool> switchRole(String targetRole) async {
+    try {
+      // 1. ดึง Token ปัจจุบันที่อยู่ในเครื่อง
+      final currentToken =
+          await getAccessToken(); // แก้ไข: ใช้ getAccessToken()
+      if (currentToken == null) return false;
+
+      final url = Uri.parse(
+        '$API_BASE_URL/auth/switch-role',
+      ); // แก้ไข: ใช้ API_BASE_URL
+
+      // 2. ยิง API ขอสลับร่าง
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $currentToken', // แนบตั๋วเดิมไปยืนยันตัว
+        },
+        body: jsonEncode({
+          'target_role': targetRole, // 'student' หรือ 'teacher'
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        final newToken = data['access_token'];
+
+        print(
+          '🔐 [SWITCH ROLE] New token received: ${newToken.substring(0, 50)}...',
+        );
+
+        // 3. เซฟตั๋วใบใหม่ทับของเดิมลงในเครื่อง
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('accessToken', newToken);
+
+        // ตรวจสอบว่าเก็บสำเร็จไหม
+        final savedToken = prefs.getString('accessToken');
+        print(
+          '💾 Token saved to SharedPreferences: ${savedToken == newToken ? '✅ SUCCESS' : '❌ FAILED'}',
+        );
+        if (savedToken != newToken) {
+          print('⚠️ Token mismatch! Expected: ${newToken.substring(0, 30)}...');
+          print('⚠️ Got: ${savedToken?.substring(0, 30) ?? 'NULL'}...');
+        }
+
+        // 4. อ่าน roles จาก token ใหม่ และ sync ไปที่ cached currentUser
+        try {
+          final newPayload = JwtDecoder.decode(newToken);
+          final newRoles = List<String>.from(newPayload['roles'] ?? []);
+          print('🔄 Switch role สำเร็จ! Token ใหม่มี roles: $newRoles');
+
+          // อ่าน cached user
+          final userJson = prefs.getString('currentUser');
+          if (userJson != null) {
+            final user = User.fromJson(json.decode(userJson));
+            // สร้าง user ใหม่ที่มี roles อัปเดตจาก token
+            final updatedUser = user.copyWith(roles: newRoles);
+            // เซฟกลับลง SharedPreferences
+            await prefs.setString(
+              'currentUser',
+              json.encode(updatedUser.toJson()),
+            );
+            print('✅ Cached user roles updated: $newRoles');
+          }
+        } catch (e) {
+          print('⚠️ Error syncing user roles: $e');
+        }
+
+        print('🎉 สลับร่างสำเร็จ! ได้ Token ใหม่มาแล้ว');
+        return true;
+      } else {
+        print('❌ สลับร่างไม่สำเร็จ: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('⚠️ Error switchRole: $e');
+      return false;
+    }
+  }
+
+  /// เช็คว่าตอนนี้ผู้ใช้กำลังอยู่ใน "โหมดจำแลงกาย" หรือไม่?
+  static Future<bool> isCurrentlySwapped() async {
+    final token = await getAccessToken(); // แก้ไข: ใช้ getAccessToken()
+    if (token == null) return false;
+
+    // ถอดรหัส Token มาดูไส้ใน
+    try {
+      final decodedToken = JwtDecoder.decode(token);
+      return decodedToken['is_swapped'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

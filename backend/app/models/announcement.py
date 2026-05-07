@@ -30,7 +30,7 @@ class Announcement(Base):
     klass          = relationship("Class", back_populates="announcements")
     teacher        = relationship("User", foreign_keys=[teacher_id])
 
-    # 👉 1. สิ่งที่เพิ่มเข้ามา: ความสัมพันธ์ไปยังตารางคอมเมนต์
+    # 1. สิ่งที่เพิ่มเข้ามา: ความสัมพันธ์ไปยังตารางคอมเมนต์
     comments = relationship(
         "AnnouncementComment",
         back_populates="announcement",
@@ -39,7 +39,7 @@ class Announcement(Base):
     )
 
 # ----------------------------------------------------
-# 👉 2. ตารางใหม่: สำหรับเก็บคอมเมนต์ในประกาศ
+# 2. ตารางใหม่: สำหรับเก็บคอมเมนต์ในประกาศ
 # ----------------------------------------------------
 class AnnouncementComment(Base):
     __tablename__ = "announcement_comments"

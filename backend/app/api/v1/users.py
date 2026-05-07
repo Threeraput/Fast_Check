@@ -108,7 +108,7 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
         updated_at=current_user.updated_at,
         last_login_at=current_user.last_login_at,
         roles=user_roles,
-        avatar_url=current_user.avatar_url,  # ✅ เพิ่ม
+        avatar_url=current_user.avatar_url,
     )
 
 
@@ -136,7 +136,7 @@ async def read_user_by_id(
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
         roles=user_roles,
-        avatar_url=user.avatar_url,  # ✅ เพิ่ม
+        avatar_url=user.avatar_url,
     )
 
 
@@ -162,7 +162,7 @@ async def read_all_users(
                 updated_at=user.updated_at,
                 last_login_at=user.last_login_at,
                 roles=user_roles,
-                avatar_url=user.avatar_url,  # ✅ เพิ่ม
+                avatar_url=user.avatar_url,
             )
         )
     return response_users
@@ -220,7 +220,7 @@ async def update_user(
         updated_at=db_user.updated_at,
         last_login_at=db_user.last_login_at,
         roles=[r.name for r in db_user.roles],
-        avatar_url=db_user.avatar_url,  # ✅ เพิ่ม
+        avatar_url=db_user.avatar_url,
     )
 
 

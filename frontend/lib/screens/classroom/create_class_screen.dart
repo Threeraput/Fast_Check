@@ -67,16 +67,15 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
     });
   }
 
-  Future<void> _submit() async {
+ Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
+    
     try {
       if (widget.editing == null) {
         final body = ClassroomCreate(
           name: _nameCtl.text.trim(),
-          description: _descCtl.text.trim().isEmpty
-              ? null
-              : _descCtl.text.trim(),
+          description: _descCtl.text.trim().isEmpty ? null : _descCtl.text.trim(),
           startTime: _startAt?.toIso8601String(),
           endTime: _endAt?.toIso8601String(),
         );
@@ -84,20 +83,48 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
       } else {
         final body = ClassroomUpdate(
           name: _nameCtl.text.trim(),
-          description: _descCtl.text.trim().isEmpty
-              ? null
-              : _descCtl.text.trim(),
+          description: _descCtl.text.trim().isEmpty ? null : _descCtl.text.trim(),
           startTime: _startAt?.toIso8601String(),
           endTime: _endAt?.toIso8601String(),
         );
         await ClassService.updateClassroom(widget.editing!.classId!, body);
       }
+      
       if (mounted) Navigator.of(context).pop(true);
+      
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')));
+        // 1. ทำความสะอาดข้อความ Error (ลบคำว่า "Exception: " ที่ระบบชอบแถมมาให้ออก)
+        final errorMessage = e.toString().replaceAll('Exception: ', '');
+
+        // 2. โชว์ SnackBar ดีไซน์ใหม่ สวยงามและเป็นมิตร
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    errorMessage, // จะแสดงคำว่า "ชื่อห้องเรียนนี้มีอยู่แล้ว กรุณาตั้งชื่อใหม่"
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange.shade700, // ใช้สีส้มเพื่อให้รู้ว่าเป็นการเตือน ไม่ใช่แอปพัง
+            behavior: SnackBarBehavior.floating, // ลอยขึ้นมาจากขอบจอ
+            margin: const EdgeInsets.all(16), // เว้นระยะขอบให้ดูมีมิติ
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12), // ขอบมน
+            ),
+            duration: const Duration(seconds: 4), // ค้างไว้ 4 วินาที
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);

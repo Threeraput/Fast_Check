@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.core.deps import get_current_user, role_required
+from app.core.deps import get_current_user, get_roles_from_token, role_required
 from app.models.user import User
 from app.models.attendance_report import AttendanceReport
 from app.schemas.attendance_report_schema import AttendanceReportResponse
@@ -45,10 +45,16 @@ def _to_schema(r: AttendanceReport) -> AttendanceReportResponse:
 
 # ---------- นักเรียน ----------
 @router.get("/my-report", response_model=list[AttendanceReportResponse])
-def get_my_report(db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    if not any(getattr(r, "name", None) == "student" for r in getattr(me, "roles", [])):
+def get_my_report(
+    db: Session = Depends(get_db), 
+    me: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
+):
+    # แบบใหม่ที่ต้องใช้ (เช็คจากหัวโขนที่สวมใน Token)
+    if "student" not in token_roles:
         raise HTTPException(
-            status_code=403, detail="Only students can view their own report"
+            status_code=403, 
+            detail="Only students can view their attendance details"
         )
 
     rows = (

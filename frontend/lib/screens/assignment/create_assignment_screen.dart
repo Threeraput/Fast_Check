@@ -41,7 +41,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('สร้างงานสำเร็จ')));
-      Navigator.pop(context, true); // ✅ ส่ง true กลับไปรีเฟรชหน้าก่อนหน้า
+      Navigator.pop(context, true); // ส่ง true กลับไปรีเฟรชหน้าก่อนหน้า
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -64,13 +64,13 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
       return Theme(
         data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.blue, // 🔵 สีวงกลมวันที่เลือก
-            onPrimary: Colors.white, // 🔵 สีตัวเลขในวงกลม
+            primary: Colors.blue, // สีวงกลมวันที่เลือก
+            onPrimary: Colors.white, // สีตัวเลขในวงกลม
             surface: Colors.white, // พื้นหลัง popup
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
+              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
               textStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
@@ -90,15 +90,15 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
       return Theme(
         data: Theme.of(context).copyWith(
           colorScheme: ColorScheme.light(
-            primary: Colors.lightBlue, // 🔵 สีไฮไลต์วงกลมรอบตัวเลข
-            secondary: Colors.lightBlueAccent, // 🔵 สีเวลาที่เลือก
+            primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
+            secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
             onPrimary: Colors.white, // สีตัวเลขในวงกลม
             surface: Colors.white,
             onSurface: Colors.black87, // สีข้อความทั่วไป
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
+              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
             ),
           ),
         ),
@@ -133,10 +133,10 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
           child: Container(
             constraints: const BoxConstraints(
               maxWidth: 500,
-            ), // ✅ จำกัดความกว้างให้อยู่กลางจอ
+            ), // จำกัดความกว้างให้อยู่กลางจอ
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20), // ✅ มุมโค้งมน
+              borderRadius: BorderRadius.circular(20), // มุมโค้งมน
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
@@ -162,7 +162,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ✅ ช่องกรอกชื่องาน
+                  // ช่องกรอกชื่องาน
                   TextFormField(
                     controller: _titleController,
                     decoration: InputDecoration(
@@ -178,7 +178,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ✅ ช่องกรอกคะแนนเต็ม
+                  // ช่องกรอกคะแนนเต็ม
                   TextFormField(
                     controller: _maxScoreController,
                     keyboardType: TextInputType.number,
@@ -193,7 +193,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ✅ วันที่กำหนดส่ง
+                  // วันที่กำหนดส่ง
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
@@ -220,7 +220,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
 
                   const SizedBox(height: 24),
 
-                  // ✅ ปุ่มบันทึก
+                  // ปุ่มบันทึก
                   ElevatedButton.icon(
                     onPressed: _submitting ? null : _submit,
                     icon: Icon(color: Colors.white, Icons.save_outlined),

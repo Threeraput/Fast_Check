@@ -6,6 +6,8 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/comment_model.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'auth_service.dart' show AuthService;
 import 'package:frontend/config.dart';
 
@@ -152,6 +154,23 @@ class ClassworkSimpleService {
     throw _errorFrom(res);
   }
 
+  // ============ TEACHER: ดูงานที่นักเรียนส่งในคลาส ============
+  static Future<List<dynamic>> getStudentSubmissionsForClass(
+    String classId,
+    String studentId,
+  ) async {
+    final url = Uri.parse(
+      '$_base/teacher/$classId/student/$studentId/submissions',
+    );
+    final res = await http
+        .get(url, headers: await _headersAuthOnly())
+        .timeout(_kTimeout);
+    if (res.statusCode == 200) {
+      return (json.decode(res.body) as List).cast<dynamic>();
+    }
+    throw _errorFrom(res);
+  }
+
   // =======================
   // ====== TYPED API ======
   // =======================
@@ -210,12 +229,14 @@ class ClassworkSimpleService {
         .get(url, headers: await _headersAuthOnly())
         .timeout(_kTimeout);
     if (res.statusCode == 200) {
+      // 🚨 พิมพ์ดู JSON ดิบๆ จากหลังบ้าน
+      print('🔍 DEBUG BACKEND JSON (Teacher): ${res.body}');
       return decodeList(res.body, (m) => ClassworkAssignment.fromJson(m));
     }
     throw _errorFrom(res);
   }
 
-  // ✅ เพิ่มฟังก์ชันพิเศษที่ใช้ในหน้า “ดูงานนักเรียน”
+  // เพิ่มฟังก์ชันพิเศษที่ใช้ในหน้า “ดูงานนักเรียน”
   static Future<List<ClassworkSubmission>> getSubmissionsForAssignment(
     String assignmentId,
   ) async {
@@ -284,5 +305,66 @@ class ClassworkSimpleService {
       );
     }
     throw _errorFrom(res);
+  }
+
+  static Future<void> exportAssignmentReport(
+    String assignmentId,
+    String token,
+  ) async {
+    try {
+      final url = Uri.parse(
+        '${AppConfig.baseUrl}/classwork-simple/assignments/$assignmentId/export',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '${dir.path}/assignment_report_$timestamp.xlsx';
+
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final result = await OpenFilex.open(filePath);
+        if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("เกิดข้อผิดพลาด: $e");
+    }
+  }
+  // ฟังก์ชันสำหรับเปิด/ปิดการรับงาน
+  static Future<void> toggleSubmissionStatus(String assignmentId, bool isAccepting) async {
+    // 1. เปลี่ยนมาใช้ $_base ให้เหมือนฟังก์ชันอื่น
+    final url = Uri.parse('$_base/assignments/$assignmentId/toggle-status'); 
+    
+    try {
+      final response = await http.patch(
+        url,
+        // 2. ใช้ _headersJson() ถูกต้องแล้วครับ เพราะเราส่ง body เป็น json
+        headers: await _headersJson(), 
+        body: jsonEncode({
+          'is_accepting': isAccepting,
+        }),
+      );
+
+      print('=== STATUS CODE: ${response.statusCode} ===');
+      print('=== BODY: ${response.body} ===');
+
+      // เช็คผลลัพธ์
+      if (response.statusCode != 200) {
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
+        throw Exception(error['detail'] ?? 'เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+      }
+    } catch (e) {
+      rethrow;
+    }
   }
 }

@@ -78,7 +78,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('รายละเอียดประกาศ'),
-        // 💡 หน้าประกาศไม่มีการให้คะแนน เลยไม่ต้องมีปุ่มตรวจงานครับ! คลีนๆ เลย
+        // หน้าประกาศไม่มีการให้คะแนน เลยไม่ต้องมีปุ่มตรวจงาน
       ),
       body: Column(
         children: [
@@ -106,7 +106,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1), // เปลี่ยนธีมสีนิดหน่อยให้ต่างจากงาน
+                                  color: Colors.orange.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.campaign, color: Colors.orange, size: 28),

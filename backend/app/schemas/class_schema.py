@@ -12,6 +12,7 @@ from app.schemas.user_schema import UserPublic
 # -----------------
 # Request Schemas
 # -----------------
+
 class ClassroomCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

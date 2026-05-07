@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Text
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean, UniqueConstraint, Index, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -19,6 +19,8 @@ class ClassworkAssignment(Base):
     max_score = Column(Integer, nullable=False, default=100)
     due_date = Column(DateTime(timezone=True), nullable=False)
 
+    is_accepting_submissions = Column(Boolean, default=True, nullable=False)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc), nullable=False)
@@ -33,7 +35,6 @@ class ClassworkAssignment(Base):
     classroom = relationship("Class", back_populates="assignments")
     teacher = relationship("User", foreign_keys=[teacher_id], back_populates="class_assignments")
 
-    # 👉 สิ่งที่ต้องเติมเพิ่มเข้าไป:
     comments = relationship(
         "AssignmentComment",
         back_populates="assignment",

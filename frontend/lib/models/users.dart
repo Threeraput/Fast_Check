@@ -78,7 +78,7 @@ class User {
       lastLoginAt: _dt(json['last_login_at']),
       roles: roles,
       fullName: json['full_name']?.toString(),
-      // ✅ แม็ปค่า avatar_url -> avatarUrl (แก้ตัวอักษรผิดพลาดเดิม)
+      // แม็ปค่า avatar_url -> avatarUrl (แก้ตัวอักษรผิดพลาดเดิม)
       avatarUrl: json['avatar_url']?.toString(),
     );
   }

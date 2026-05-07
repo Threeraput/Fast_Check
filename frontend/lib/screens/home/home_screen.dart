@@ -24,10 +24,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadCurrentUser() async {
     final user = await AuthService.getCurrentUserFromLocal();
+    final tokenRoles = await AuthService.getTokenRoles();
     setState(() {
       _currentUser = user;
-      // ตรวจสอบ roles ของผู้ใช้ว่ามี 'admin' หรือไม่
-      _isAdmin = user?.roles.contains('admin') ?? false;
+      // ตรวจสอบ roles จาก Token เสมอ
+      _isAdmin = tokenRoles.contains('admin');
     });
   }
 
@@ -76,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text('Roles: ${_currentUser!.roles.join(', ')}'),
               SizedBox(height: 30),
             ],
-              ElevatedButton.icon(
+            ElevatedButton.icon(
               icon: const Icon(Icons.person_add),
               label: const Text('อัปโหลดใบหน้า'),
               onPressed: () => Navigator.pushNamed(context, '/upload-face'),
@@ -87,15 +88,17 @@ class _HomeScreenState extends State<HomeScreen> {
               label: const Text('ยืนยันตัวตนด้วยใบหน้า'),
               onPressed: () => Navigator.pushNamed(context, '/verify-face'),
             ),
-    ElevatedButton(
-      child: const Text('ไปยัง Classroom'),
-      onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ClassroomHomeScreen()),
-        );
-      },
-    ),
-  ],
+            ElevatedButton(
+              child: const Text('ไปยัง Classroom'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ClassroomHomeScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

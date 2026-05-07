@@ -62,7 +62,7 @@ class UserService {
   }
 
   // -------------------------
-  // ✏️ อัปเดตข้อมูลโปรไฟล์ (ยกเว้น email)
+  // อัปเดตข้อมูลโปรไฟล์ (ยกเว้น email)
   // -------------------------
   static Future<User> updateUser({
     required String userId,
@@ -141,24 +141,54 @@ class UserService {
   }
 
   // -------------------------
-  //  ใช้ใน UI เพื่อแปลง avatarUrl -> URL เต็ม
+  // ใช้ใน UI เพื่อแปลง avatarUrl -> URL เต็ม (เวอร์ชันป้องกัน IP เก่า)
   // -------------------------
   static String? absoluteAvatarUrl(String? avatarUrl) {
     if (avatarUrl == null || avatarUrl.isEmpty) return null;
-    if (avatarUrl.startsWith('http')) return avatarUrl;
 
-    // ตัด /api/v1 ออกจาก Base URL เพื่อให้ได้เฉพาะ Root (IP:Port)
-    final rootUrl = _baseUrl.replaceAll('/api/v1', '');
+    // 1. หา Root URL ปัจจุบันก่อน (ตัด /api/v1 ออก)
+    String rootUrl = _baseUrl.replaceAll('/api/v1', '');
+    if (rootUrl.endsWith('/')) {
+      rootUrl = rootUrl.substring(0, rootUrl.length - 1);
+    }
 
-    // จัดการเครื่องหมาย / ให้ถูกต้อง เพื่อไม่ให้เกิด // ซ้ำซ้อน
+    // 2. ดักจับกรณีที่ DB บันทึกเป็น URL เต็ม (และอาจจะเป็น IP เก่า)
+    if (avatarUrl.startsWith('http')) {
+      try {
+        // แอบดึงเอาแค่ Path ข้างหลังมาใช้ ทิ้ง IP เก่าไปเลย!
+        Uri parsedOldUrl = Uri.parse(avatarUrl);
+        // parsedOldUrl.path จะได้ค่าเช่น /media/profile_upload/...
+        return '$rootUrl${parsedOldUrl.path}';
+      } catch (e) {
+        return avatarUrl; // ถ้าพังก็คืนค่าเดิมไปก่อน
+      }
+    }
+
+    // 3. กรณีที่เป็น Path ปกติ
     final cleanPath = avatarUrl.startsWith('/') ? avatarUrl : '/$avatarUrl';
+    return '$rootUrl$cleanPath';
+  }
+  // ฟังก์ชันเช็คสถานะก่อนอนุญาตให้เปลี่ยนรูปใบหน้า
+  static Future<Map<String, dynamic>> checkCanChangeFace(String token) async {
+    try {
+      // ปรับ URL ให้ตรงกับที่ตั้งไว้ใน FastAPI 
+      final url = Uri.parse('${AppConfig.baseUrl}/attendance/active-sessions/check-face-change');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
 
-    final fullUrl = '$rootUrl$cleanPath';
-
-    // พิมพ์เช็คใน Console เพื่อตรวจสอบความถูกต้อง
-    print("💕💕💕DEBUG: Avatar Path from DB: $avatarUrl");
-    print("💕💕💕DEBUG: Final Result URL: $fullUrl");
-
-    return fullUrl;
+      if (response.statusCode == 200) {
+        // แปลงข้อมูล JSON ที่ได้จากหลังบ้านกลับมาเป็น Map
+        return jsonDecode(utf8.decode(response.bodyBytes)); 
+      } else {
+        throw Exception('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${response.statusCode})');
+      }
+    } catch (e) {
+      throw Exception('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: $e');
+    }
   }
 }

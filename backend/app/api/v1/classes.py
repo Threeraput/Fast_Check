@@ -14,7 +14,7 @@ from app.schemas.class_schema import (
 )
 from app.schemas.user_schema import UserPublic
 from app.models.user import User
-from app.core.deps import get_current_active_user, get_current_user
+from app.core.deps import get_current_active_user, get_current_user, get_roles_from_token
 from app.services import class_service
 from app.models.class_model import Class as ClassModel
 from app.models.association import class_students
@@ -52,6 +52,7 @@ def _user_payload(u) -> Optional[Dict[str, Any]]:
         "is_active": getattr(u, "is_active", None),
         "created_at": getattr(u, "created_at", None),
         "updated_at": getattr(u, "updated_at", None),
+        "avatar_url": getattr(u, "avatar_url", None),
         # roles -> เป็น list[str]
         "roles": _role_names(u),
     }
@@ -70,7 +71,6 @@ def _serialize_classroom(obj) -> ClassroomResponse:
         "teacher": _user_payload(getattr(obj, "teacher", None)),
         "students": [_user_payload(s) for s in _safe_list(getattr(obj, "students", []))],
 
-        # 👉 สิ่งที่คุณต้องพิมพ์เพิ่มเข้าไปคือบรรทัดนี้ครับ!
         "is_archived": getattr(obj, "is_archived", False),
     }
     return ClassroomResponse.model_validate(payload)
@@ -110,7 +110,6 @@ async def create_classroom(
 # ------------------------------------
 @router.get("/taught", response_model=List[ClassroomResponse])
 async def get_taught_classes(
-    # 👉 1. เพิ่มบรรทัดนี้เข้าไป เพื่อรับค่าจากหน้าบ้าน
     is_archived: bool = Query(False, description="ดึงห้องเรียนที่ถูกซ่อนหรือไม่"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -121,7 +120,7 @@ async def get_taught_classes(
             detail="Access denied. You are not authorized as a teacher/admin.",
         )
     # classes = class_service.get_taught_classes(db, current_user.user_id)
-    # 👉 2. ส่งค่า is_archived ต่อไปให้ class_service
+    # ส่งค่า is_archived ต่อไปให้ class_service
     classes = class_service.get_taught_classes(db, current_user.user_id, is_archived=is_archived)
     return _serialize_classroom_list(classes)
 
@@ -134,8 +133,10 @@ async def join_classroom(
     join_data: ClassroomJoin,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token) # 👈 1. เพิ่มตัวนี้เข้ามา!
 ):
-    if not _has_any_role(current_user, {"student"}):
+    # 2. เปลี่ยนมาเช็คจากตั๋วจำแลงกาย ห้ามเช็คจาก current_user เด็ดขาด
+    if "student" not in token_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only students can join a classroom.",
@@ -144,7 +145,7 @@ async def join_classroom(
     code = (join_data.code or "").strip()
     class_service.assign_student_to_class(
         db=db,
-        student_id=current_user.user_id,
+        student_id=current_user.user_id, # ตรงนี้ใช้ current_user ได้ปกติ เพราะเราแค่ต้องการ id
         code=code,
     )
     return {"message": "Successfully joined the classroom."}
@@ -245,12 +246,15 @@ async def restore_classroom_api(
 async def get_enrolled_classes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token) # 👈 1. เพิ่มด่านตรวจ Role จากตั๋ว (Token)
 ):
-    if not _has_any_role(current_user, {"student"}):
+    # 2. เปลี่ยนมาเช็ค Role จาก Token ทิ้งของเดิมที่เช็คจาก DB ไปเลย
+    if "student" not in token_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only students can view enrolled classes.",
         )
+        
     classes = class_service.get_enrolled_classes(db, current_user.user_id)
     return _serialize_classroom_list(classes)
 
