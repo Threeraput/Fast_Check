@@ -151,18 +151,23 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                 style: TextButton.styleFrom(backgroundColor: Colors.blueAccent),
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  style: TextStyle(color: Colors.white),
                   'ตกลง',
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
             ],
           ),
         );
-      } else {
-        // Error อื่น ๆ แสดง SnackBar ตามปกติ
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+      } 
+      // 🚨 3. Error อื่นๆ
+      else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
       }
     }
   }

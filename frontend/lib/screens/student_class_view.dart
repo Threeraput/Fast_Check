@@ -84,7 +84,7 @@ class _StudentClassViewState extends State<StudentClassView> {
         // เปลี่ยนจาก const _StudentClassworkTab() -> ส่ง classId และ isTeacher=false
         return StudentClassworkTab(classId: widget.classId);
       case 2:
-        return const StudentReportTab();
+        return StudentReportTab(classId: widget.classId);
       case 3:
         // People tab now loads real members from API
         return _StudentPeopleTab(

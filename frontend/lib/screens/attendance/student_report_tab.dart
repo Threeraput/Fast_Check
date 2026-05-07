@@ -8,7 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:frontend/services/class_service.dart';
 
 class StudentReportTab extends StatefulWidget {
-  const StudentReportTab({super.key});
+  final String classId;
+  const StudentReportTab({super.key, required this.classId});
 
   @override
   State<StudentReportTab> createState() => _StudentReportTabState();
@@ -124,7 +125,23 @@ class _StudentReportTabState extends State<StudentReportTab> {
       );
     }
 
-    if (_myReports.isEmpty) {
+    // 🚨 1. กรอง Report หลักก่อน (เหมือนเดิม)
+    final currentClassReports = _myReports.where((report) {
+      return report.classId == widget.classId; 
+    }).toList();
+
+    // 🚨 2. สกัดเอาเฉพาะ "reportId" ของคลาสนี้ออกมาเก็บไว้เป็น Set เพื่อความรวดเร็วในการค้นหา
+    // (หมายเหตุ: ตัวแปร report.id อาจจะชื่อ report.reportId หรือแค่ report.id ขึ้นอยู่กับ Model `AttendanceReportResponse` ของคุณนะครับ)
+    final currentReportIdsForThisClass = currentClassReports.map((r) => r.reportId).toSet(); 
+
+    // 🚨 3. กรอง Daily Report โดยดูว่า reportId ของมัน อยู่ในตะกร้าของวิชานี้ไหม!
+    final currentClassDaily = _myDailyReports.where((detail) {
+      return currentReportIdsForThisClass.contains(detail.reportId);
+    }).toList();
+
+
+    // 🚨 2. เปลี่ยนมาเช็คว่า "คลาสนี้" ไม่มีข้อมูลใช่ไหม? (แทนที่จะเช็คทุกคลาส)
+    if (currentClassReports.isEmpty && currentClassDaily.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -138,7 +155,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'ยังไม่มีรายงานการเข้าเรียน',
+                'ยังไม่มีรายงานการเข้าเรียนในวิชานี้',
                 style: TextStyle(fontSize: 18, color: Colors.grey),
               ),
               const SizedBox(height: 8),
@@ -158,6 +175,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
       );
     }
 
+    // 🚨 3. วาดหน้าจอตามปกติ โดยใช้ข้อมูลที่กรองมาแล้ว
     return RefreshIndicator(
       onRefresh: _loadMyReports,
       child: ListView(
@@ -165,27 +183,30 @@ class _StudentReportTabState extends State<StudentReportTab> {
         children: [
           Text(
             'รายงานการเข้าเรียนของฉัน',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 16),
 
-          // การ์ดสรุปแต่ละวิชา (แสดงชื่อคลาสแทน classId)
-          ..._myReports.map((report) => _buildReportCard(report)),
+          if (currentClassReports.isEmpty)
+             const Text('ยังไม่มีข้อมูลสรุปการเข้าเรียนวิชานี้', style: TextStyle(color: Colors.grey)),
+          ...currentClassReports.map((report) => _buildReportCard(report)),
 
           const SizedBox(height: 24),
 
           // ประวัติรายวัน
-          if (_myDailyReports.isNotEmpty) ...[
+          if (currentClassDaily.isNotEmpty) ...[
             Text(
               'ประวัติการเช็คชื่อรายวัน',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
-            ..._myDailyReports.map((detail) => _buildDailyDetailCard(detail)),
+            ...currentClassDaily.map((detail) => _buildDailyDetailCard(detail)),
+          ] else ...[
+            const Text('ยังไม่มีประวัติการเช็คชื่อในวิชานี้', style: TextStyle(color: Colors.grey)),
           ],
         ],
       ),
