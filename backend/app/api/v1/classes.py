@@ -68,6 +68,7 @@ def _serialize_classroom(obj) -> ClassroomResponse:
         "class_id": getattr(obj, "class_id", None),
         "name": getattr(obj, "name", None),
         "code": getattr(obj, "code", None),
+        "description": getattr(obj, "description", None),
         "teacher_id": getattr(obj, "teacher_id", None),
         "created_at": getattr(obj, "created_at", None),
         "teacher": _user_payload(getattr(obj, "teacher", None)),

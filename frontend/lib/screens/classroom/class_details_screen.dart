@@ -131,6 +131,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final title = _classroom?.name ?? widget.className ?? 'Classroom';
+    final description = _classroom?.description;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: _loading
@@ -141,11 +142,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
             )
           : _error
           ? const Center(child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'))
-          : Column(
-              children: [
-                Expanded(child: _buildBody()),
-              ],
-            ),
+          : Column(children: [Expanded(child: _buildBody())]),
       floatingActionButton: _currentIndex == 1 && _isTeacher
           ? FloatingActionButton.extended(
               backgroundColor: Colors.blueAccent,
@@ -307,35 +304,76 @@ class _StreamTabState extends State<_StreamTab> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      c.name ?? '—',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.name ?? '—',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          style: TextStyle(color: Colors.white),
+                          'Code: ${c.code ?? '-'}',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          style: const TextStyle(color: Colors.white70),
+                          'Teacher: ${c.teacher?.username ?? c.teacher?.email ?? '-'}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.info_outline, color: Colors.white),
+                      tooltip: 'คำอธิบายคลาส',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: const Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.blueAccent,
+                                ),
+                                SizedBox(width: 8),
+                                Text('คำอธิบายคลาส'),
+                              ],
+                            ),
+                            content: Text(
+                              (c.description != null &&
+                                      c.description!.isNotEmpty)
+                                  ? c.description!
+                                  : 'ยังไม่มีคำอธิบายสำหรับคลาสนี้',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('ปิด'),
+                              ),
+                            ],
                           ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      style: TextStyle(color: Colors.white),
-                      'Code: ${c.code ?? '-'}',
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      style: const TextStyle(color: Colors.white70),
-                      'Teacher: ${c.teacher?.username ?? c.teacher?.email ?? '-'}',
-                    ),
-                    if ((c.description ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(c.description!),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           if (widget.isTeacher) ...[

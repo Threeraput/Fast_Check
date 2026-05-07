@@ -1088,6 +1088,7 @@ class _ClassCard extends StatelessWidget {
                   classId: c.classId ?? '',
                   className: c.name ?? '(no name)',
                   teacherName: c.teacher?.username ?? c.teacher?.email ?? '-',
+                  description: c.description,
                 ),
               ),
             );
