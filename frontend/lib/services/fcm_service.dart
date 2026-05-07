@@ -1,4 +1,5 @@
 // lib/services/fcm_service.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
@@ -24,8 +25,17 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     print("📍 [SILENT PUSH] ยามล่องหนสั่งตรวจพิกัด! Session ID: $sessionId");
 
     try {
+      // ตรวจสอบ permission ก่อนขอพิกัด
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        print("⛔ [SILENT CHECK] ไม่มีสิทธิ์เข้าถึง Location ($permission)");
+        return;
+      }
+
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 8),
       );
       print("🌍 ได้พิกัดมาแล้ว: ${position.latitude}, ${position.longitude}");
 
@@ -58,6 +68,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           "❌ [SILENT CHECK] ส่งพิกัดพลาด: ${response.statusCode} - ${response.body}",
         );
       }
+    } on TimeoutException {
+      print("⏱️ [SILENT CHECK] หมดเวลาขอพิกัด (GPS ตอบสนองช้าเกินไป)");
     } catch (e) {
       print("❌ [SILENT CHECK] เกิดข้อผิดพลาดเบื้องหลัง: $e");
     }
@@ -92,6 +104,7 @@ class FCMService {
         try {
           Position position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.best,
+            timeLimit: const Duration(seconds: 8),
           );
           print(
             "🌍 ได้พิกัด Foreground: ${position.latitude}, ${position.longitude}",
@@ -121,17 +134,24 @@ class FCMService {
               "❌ [SILENT CHECK Foreground] พลาด: ${response.statusCode} - ${response.body}",
             );
           }
+        } on TimeoutException {
+          print(
+            "⏱️ [SILENT CHECK Foreground] หมดเวลาขอพิกัด (GPS ตอบสนองช้าเกินไป)",
+          );
         } catch (e) {
           print("❌ [SILENT CHECK Foreground] Error: $e");
         }
       }
     });
 
-    // 4. ดึง Token ประจำเครื่อง
+    // 4. ดึง Token ประจำเครื่อง (แค่ print ไว้ดู ไม่ส่งขณะ startup)
     String? fcmToken = await messaging.getToken();
     print("🔑 [FCM TOKEN ของเครื่องนี้]: $fcmToken");
+  }
 
-    // 5. ถ้าดึง Token ได้ ให้ส่งไปเก็บที่ Database ทันที
+  // เรียกหลัง login สำเร็จเพื่อส่ง Token ไปบันทึกที่ Backend
+  static Future<void> sendTokenAfterLogin() async {
+    final fcmToken = await FirebaseMessaging.instance.getToken();
     if (fcmToken != null) {
       await _sendTokenToBackend(fcmToken);
     }

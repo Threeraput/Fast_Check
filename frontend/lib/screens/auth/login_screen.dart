@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/face_service.dart';
+import '../../services/fcm_service.dart';
 import "../classroom/classroom_home_screen.dart";
 import '../face_recognition/camera_screen.dart';
 import 'package:frontend/main.dart' show cameras;
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _message;
   bool _isLoading = false;
 
- Future<void> _login() async {
+  Future<void> _login() async {
     setState(() {
       _isLoading = true;
       _message = null;
@@ -35,6 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (token != null) {
+        // อัปเดต FCM token หลัง login สำเร็จ
+        FCMService.sendTokenAfterLogin();
+
         final user = await AuthService.getCurrentUserFromLocal();
 
         if (user != null) {
@@ -59,7 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   title: const Text(
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    'ยืนยันการบันทึกภาพใบหน้า'),
+                    'ยืนยันการบันทึกภาพใบหน้า',
+                  ),
                   content: const Text(
                     'คุณยังไม่ได้ลงทะเบียนใบหน้าในระบบ\n'
                     'ต้องการลงทะเบียนตอนนี้หรือไม่?',
@@ -68,14 +72,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
                       child: const Text(
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14) ,
-                        'ภายหลัง'),
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        'ภายหลัง',
+                      ),
                     ),
                     FilledButton(
                       style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                        backgroundColor: Colors.blueAccent,
                       ),
                       onPressed: () => Navigator.pop(context, true),
                       child: const Text('ลงทะเบียนตอนนี้'),
@@ -159,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     TextField(
                       controller: _passwordController,
                       decoration: InputDecoration(
@@ -267,4 +270,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}           
+}

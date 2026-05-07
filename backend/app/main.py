@@ -1,5 +1,5 @@
 # backend/app/main.py
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -86,6 +86,19 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
             "error": "database_error",
             "message": str(getattr(exc, "orig", exc)),  # โชว์ข้อความจาก psycopg2 ถ้ามี
         },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "http_error",
+            "detail": exc.detail,
+            "path": str(request.url),
+        },
+        headers=exc.headers,
     )
 
 

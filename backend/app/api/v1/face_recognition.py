@@ -141,7 +141,7 @@ async def verify_face(
             raise HTTPException(status_code=400, detail="Please upload an image with exactly one face.")
         logger.exception("Embedding error")
         raise HTTPException(status_code=500, detail="Face embedding failed.")
-    except Exception:
+    except (RuntimeError, Exception):
         logger.exception("Embedding error")
         raise HTTPException(status_code=500, detail="Face embedding failed.")
 

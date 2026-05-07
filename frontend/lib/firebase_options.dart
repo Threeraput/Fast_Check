@@ -41,48 +41,48 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBMMzzgFxQ1FV5klDLjSFDZUgwtTCFIhjM',
-    appId: '1:41456060432:web:72999f13e7dad49f306295',
-    messagingSenderId: '41456060432',
-    projectId: 'fastcheck-5fd70',
-    authDomain: 'fastcheck-5fd70.firebaseapp.com',
-    storageBucket: 'fastcheck-5fd70.firebasestorage.app',
-    measurementId: 'G-7N7HNHCZJE',
+    apiKey: 'AIzaSyAqiBW3hmzSTl5xOynK2ve3q_VWiV75kbA',
+    appId: '1:15265354217:web:4aeadc26f18dc809ba7b78',
+    messagingSenderId: '15265354217',
+    projectId: 'fastcheck-efddd',
+    authDomain: 'fastcheck-efddd.firebaseapp.com',
+    storageBucket: 'fastcheck-efddd.firebasestorage.app',
+    measurementId: 'G-7ZBD5NZ4CZ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyArp6Y65WTM3NjnGyrHLGo_IWl5hNkMBSE',
-    appId: '1:41456060432:android:d67b8dd951019d20306295',
-    messagingSenderId: '41456060432',
-    projectId: 'fastcheck-5fd70',
-    storageBucket: 'fastcheck-5fd70.firebasestorage.app',
+    apiKey: 'AIzaSyDul1uf_EyWsbZbQa66SHcA3eaqMmALKJ4',
+    appId: '1:15265354217:android:881b673bc9677ffeba7b78',
+    messagingSenderId: '15265354217',
+    projectId: 'fastcheck-efddd',
+    storageBucket: 'fastcheck-efddd.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBC9fKdlIop_-E6OFMHoTKUVkfkJEJHxNg',
-    appId: '1:41456060432:ios:5196895ed1f1d3b4306295',
-    messagingSenderId: '41456060432',
-    projectId: 'fastcheck-5fd70',
-    storageBucket: 'fastcheck-5fd70.firebasestorage.app',
+    apiKey: 'AIzaSyDJIMMOWb1-Gdpj1p0qMCPkR0iG2wJnKMA',
+    appId: '1:15265354217:ios:63c4c4c0d0f451dbba7b78',
+    messagingSenderId: '15265354217',
+    projectId: 'fastcheck-efddd',
+    storageBucket: 'fastcheck-efddd.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBC9fKdlIop_-E6OFMHoTKUVkfkJEJHxNg',
-    appId: '1:41456060432:ios:5196895ed1f1d3b4306295',
-    messagingSenderId: '41456060432',
-    projectId: 'fastcheck-5fd70',
-    storageBucket: 'fastcheck-5fd70.firebasestorage.app',
+    apiKey: 'AIzaSyDJIMMOWb1-Gdpj1p0qMCPkR0iG2wJnKMA',
+    appId: '1:15265354217:ios:63c4c4c0d0f451dbba7b78',
+    messagingSenderId: '15265354217',
+    projectId: 'fastcheck-efddd',
+    storageBucket: 'fastcheck-efddd.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBMMzzgFxQ1FV5klDLjSFDZUgwtTCFIhjM',
-    appId: '1:41456060432:web:28e99aacf16b5d89306295',
-    messagingSenderId: '41456060432',
-    projectId: 'fastcheck-5fd70',
-    authDomain: 'fastcheck-5fd70.firebaseapp.com',
-    storageBucket: 'fastcheck-5fd70.firebasestorage.app',
-    measurementId: 'G-LLYN40NRZ0',
+    apiKey: 'AIzaSyAqiBW3hmzSTl5xOynK2ve3q_VWiV75kbA',
+    appId: '1:15265354217:web:76632c2ac063e24cba7b78',
+    messagingSenderId: '15265354217',
+    projectId: 'fastcheck-efddd',
+    authDomain: 'fastcheck-efddd.firebaseapp.com',
+    storageBucket: 'fastcheck-efddd.firebasestorage.app',
+    measurementId: 'G-S79ZTHEDV7',
   );
 }
