@@ -107,3 +107,39 @@ class SilentLocationUpdate(BaseModel):
     session_id: UUID
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
+
+
+class SilentCheckResponse(BaseModel):
+    """ผลลัพธ์การประมวลผลพิกัดแบบ silent check"""
+
+    status: str
+    message: Optional[str] = None
+    reason: Optional[str] = None
+    server_received_at: Optional[datetime] = None
+    session_id: Optional[UUID] = None
+    distance_m: Optional[float] = None
+    radius_m: Optional[float] = None
+    verification_result: Optional[str] = None
+
+
+class StudentLocationEvidenceResponse(BaseModel):
+    """Schema สำหรับอ่านหลักฐานตำแหน่งที่บันทึกใน student_locations"""
+
+    stdl_id: UUID
+    student_id: UUID
+    class_id: UUID
+    session_id: Optional[UUID] = None
+    latitude: float
+    longitude: float
+    timestamp: datetime
+    server_received_at: Optional[datetime] = None
+    is_silent_check: bool
+    anchor_lat: Optional[float] = None
+    anchor_lon: Optional[float] = None
+    distance_m: Optional[float] = None
+    radius_m: Optional[float] = None
+    verification_result: Optional[str] = None
+    verification_reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True

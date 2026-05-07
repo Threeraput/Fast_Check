@@ -35,6 +35,7 @@ from app.schemas.attendance_schema import (
     AttendanceManualOverride,
     ReverifyRequest,
     SilentLocationUpdate,
+    SilentCheckResponse,
 )
 from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
@@ -462,7 +463,10 @@ def check_can_change_face(
 # API ลับสำหรับฟีเจอร์  (Silent check)
 # ==========================================
 @router.post(
-    "/silent-check", summary="รับพิกัดเบื้องหลังจากระบบสุ่มตรวจ", status_code=status.HTTP_200_OK
+    "/silent-check",
+    summary="รับพิกัดเบื้องหลังจากระบบสุ่มตรวจ",
+    status_code=status.HTTP_200_OK,
+    response_model=SilentCheckResponse,
 )
 def silent_check_location(
     data: SilentLocationUpdate,

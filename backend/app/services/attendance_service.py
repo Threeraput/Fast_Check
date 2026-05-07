@@ -16,6 +16,7 @@ from app.schemas.attendance_schema import AttendanceResponse
 from app.services.face_recognition_service import get_face_embedding, compare_faces
 from app.services.location_service import (
     PROXIMITY_THRESHOLD,
+    calculate_distance,
     is_within_proximity,
     log_student_location,
 )
@@ -357,8 +358,22 @@ def handle_silent_location_update(
         .filter(AttendanceSession.session_id == session_id)
         .first()
     )
+    received_at = datetime.now(timezone.utc)
     if not session:
-        return {"status": "ignored", "reason": "Session not found"}
+        return {
+            "status": "ignored",
+            "reason": "Session not found",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "verification_result": "ignored",
+        }
+
+    t_lat = float(session.anchor_lat)
+    t_lon = float(session.anchor_lon)
+    radius = float(getattr(session, "radius_meters", PROXIMITY_THRESHOLD))
+
+    distance_m = calculate_distance((student_lat, student_lon), (t_lat, t_lon))
+    in_range = distance_m <= radius
 
     # 2. หาข้อมูลการเข้าเรียนของนักเรียนคนนี้
     attendance = (
@@ -369,7 +384,15 @@ def handle_silent_location_update(
         .first()
     )
     if not attendance:
-        return {"status": "ignored", "reason": "No attendance record"}
+        return {
+            "status": "ignored",
+            "reason": "No attendance record",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "ignored",
+        }
 
     valid_statuses = [
         AttendanceStatus.PRESENT,
@@ -378,9 +401,34 @@ def handle_silent_location_update(
         AttendanceStatus.LATE.value,
     ]
     if attendance.status not in valid_statuses:
+        reason = f"Student status is {attendance.status}, ignoring check"
+        try:
+            log_student_location(
+                db=db,
+                student_id=student_id,
+                class_id=session.class_id,
+                session_id=session.session_id,
+                latitude=student_lat,
+                longitude=student_lon,
+                is_silent_check=True,
+                server_received_at=received_at,
+                anchor_lat=t_lat,
+                anchor_lon=t_lon,
+                distance_m=distance_m,
+                radius_m=radius,
+                verification_result="ignored",
+                verification_reason=reason,
+            )
+        except Exception as e:
+            logger.error(f"Silent Check-in: Failed to log ignored status for {student_id}: {e}")
         return {
             "status": "ignored",
-            "reason": f"Student status is {attendance.status}, ignoring check",
+            "reason": reason,
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "ignored",
         }
 
     # ---------------------------------------------------------
@@ -392,28 +440,46 @@ def handle_silent_location_update(
             db=db,
             student_id=student_id,
             class_id=session.class_id,
+            session_id=session.session_id,
             latitude=student_lat,
             longitude=student_lon,
             is_silent_check=True,
+            server_received_at=received_at,
+            anchor_lat=t_lat,
+            anchor_lon=t_lon,
+            distance_m=distance_m,
+            radius_m=radius,
+            verification_result="in_range" if in_range else "out_of_range",
+            verification_reason=(
+                "distance within radius" if in_range else "distance exceeds radius"
+            ),
+        )
+        print(
+            f"📍 [SILENT CHECK LOGGED] student={student_id} session={session_id} "
+            f"distance={distance_m:.2f}m radius={radius:.2f}m result={'in_range' if in_range else 'out_of_range'}"
         )
     except Exception as e:
         # ถ้าบันทึก Log พัง (เช่น DB มีปัญหาชั่วคราว) ให้แค่ปริ้นท์ Error แต่ปล่อยให้ระบบเช็คระยะทำงานต่อ
         logger.error(f"Silent Check-in: Failed to log location for {student_id}: {e}")
 
     # 3. ตรวจสอบระยะทาง
-    t_lat = float(session.anchor_lat)
-    t_lon = float(session.anchor_lon)
-    radius = float(getattr(session, "radius_meters", PROXIMITY_THRESHOLD))
-
-    if is_within_proximity(student_lat, student_lon, t_lat, t_lon, threshold=radius):
+    if in_range:
         # 4. ถ้าอยู่ในระยะ ให้อัปเดตเวลาล่าสุด
-        attendance.last_verified_at = datetime.now(timezone.utc)
+        attendance.last_verified_at = received_at
         print(
             f"📍 [SILENT CHECK SUCCESS] นักเรียน {student_id} ยืนยันพิกัดสำเร็จ! (แอปแอบส่งพิกัดมาให้แล้ว)"
         )
         try:
             db.commit()
-            return {"status": "success", "message": "Location verified silently"}
+            return {
+                "status": "success",
+                "message": "Location verified silently",
+                "server_received_at": received_at,
+                "session_id": session_id,
+                "distance_m": round(distance_m, 3),
+                "radius_m": round(radius, 3),
+                "verification_result": "in_range",
+            }
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to update silent location for {student_id}: {e}")
@@ -421,4 +487,12 @@ def handle_silent_location_update(
                 status_code=500, detail="Database error during silent update"
             )
     else:
-        return {"status": "ignored", "reason": "Student is out of range"}
+        return {
+            "status": "ignored",
+            "reason": "Student is out of range",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "out_of_range",
+        }

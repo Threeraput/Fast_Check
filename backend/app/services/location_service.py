@@ -101,14 +101,30 @@ def log_student_location(
     latitude: float,
     longitude: float,
     is_silent_check: bool = False,
+    session_id: uuid.UUID | None = None,
+    server_received_at=None,
+    anchor_lat: float | None = None,
+    anchor_lon: float | None = None,
+    distance_m: float | None = None,
+    radius_m: float | None = None,
+    verification_result: str | None = None,
+    verification_reason: str | None = None,
 ):
     _validate_coords(latitude, longitude)
     new_log = StudentLocation(
         student_id=student_id,
         class_id=class_id,
+        session_id=session_id,
         latitude=latitude,
         longitude=longitude,
+        server_received_at=server_received_at,
         is_silent_check=is_silent_check,
+        anchor_lat=anchor_lat,
+        anchor_lon=anchor_lon,
+        distance_m=distance_m,
+        radius_m=radius_m,
+        verification_result=verification_result,
+        verification_reason=verification_reason,
     )
     try:
         db.add(new_log)
