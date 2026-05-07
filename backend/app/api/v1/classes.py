@@ -47,6 +47,8 @@ def _user_payload(u) -> Optional[Dict[str, Any]]:
         "user_id": getattr(u, "user_id", None),
         "username": getattr(u, "username", None),
         "email": getattr(u, "email", None),
+        "first_name": getattr(u, "first_name", None),
+        "last_name": getattr(u, "last_name", None),
         # เติมเท่าที่ schema UserPublic รองรับ
         "full_name": getattr(u, "full_name", None),
         "is_active": getattr(u, "is_active", None),

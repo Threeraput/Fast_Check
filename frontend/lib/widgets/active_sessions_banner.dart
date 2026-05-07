@@ -165,7 +165,6 @@ class _SessionRow extends StatelessWidget {
             if (end != null) 'หมดอายุ: $endTxt',
             if (radius != null) 'รัศมี $radius m',
             if (lat != null && lon != null) 'Anchor: $lat, $lon',
-            'Reverify: ${reverifyEnabled ? "ON" : "OFF"}',
           ].join(' · '),
         ),
       trailing: isTeacherView
