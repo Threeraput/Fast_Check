@@ -84,7 +84,7 @@ class _StudentClassViewState extends State<StudentClassView> {
         // เปลี่ยนจาก const _StudentClassworkTab() -> ส่ง classId และ isTeacher=false
         return StudentClassworkTab(classId: widget.classId);
       case 2:
-        return const StudentReportTab();
+        return StudentReportTab(classId: widget.classId);
       case 3:
         // People tab now loads real members from API
         return _StudentPeopleTab(
@@ -190,9 +190,9 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator(
-                    color: Colors.blue,
-                  )),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.blue),
+                  ),
                 );
               }
               if (snap.hasError) {
@@ -267,9 +267,9 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator(
-                    color: Colors.blue,
-                  )),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.blue),
+                  ),
                 );
               }
               if (snap.hasError) {

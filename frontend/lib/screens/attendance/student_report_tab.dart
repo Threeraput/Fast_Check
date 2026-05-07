@@ -8,7 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:frontend/services/class_service.dart';
 
 class StudentReportTab extends StatefulWidget {
-  const StudentReportTab({super.key});
+  final String classId;
+  const StudentReportTab({super.key, required this.classId});
 
   @override
   State<StudentReportTab> createState() => _StudentReportTabState();
@@ -54,9 +55,18 @@ class _StudentReportTabState extends State<StudentReportTab> {
         // ถ้าดึงไม่ได้ ให้ fallback แสดง classId
       }
 
+      // filter เฉพาะ class ที่กดเข้ามา
+      final filteredReports = reports
+          .where((r) => r.classId == widget.classId)
+          .toList();
+      final reportIds = filteredReports.map((r) => r.reportId).toSet();
+      final filteredDaily = dailyReports
+          .where((d) => reportIds.contains(d.reportId))
+          .toList();
+
       setState(() {
-        _myReports = reports;
-        _myDailyReports = dailyReports;
+        _myReports = filteredReports;
+        _myDailyReports = filteredDaily;
         _loading = false;
       });
     } catch (e) {
