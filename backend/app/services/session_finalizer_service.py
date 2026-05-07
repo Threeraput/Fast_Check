@@ -30,16 +30,12 @@ def handle_finalize_session(db: Session, session_id: Union[UUID, str]) -> int:
     if not session:
         raise ValueError("Session not found")
 
-    # 2) ถ้าปิดไปแล้ว ข้ามได้
-    if not session.is_active:
-        logger.info(f"Session {session_id} already finalized")
-        return 0
-
-    # 3) ปิด session
-    session.is_active = False
-    #session.closed_at = datetime.now(timezone.utc)
-    db.add(session)
-    db.commit()
+    # 2) ปิด session (ถ้ายังไม่ได้ปิด — close_checkin_job อาจปิดไปแล้วก็ได้)
+    if session.is_active:
+        session.is_active = False
+        db.add(session)
+        db.commit()
+    # ไม่ return 0 เพราะยังต้องเติม ABSENT ให้คนที่ไม่ได้เช็คต่อ
 
     # 4) ดึง student_id พร้อมกับ joined_at เพื่อตรวจสอบสิทธิ์ในการเช็คชื่อ
     # กรองเฉพาะคนที่มีสถานะเป็น student ในคลาสนั้น

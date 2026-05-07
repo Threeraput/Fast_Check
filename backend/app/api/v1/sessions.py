@@ -16,6 +16,7 @@ from app.services.attendance_session_service import (
 )
 from app.core.scheduler import scheduler
 from app.services.scheduler_tasks import (
+    close_checkin_job,
     finalize_attendance_job,
     trigger_silent_check_job,
 )
@@ -78,6 +79,15 @@ async def open_attendance_session(
 
     check_time = end_time + timedelta(minutes=random_offset_minutes)
     finalize_time = check_time + timedelta(seconds=NETWORK_GRACE_SECONDS)
+
+    scheduler.add_job(
+        close_checkin_job,
+        trigger="date",
+        run_date=end_time,
+        args=[new_session.session_id],
+        id=f"close_checkin_{new_session.session_id}",
+        replace_existing=True,
+    )
 
     scheduler.add_job(
         trigger_silent_check_job,

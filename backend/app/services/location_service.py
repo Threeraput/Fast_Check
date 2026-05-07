@@ -128,7 +128,7 @@ def log_student_location(
     )
     try:
         db.add(new_log)
-        db.commit()
+        db.flush()  # ใช้ flush แทน commit เพื่อให้อยู่ใน transaction เดียวกับ caller
         db.refresh(new_log)
         return new_log
     except Exception:

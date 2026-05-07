@@ -7,6 +7,7 @@ from app.database import SessionLocal
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
 from app.models.attendance_enums import AttendanceStatus
+from app.models.student_location import StudentLocation
 from app.services.session_finalizer_service import handle_finalize_session
 from app.services.attendance_report_service import generate_reports_for_class
 from firebase_admin import messaging
@@ -31,6 +32,49 @@ def _is_pending_silent_check(record: Attendance) -> bool:
     check_in_time = _ensure_aware_utc(record.check_in_time)
     last_verified_at = _ensure_aware_utc(record.last_verified_at)
     return check_in_time is not None and last_verified_at == check_in_time
+
+
+def _latest_silent_evidence(db: Session, session_id: uuid.UUID, student_id: uuid.UUID):
+    return (
+        db.query(StudentLocation)
+        .filter(
+            StudentLocation.session_id == session_id,
+            StudentLocation.student_id == student_id,
+            StudentLocation.is_silent_check.is_(True),
+        )
+        .order_by(
+            StudentLocation.server_received_at.desc().nullslast(),
+            StudentLocation.timestamp.desc(),
+        )
+        .first()
+    )
+
+
+def close_checkin_job(session_id: uuid.UUID):
+    """ปิดรับเช็คชื่อเมื่อถึง end_time โดยยังไม่ตัด LeftEarly ใน job นี้"""
+    print(f"🔒 [Scheduler] ปิดรับเช็คชื่อสำหรับ Session: {session_id}")
+    db: Session = SessionLocal()
+    try:
+        session = (
+            db.query(AttendanceSession)
+            .filter(AttendanceSession.session_id == session_id)
+            .first()
+        )
+        if not session:
+            print(f"⚠️ [Scheduler] ไม่พบ Session สำหรับปิดเช็คชื่อ: {session_id}")
+            return
+
+        if session.is_active:
+            session.is_active = False
+            db.commit()
+            print(f"✅ [Scheduler] ปิดเช็คชื่อแล้ว: {session_id}")
+        else:
+            print(f"ℹ️ [Scheduler] Session ถูกปิดเช็คชื่ออยู่แล้ว: {session_id}")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ [Scheduler] ปิดเช็คชื่อไม่สำเร็จ: {str(e)}")
+    finally:
+        db.close()
 
 
 def _derive_late_grace_window(record: Attendance, session: AttendanceSession) -> timedelta:
@@ -60,7 +104,7 @@ def _should_spare_late_student(
 
 def finalize_attendance_job(session_id: uuid.UUID):
     """
-    Job สำหรับปิด Session และเช็คบิลคนหนีเรียน
+    Job สำหรับตัดสินผลหลัง silent-check และสรุป attendance ตอนท้าย
     """
     print(f"⏳ [Scheduler] เริ่มการเช็คบิลอัตโนมัติสำหรับ Session: {session_id}")
 
@@ -75,9 +119,7 @@ def finalize_attendance_job(session_id: uuid.UUID):
             print(f"⚠️ [Scheduler] ไม่พบ Session: {session_id}")
             return
 
-        silent_check_at = _ensure_aware_utc(session.silent_check_scheduled_at)
-
-        # 1. ปรับสถานะคนที่ไม่รอดจากการสุ่มตรวจ
+        # 1. ตัดสินผลจากหลักฐาน silent-check ล่าสุด
         records = (
             db.query(Attendance)
             .filter(
@@ -90,44 +132,37 @@ def finalize_attendance_job(session_id: uuid.UUID):
         )
 
         for record in records:
-            if not _is_pending_silent_check(record):
+            evidence = _latest_silent_evidence(db, session_id, record.student_id)
+            if evidence is None:
                 print(
-                    f"✅ [STILL HERE] นักเรียน {record.student_id} ผ่านการสุ่มตรวจ (เวลาอัปเดตแล้ว)"
+                    f"🚨 [LEFT_EARLY_NO_LOG] นักเรียน {record.student_id} ไม่มีหลักฐาน silent-check ภายในหน้าต่างที่กำหนด"
                 )
+                record.status = AttendanceStatus.LEFT_EARLY
                 continue
 
-            if silent_check_at is None:
-                print(
-                    f"⚠️ [SKIP SILENT CHECK] Session {session_id} ไม่มีเวลาสุ่มตรวจ จึงไม่ปรับสถานะนักเรียน {record.student_id}"
-                )
-                continue
+            result = (evidence.verification_result or "").lower()
 
-            # กฎข้อ 1: มาตรงเวลา แต่ไม่ผ่านสุ่มตรวจ = หนีเรียน
-            if record.status == AttendanceStatus.PRESENT:
+            if result == "in_range":
                 print(
-                    f"🚨 [LEFT_EARLY] นักเรียน {record.student_id} มาตรงเวลาแต่หายตัวไประหว่างคาบ (หนีเรียน)"
+                    f"✅ [STILL_HERE] นักเรียน {record.student_id} ผ่าน silent-check "
+                    f"(distance={evidence.distance_m}, radius={evidence.radius_m})"
+                )
+            elif result == "out_of_range":
+                print(
+                    f"🚨 [LEFT_EARLY_OUT_OF_RANGE] นักเรียน {record.student_id} นอกระยะ "
+                    f"(distance={evidence.distance_m}, radius={evidence.radius_m})"
+                )
+                record.status = AttendanceStatus.LEFT_EARLY
+            else:
+                print(
+                    f"🚨 [LEFT_EARLY_UNVERIFIED] นักเรียน {record.student_id} มี evidence result='{result or 'unknown'}' "
+                    f"จึงตัดเป็น LeftEarly"
                 )
                 record.status = AttendanceStatus.LEFT_EARLY
 
-            # กฎข้อ 2: มาสาย จะรอดเฉพาะกรณีเข้าหลังรอบสุ่ม หรือรอบสุ่มเกิดเร็วเกินไปหลังเช็คชื่อ
-            elif record.status == AttendanceStatus.LATE:
-                if _should_spare_late_student(record, session, silent_check_at):
-                    print(
-                        f"⚠️ [LATE_SPARED] นักเรียน {record.student_id} เช็คชื่อสายใกล้รอบสุ่มหรือหลังรอบสุ่ม (ให้คงสถานะสายไว้)"
-                    )
-                else:
-                    print(
-                        f"🚨 [LEFT_EARLY_LATE] นักเรียน {record.student_id} เช็คชื่อสายก่อนรอบสุ่ม แต่ไม่ผ่านการยืนยันภายหลัง"
-                    )
-                    record.status = AttendanceStatus.LEFT_EARLY
-            else:
-                print(
-                    f"ℹ️ [SKIP STATUS] นักเรียน {record.student_id} มีสถานะ {record.status} จึงไม่เข้ากฎสุ่มตรวจ"
-                )
-
         db.flush()
 
-        # 2. เรียกใช้ Service เดิมของคุณเพื่อปิด Session และเติมคนขาด (ABSENT)
+        # 2. ปิด Session และเติมคนขาด (ABSENT)
         handle_finalize_session(db, session_id)
 
         db.commit()
