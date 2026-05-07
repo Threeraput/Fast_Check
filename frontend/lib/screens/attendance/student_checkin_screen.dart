@@ -17,6 +17,34 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
   String? _sessionId;
   bool _busy = false;
 
+  String _friendlyCheckinError(ApiException e) {
+    final msg = e.message.toLowerCase();
+    final code = e.statusCode;
+
+    if (code == 403 ||
+        msg.contains('location check failed') ||
+        msg.contains('อยู่นอก')) {
+      return 'คุณอยู่นอกพื้นที่ที่อาจารย์กำหนดไว้สำหรับการเช็คชื่อ';
+    }
+    if (code == 400 && msg.contains('no face')) {
+      return 'ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นใบหน้าชัดเจน';
+    }
+    if (code == 400 && msg.contains('exactly one face')) {
+      return 'กรุณาถ่ายภาพที่มีใบหน้าเพียง 1 คน';
+    }
+    if (code == 409) {
+      return 'คุณเช็คชื่อคาบนี้ไปแล้ว';
+    }
+    if (code == 401) {
+      return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
+    }
+    if (code == 404) {
+      return 'ไม่พบรอบเช็คชื่อ กรุณารีเฟรชหน้าแล้วลองใหม่';
+    }
+
+    return e.message;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,16 +153,14 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('เช็คชื่อสำเร็จ')));
       Navigator.pop(context, true);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
 
-      final msg = e.toString().replaceFirst('Exception: ', '');
-      print('🧩 [StudentCheckinScreen] error: $msg');
+      final msg = _friendlyCheckinError(e);
+      print('🧩 [StudentCheckinScreen] api error: ${e.message}');
 
       // ตรวจว่ามีคำว่า 403 หรือข้อความที่เกี่ยวกับรัศมี
-      if (msg.contains('403') ||
-          msg.contains('นอกระยะ') ||
-          msg.contains('รัศมี')) {
+      if (e.statusCode == 403 || msg.contains('นอกพื้นที่')) {
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -164,6 +190,11 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(msg)));
       }
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      print('🧩 [StudentCheckinScreen] error: $msg');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -189,6 +220,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.verified_user),
+                    textColor: Colors.black,
                     title: const Text('ยืนยันตัวตนด้วยใบหน้า'),
                     subtitle: const Text(
                       'ระบบจะพาคุณไปยังหน้าตรวจสอบใบหน้า (/verify-face)',
@@ -199,6 +231,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.my_location),
+                    textColor: Colors.black,
                     title: const Text('ใช้ตำแหน่งปัจจุบัน'),
                     subtitle: const Text(
                       'ต้องเปิด Location เพื่อยืนยันการเช็คชื่อ',

@@ -17,35 +17,23 @@ def get_face_embedding(image_path: str) -> bytes:
         # ตรวจจับตำแหน่งใบหน้า
         face_locations = face_recognition.face_locations(image)
         if len(face_locations) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No face detected in the image."
-            )
+            raise ValueError("no_face: No face detected in the image.")
         if len(face_locations) > 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="More than one face detected in the image."
-            )
+            raise ValueError("multi_face: More than one face detected in the image.")
 
         # ดึง face embedding
         face_encodings = face_recognition.face_encodings(image, face_locations)
         if not face_encodings:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not get face encoding."
-            )
+            raise ValueError("no_face: Could not get face encoding.")
 
         # แปลง embedding เป็น bytes เพื่อเก็บในฐานข้อมูล
         embedding_bytes = face_encodings[0].tobytes()
         return embedding_bytes
 
-    except HTTPException:
+    except ValueError:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process image: {e}"
-        )
+        raise RuntimeError(f"Failed to process image: {e}")
 
 
 # ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน

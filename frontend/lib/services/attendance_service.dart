@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -7,6 +8,15 @@ import 'package:mime/mime.dart';
 import '../services/auth_service.dart';
 import '../models/attendance_session.dart';
 import '../models/attendance.dart';
+
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  ApiException(this.message, {this.statusCode});
+
+  @override
+  String toString() => message;
+}
 
 /// Endpoints ที่คาดหวัง (จะพยายามลองแบบมี /attendance และ fallback ให้)
 /// - GET  /attendance/sessions/active   (fallback -> /sessions/active)
@@ -18,6 +28,22 @@ import '../models/attendance.dart';
 /// - GET  /attendance/my-status?session_id=...
 class AttendanceService {
   static const Duration _timeout = Duration(seconds: 20);
+
+  static String _extractErrorMessage(
+    String body, {
+    String fallback = 'Request failed',
+  }) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['detail'] != null) {
+        return decoded['detail'].toString();
+      }
+      return fallback;
+    } catch (_) {
+      final trimmed = body.trim();
+      return trimmed.isEmpty ? fallback : trimmed;
+    }
+  }
 
   // ==============================
   // Sessions
@@ -214,7 +240,7 @@ class AttendanceService {
     required double longitude,
   }) async {
     final token = await AuthService.getAccessToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw ApiException('Not authenticated', statusCode: 401);
 
     final url = Uri.parse('$API_BASE_URL/attendance/check-in');
     final req = http.MultipartRequest('POST', url)
@@ -235,11 +261,20 @@ class AttendanceService {
     );
     req.files.add(filePart);
 
-    final streamed = await req.send().timeout(_timeout);
-    final body = await streamed.stream.bytesToString();
+    try {
+      final streamed = await req.send().timeout(_timeout);
+      final body = await streamed.stream.bytesToString();
 
-    if (streamed.statusCode != 200) {
-      throw Exception('Check-in failed [${streamed.statusCode}]: $body');
+      if (streamed.statusCode != 200) {
+        throw ApiException(
+          _extractErrorMessage(body, fallback: 'Check-in failed.'),
+          statusCode: streamed.statusCode,
+        );
+      }
+    } on SocketException {
+      throw ApiException('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } on TimeoutException {
+      throw ApiException('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่');
     }
   }
 
@@ -251,7 +286,7 @@ class AttendanceService {
     required double longitude,
   }) async {
     final token = await AuthService.getAccessToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw ApiException('Not authenticated', statusCode: 401);
 
     final uri = Uri.parse('$API_BASE_URL/attendance/re-verify');
     final req = http.MultipartRequest('POST', uri)
@@ -269,11 +304,20 @@ class AttendanceService {
     );
     req.files.add(file);
 
-    final res = await http.Response.fromStream(
-      await req.send(),
-    ).timeout(_timeout);
-    if (res.statusCode != 200) {
-      throw Exception('Re-verify failed [${res.statusCode}]: ${res.body}');
+    try {
+      final res = await http.Response.fromStream(
+        await req.send(),
+      ).timeout(_timeout);
+      if (res.statusCode != 200) {
+        throw ApiException(
+          _extractErrorMessage(res.body, fallback: 'Re-verify failed.'),
+          statusCode: res.statusCode,
+        );
+      }
+    } on SocketException {
+      throw ApiException('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } on TimeoutException {
+      throw ApiException('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่');
     }
   }
 

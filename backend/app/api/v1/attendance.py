@@ -115,6 +115,8 @@ async def check_in(
             student_lon=class_data.longitude,
         )
         return attendance_record
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
@@ -229,6 +231,18 @@ async def re_verify_check_in(
         else:
             matched = bool(result)
             score = None
+    except ValueError as e:
+        msg = str(e).lower()
+        if "no_face" in msg:
+            raise HTTPException(status_code=400, detail="No face detected.")
+        if "multi_face" in msg:
+            raise HTTPException(
+                status_code=400,
+                detail="Please upload an image with exactly one face.",
+            )
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Face service error: {e}")
 
