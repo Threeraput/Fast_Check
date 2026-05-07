@@ -25,7 +25,6 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
   // เพิ่มตัวเลือกเสริม
   bool _pinned = false;
-  bool _visible = true;
   DateTime? _expiresAt;
 
   @override
@@ -45,48 +44,48 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       firstDate: now,
       lastDate: now.add(const Duration(days: 365 * 3)),
       builder: (BuildContext context, Widget? child) {
-         return Theme(
+        return Theme(
           data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.blue, // สีวงกลมวันที่เลือก
-            onPrimary: Colors.white, // สีตัวเลขในวงกลม
-            surface: Colors.white, // พื้นหลัง popup
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: Colors.blue, // สีวงกลมวันที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white, // พื้นหลัง popup
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-        ),
-        child: child!,
-      );
-    },
-  );
+          child: child!,
+        );
+      },
+    );
     if (d == null) return;
 
     final t = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(init),
       builder: (BuildContext context, Widget? child) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
-            secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
-            onPrimary: Colors.white, // สีตัวเลขในวงกลม
-            surface: Colors.white,
-            onSurface: Colors.black87, // สีข้อความทั่วไป
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
+              secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white,
+              onSurface: Colors.black87, // สีข้อความทั่วไป
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+              ),
             ),
           ),
-        ),
-        child: child!,
-      );
-    }, 
+          child: child!,
+        );
+      },
     );
     if (t == null) return;
 
@@ -114,7 +113,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         title: title,
         body: body.isEmpty ? null : body,
         pinned: _pinned,
-        visible: _visible,
+        visible: true,
         expiresAt:
             _expiresAt, // ส่งเป็น DateTime? (ให้ service แปลงเป็น ISO8601)
       );
@@ -145,7 +144,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     final df = DateFormat('dd MMM yyyy HH:mm');
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar( 
+      appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black87,
@@ -249,17 +248,6 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           contentPadding: EdgeInsets.zero,
                           activeColor: Colors.blueAccent, // สีเมื่อถูกเลือก
                           checkColor: Colors.white,
-                        ),
-                        const Divider(height: 1),
-                        SwitchListTile(
-                          value: _visible,
-                          onChanged: (v) => setState(() => _visible = v),
-                          title: const Text('แสดงให้นักเรียนเห็น'),
-                          contentPadding: EdgeInsets.zero,
-                          activeColor:
-                              Colors.blueAccent, // สีของสวิตช์ตอนเปิด
-                          activeTrackColor: Colors
-                              .blue[100], // สีพื้นหลังตอนเปิด (อ่อนกว่า)
                         ),
                       ],
                     ),
@@ -366,7 +354,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               color: Colors.blue,
-                              strokeWidth: 2),
+                              strokeWidth: 2,
+                            ),
                           ),
                           SizedBox(width: 8),
                           Text(
