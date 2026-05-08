@@ -138,7 +138,7 @@ def list_assignments_for_student(
 
 def list_submissions_for_teacher(
     db: Session, *, assignment_id: UUID, teacher_id: UUID
-) -> List[ClassworkSubmission]:
+):
     # ยืนยันว่าเป็นครูเจ้าของงาน
     asg = db.query(ClassworkAssignment).filter(
         ClassworkAssignment.assignment_id == assignment_id
@@ -147,8 +147,10 @@ def list_submissions_for_teacher(
         raise ApiException(404, "Assignment not found")
     _ensure_teacher_of_class(db, teacher_id, asg.class_id)
 
+    from sqlalchemy.orm import joinedload
     subs = (
         db.query(ClassworkSubmission)
+        .options(joinedload(ClassworkSubmission.student))
         .filter(ClassworkSubmission.assignment_id == assignment_id)
         .order_by(ClassworkSubmission.submitted_at.desc().nullslast())
         .all()

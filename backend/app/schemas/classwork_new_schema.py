@@ -64,6 +64,9 @@ class SubmissionResponse(BaseModel):
     submission_id: UUID
     assignment_id: UUID
     student_id: UUID
+    username: str = ""
+    first_name: str = ""
+    last_name: str = ""
     content_url: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness   # On_Time / Late / Not_Submitted

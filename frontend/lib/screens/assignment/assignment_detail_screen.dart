@@ -511,14 +511,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                       leading: CircleAvatar(
                         backgroundColor: Colors.blue.shade100,
                         child: Text(
-                          submission.studentId.isNotEmpty
-                              ? submission.studentId[0].toUpperCase()
+                          submission.username.isNotEmpty
+                              ? submission.username[0].toUpperCase()
                               : '?',
                           style: const TextStyle(color: Colors.blueAccent),
                         ),
                       ),
                       title: Text(
-                        submission.studentId,
+                        '${submission.firstName} ${submission.lastName}',
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                       subtitle: Text(

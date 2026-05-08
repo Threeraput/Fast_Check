@@ -166,7 +166,26 @@ def list_submissions_for_teacher_route(
     items = list_submissions_for_teacher(
         db, assignment_id=assignment_id, teacher_id=me.user_id
     )
-    return items
+    # Map submissions to include student info
+    result = []
+    for item in items:
+        data = {
+            'submission_id': item.submission_id,
+            'assignment_id': item.assignment_id,
+            'student_id': item.student_id,
+            'username': item.student.username if item.student else '',
+            'first_name': item.student.first_name if item.student else '',
+            'last_name': item.student.last_name if item.student else '',
+            'content_url': item.content_url,
+            'submitted_at': item.submitted_at,
+            'submission_status': item.submission_status,
+            'graded': item.graded,
+            'score': item.score,
+            'created_at': item.created_at,
+            'updated_at': item.updated_at,
+        }
+        result.append(SubmissionResponse(**data))
+    return result
 
 
 # -----------------------------
