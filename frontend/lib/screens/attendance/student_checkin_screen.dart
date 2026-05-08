@@ -195,6 +195,8 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       final msg = e.toString().replaceFirst('Exception: ', '');
       print('🧩 [StudentCheckinScreen] error: $msg');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
