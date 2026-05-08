@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/models/comment_model.dart';
 import 'package:frontend/services/announcement_service.dart';
@@ -163,18 +164,39 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
 
                   // ลบ 1 ออกจาก index เพราะ 0 เป็นประกาศไปแล้ว
                   final comment = _comments[index - 1]; 
+                  
+                  // 🚨 1. ดึง URL ของรูปภาพ (คุณอาจจะต้องปรับบรรทัดนี้ให้ตรงกับ Data Model ของคุณ)
+                  // ถ้าระบบคอมเมนต์มีส่ง avatarUrl มาด้วย:
+                  final String? avatarUrl = comment.avatarUrl; 
+                  
+                  // หรือถ้าต้องไปหาในสมุดหน้าเหลือง:
+                  // final String? avatarUrl = _userIndex[comment.userId]?.avatarUrl;
+
+                  // 🚨 2. แปลงเป็น URL แบบเต็ม (ถ้าต้องใช้)
+                  final String? fullAvatarUrl = avatarUrl != null 
+                      ? UserService.absoluteAvatarUrl(avatarUrl) 
+                      : null;
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.blueGrey,
-                          child: Text(
-                            comment.commenterName.isNotEmpty ? comment.commenterName[0].toUpperCase() : '?',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
+                        // 🚨 3. วาด Avatar โดยเช็คว่ามี URL ไหม
+                        fullAvatarUrl != null && fullAvatarUrl.isNotEmpty
+                            ? CircleAvatar(
+                                radius: 20,
+                                backgroundImage: NetworkImage(fullAvatarUrl), // โชว์รูป!
+                              )
+                            : CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.blueGrey,
+                                child: Text(
+                                  comment.commenterName.isNotEmpty 
+                                      ? comment.commenterName[0].toUpperCase() 
+                                      : '?',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(

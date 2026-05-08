@@ -4,6 +4,7 @@ import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/comment_model.dart';
 import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
+import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/screens/assignment/grading_screen.dart';
 
@@ -274,6 +275,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                 }
 
                 final comment = _comments[index - 1];
+                final String? fullAvatarUrl = UserService.absoluteAvatarUrl(
+                  comment.avatarUrl,
+                );
                 return Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -282,15 +286,20 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.blueGrey,
-                        child: Text(
-                          comment.commenterName.isNotEmpty
-                              ? comment.commenterName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
+                      fullAvatarUrl != null
+                          ? CircleAvatar(
+                              backgroundImage: NetworkImage(fullAvatarUrl),
+                              radius: 20,
+                            )
+                          : CircleAvatar(
+                              backgroundColor: Colors.blueGrey,
+                              child: Text(
+                                comment.commenterName.isNotEmpty
+                                    ? comment.commenterName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -444,7 +453,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   try {
                     // 2. ยิง API ไปหลังบ้าน
                     await ClassworkSimpleService.toggleSubmissionStatus(
-                      widget.assignmentId, 
+                      widget.assignmentId,
                       val,
                     );
                     // ถ้าสำเร็จก็ปล่อยผ่านไปเลย UI เปลี่ยนไปรอแล้ว
@@ -452,17 +461,24 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                     // 3. ถ้า API พัง ให้เด้งสวิตช์กลับไปค่าเดิม (สำคัญมาก!)
                     if (mounted) {
                       setState(() {
-                        _isAccepting = !val; 
+                        _isAccepting = !val;
                       });
-                      
+
                       // โชว์แจ้งเตือน Error
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.white),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
-                              Expanded(child: Text('อัปเดตสถานะไม่สำเร็จ: ${e.toString().replaceAll('Exception: ', '')}')),
+                              Expanded(
+                                child: Text(
+                                  'อัปเดตสถานะไม่สำเร็จ: ${e.toString().replaceAll('Exception: ', '')}',
+                                ),
+                              ),
                             ],
                           ),
                           backgroundColor: Colors.redAccent,
