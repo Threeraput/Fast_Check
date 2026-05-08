@@ -91,7 +91,7 @@ def update_announcement_route(
         raise HTTPException(status_code=404, detail="Announcement not found")
 
 
-# ครูลบ
+# ครูลบประกาศ
 @router.delete(
     "/{announcement_id}",
     status_code=status.HTTP_204_NO_CONTENT,

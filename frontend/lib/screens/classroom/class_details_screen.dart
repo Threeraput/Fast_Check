@@ -208,7 +208,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
         //  แท็บรายงานจริง
         return ClassReportTab(classId: widget.classId);
       case 3:
-        return _PeopleTab(classroom: _classroom);
+        return _PeopleTab(classroom: _classroom, onRefresh: _bootstrap);
       default:
         return const SizedBox.shrink();
     }
@@ -549,10 +549,16 @@ class _ReportTab extends StatelessWidget {
 }
 
 /// 🔹 PEOPLE TAB (Teacher)
-class _PeopleTab extends StatelessWidget {
+class _PeopleTab extends StatefulWidget {
   final Classroom? classroom;
-  const _PeopleTab({required this.classroom});
+  final VoidCallback? onRefresh;
+  const _PeopleTab({required this.classroom, this.onRefresh});
 
+  @override
+  State<_PeopleTab> createState() => _PeopleTabState();
+}
+
+class _PeopleTabState extends State<_PeopleTab> {
   CircleAvatar _avatarFor(User u, {double radius = 20}) {
     final url = UserService.absoluteAvatarUrl(u.avatarUrl);
     if (url != null && url.isNotEmpty) {
@@ -572,9 +578,53 @@ class _PeopleTab extends StatelessWidget {
 
   String _display(User u) => u.displayName;
 
+  Future<void> _removeStudent(User student) async {
+    if (widget.classroom?.classId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบนักเรียน'),
+        content: Text('ต้องการลบ ${student.displayName} ออกจากคลาสนี้หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('ลบ', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ClassService.removeStudent(
+        widget.classroom!.classId!,
+        student.userId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบ ${student.displayName} สำเร็จ')),
+        );
+        // รีเฟรชข้อมูลคลาสโดยเรียก parent ให้ reload
+        widget.onRefresh?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ลบนักเรียนไม่สำเร็จ: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final c = classroom;
+    final c = widget.classroom;
     if (c == null) {
       return const Center(child: Text('ไม่มีข้อมูลสมาชิกในคลาส'));
     }
@@ -608,6 +658,11 @@ class _PeopleTab extends StatelessWidget {
             leading: _avatarFor(s),
             title: Text(_display(s)),
             subtitle: Text(s.email ?? ''),
+            trailing: IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.red),
+              tooltip: 'ลบนักเรียน',
+              onPressed: () => _removeStudent(s),
+            ),
           ),
         ),
       ],
