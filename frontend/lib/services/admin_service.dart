@@ -79,6 +79,7 @@ class AdminService {
   // GET /admin/classes — รายการคลาสทั้งหมด (เพจ)
   static Future<Map<String, dynamic>> listClasses({
     String? q,
+    bool? isArchived,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -86,6 +87,7 @@ class AdminService {
       'limit': '$limit',
       'offset': '$offset',
       if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      if (isArchived != null) 'is_archived': '$isArchived',
     };
     final uri = Uri.parse(
       '$_baseUrl/admin/classes',
@@ -125,14 +127,14 @@ class AdminService {
     return json.decode(res.body) as Map<String, dynamic>;
   }
 
-  // DELETE /admin/classes/{class_id} — ลบคลาส (แอดมิน)
+  // DELETE /admin/classes/{class_id} — เก็บคลาส (แอดมิน)
   static Future<void> deleteClass(String classId) async {
     final uri = Uri.parse('$_baseUrl/admin/classes/$classId');
     final res = await http
         .delete(uri, headers: await _headers())
         .timeout(_timeout);
     if (res.statusCode != 204) {
-      throw Exception('ลบคลาสไม่สำเร็จ: ${res.body}');
+      throw Exception('เก็บคลาสไม่สำเร็จ: ${res.body}');
     }
   }
 }

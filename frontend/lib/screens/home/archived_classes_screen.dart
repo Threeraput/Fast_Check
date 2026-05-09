@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/classroom.dart';
+import 'package:frontend/services/admin_service.dart';
 import 'package:frontend/services/auth_service.dart';
 import '../../services/class_service.dart'; // 2. นำเข้าคนส่งของ
 
@@ -31,12 +32,23 @@ class _ArchivedClassesScreenState extends State<ArchivedClassesScreen> {
       List<Classroom> allClasses = [];
 
       // 2. แยกทางเดิน API ให้ถูกต้องตามร่างปัจจุบัน
-      if (isTeacherRole) {
+      if (tokenRoles.contains('admin')) {
+        // แอดมินดึงจาก API ของแอดมินโดยตรง
+        final page = await AdminService.listClasses(
+          isArchived: true,
+          limit: 200,
+          offset: 0,
+        );
+        allClasses =
+            (page['items'] as List<dynamic>?)
+                ?.map((e) => Classroom.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [];
+      } else if (isTeacherRole) {
         // ถ้าร่างปัจจุบันเป็นครู ก็ไปดึง API คลาสที่สอน
         allClasses = await ClassService.getTaughtClasses(isArchived: true);
       } else {
         // ถ้าร่างปัจจุบันเป็นนักเรียน ก็ต้องไปดึง API คลาสที่เรียน!
-        // (คุณต้องมีฟังก์ชัน getEnrolledClasses สำหรับนักเรียนใน ClassService ด้วยนะ)
         allClasses = await ClassService.getEnrolledClasses(isArchived: true);
       }
 

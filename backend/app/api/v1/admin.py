@@ -23,6 +23,7 @@ from app.models.attendance import Attendance
 from app.models.association import user_roles
 #  association table สำหรับนับนักเรียนในคลาส
 from app.models.association import class_students
+from app.services import class_service
 from app.services.db_service import approve_teacher
 from app.core.deps import get_current_admin_user
 
@@ -244,10 +245,13 @@ async def admin_list_classes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
     q: Optional[str] = Query(None, description="search by class name/code"),
+    is_archived: Optional[bool] = Query(None, description="Filter by archived status"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     base = db.query(ClassModel)
+    if is_archived is not None:
+        base = base.filter(ClassModel.is_archived == is_archived)
     if q:
         like = f"%{q.strip()}%"
         filters = [ClassModel.name.ilike(like)]
@@ -287,6 +291,7 @@ async def admin_list_classes(
                 code=getattr(c, "code", None),
                 student_count=counts_map.get(c.class_id, 0),
                 created_at=getattr(c, "created_at", datetime.utcnow()),
+                is_archived=getattr(c, "is_archived", False),
                 teacher=UserResponse(
                     user_id=teacher.user_id,
                     username=teacher.username,
@@ -310,6 +315,24 @@ async def admin_list_classes(
         offset=offset,
         items=items,
     )
+
+# ===========================
+# Admin - Archive class
+# ===========================
+@router.delete("/classes/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_archive_class(
+    class_id: uuid.UUID = Path(..., description="UUID of the classroom to archive"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    class_service.delete_classroom(
+        db=db,
+        class_id=class_id,
+        user_id=current_user.user_id,
+        is_admin=True,
+    )
+    return None
+
 # ===========================
 # Admin - Create class (แก้ 500 จาก code = NULL)
 # ===========================
