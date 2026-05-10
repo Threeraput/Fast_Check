@@ -130,6 +130,14 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # 🚨 --- ปรับปรุงใหม่: ดักจับ User ที่ถูกย้ายลงถังขยะ ---
+    if getattr(user, "deleted_at", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deleted. Please contact the administrator."
+        )
+    # --------------------------------------------------
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -168,6 +176,7 @@ async def login_for_access_token(
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
+        deleted_at=user.deleted_at, # <--- แถม: ส่งค่า deleted_at กลับไปด้วย (ซึ่งตรงนี้จะเป็น None เสมอ เพราะถ้าไม่ None จะโดนเตะออกไปตั้งแต่ข้างบนแล้ว)
         roles = user_roles
     )
 

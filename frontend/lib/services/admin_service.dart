@@ -137,4 +137,54 @@ class AdminService {
       throw Exception('เก็บคลาสไม่สำเร็จ: ${res.body}');
     }
   }
+  
+  // ==========================================
+  // ระบบถังขยะ (Soft Delete)
+  // ==========================================
+
+  // GET /admin/users/trash — ดึงรายการผู้ใช้ที่อยู่ในถังขยะ
+  static Future<AdminUsersPage> listTrashUsers({
+    String? q,
+    String? role, // admin|teacher|student
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final params = <String, String>{
+      'limit': '$limit',
+      'offset': '$offset',
+      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      if (role != null && role.trim().isNotEmpty)
+        'role': role.trim().toLowerCase(),
+    };
+    
+    // 🚨 สังเกตว่าเปลี่ยน URL เป็น /users/trash
+    final url = Uri.parse(
+      '$_baseUrl/admin/users/trash',
+    ).replace(queryParameters: params);
+    
+    final res = await http
+        .get(url, headers: await _headers())
+        .timeout(_timeout);
+        
+    if (res.statusCode != 200) {
+      throw Exception('โหลดรายการถังขยะไม่สำเร็จ: ${res.body}');
+    }
+    // ใช้ AdminUsersPage ตัวเดียวกันกับหน้ารายชื่อปกติได้เลย เพราะโครงสร้าง JSON เหมือนกันเป๊ะ!
+    return AdminUsersPage.fromJson(json.decode(res.body));
+  }
+
+  // PATCH /admin/users/{user_id}/restore — กู้คืนผู้ใช้จากถังขยะ
+  static Future<void> restoreUser(String userId) async {
+    // 🚨 ยิงไปที่เส้น restore แบบ PATCH
+    final url = Uri.parse('$_baseUrl/admin/users/$userId/restore');
+    
+    final res = await http
+        .patch(url, headers: await _headers())
+        .timeout(_timeout);
+        
+    // ถ้าหลังบ้านตั้งส่งค่ากลับมาเป็น 200 OK ให้เช็ค 200
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw Exception('กู้คืนผู้ใช้ไม่สำเร็จ: ${res.body}');
+    }
+  }
 }

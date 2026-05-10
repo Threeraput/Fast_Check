@@ -25,6 +25,7 @@ class User(Base):
     email = Column(String(120), unique=True, index=True, nullable=False)
     student_id = Column(String(20), unique=True, index=True, nullable=True)
     teacher_id = Column(String(20), unique=True, index=True, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, default=None)
     is_active = Column(
         Boolean, default=True, nullable=False
     )  # ใช้ default=True เพื่อให้เป็น True โดยค่าเริ่มต้น
