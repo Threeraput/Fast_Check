@@ -630,7 +630,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
   String _formatDate(String date) {
     try {
-      final dt = DateTime.parse(date);
+      final dt = DateTime.parse(date).toLocal();
       return DateFormat('dd MMM yyyy HH:mm').format(dt);
     } catch (_) {
       return date;
@@ -639,7 +639,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
   String _formatDateTime(String dateTime) {
     try {
-      final dt = DateTime.parse(dateTime);
+      final dt = DateTime.parse(dateTime).toLocal();
       return DateFormat('dd/MM/yyyy HH:mm').format(dt);
     } catch (_) {
       return dateTime;
