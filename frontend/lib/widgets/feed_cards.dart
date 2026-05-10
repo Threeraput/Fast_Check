@@ -3,10 +3,9 @@ import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../models/feed_item.dart';
 import '../screens/attendance/student_checkin_screen.dart';
-import 'package:frontend/services/sessions_service.dart';
 import 'package:frontend/services/attendance_service.dart';
-import 'package:frontend/utils/location_helper.dart';
 import 'package:frontend/services/announcement_service.dart';
+import 'package:frontend/screens/attendance/teacher_live_attendance_screen.dart';
 
 // ✅ การ์ด assignment
 import 'package:frontend/widgets/assignment_card.dart';
@@ -107,7 +106,7 @@ class _FeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extra = Map<String, dynamic>.from(item.extra ?? {});
+    final extra = Map<String, dynamic>.from(item.extra);
 
     final kind = (extra['kind']?.toString().toLowerCase() ?? '');
 
@@ -132,7 +131,7 @@ class _FeedCard extends StatelessWidget {
       // ✅ สามารถขยายในอนาคต เช่น case 'announcement', 'quiz' ได้
       case 'announcement':
         // 🔹 strip prefix "ann:" ออก ถ้ามี
-        final rawId = item.id ?? '';
+        final rawId = item.id;
         final annId = rawId.startsWith('ann:') ? rawId.split(':').last : rawId;
 
         return _AnnouncementCard(
@@ -289,7 +288,26 @@ class _FeedCard extends StatelessWidget {
     required bool hasCheckedIn,
   }) {
     if (isTeacher) {
-      return const SizedBox.shrink();
+      if (sessionId == null || sessionId.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TeacherLiveAttendanceScreen(
+                sessionId: sessionId,
+                classId: classId,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.visibility_outlined),
+        label: const Text('ดูคนเช็คชื่อปัจจุบัน'),
+      );
     }
 
     if (sessionId == null) return const SizedBox.shrink();

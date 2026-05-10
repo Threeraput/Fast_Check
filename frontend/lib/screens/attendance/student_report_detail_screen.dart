@@ -93,7 +93,29 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       }
       map[key]!.add(d);
     }
+
+    // เรียงรายการในแต่ละวันให้ล่าสุดอยู่บนสุด
+    for (final entry in map.entries) {
+      entry.value.sort((a, b) {
+        final at = _sortDateTime(a);
+        final bt = _sortDateTime(b);
+        return bt.compareTo(at);
+      });
+    }
+
     return map;
+  }
+
+  DateTime _sortDateTime(AttendanceReportDetail d) {
+    final raw = d.checkInTime ?? d.sessionStart;
+    if (raw == null || raw.isEmpty) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    try {
+      return DateTime.parse(raw).toLocal();
+    } catch (_) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
   }
 
   void _showImageDialog(String imageUrl) {
@@ -139,6 +161,21 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           final groupedDetails = _groupByDate(snapshot.data!);
           final dateKeys = groupedDetails.keys.toList();
 
+          // เรียงวันที่ให้ล่าสุดอยู่บนสุด
+          dateKeys.sort((a, b) {
+            final aItems =
+                groupedDetails[a] ?? const <AttendanceReportDetail>[];
+            final bItems =
+                groupedDetails[b] ?? const <AttendanceReportDetail>[];
+            final aTop = aItems.isNotEmpty
+                ? _sortDateTime(aItems.first)
+                : DateTime.fromMillisecondsSinceEpoch(0);
+            final bTop = bItems.isNotEmpty
+                ? _sortDateTime(bItems.first)
+                : DateTime.fromMillisecondsSinceEpoch(0);
+            return bTop.compareTo(aTop);
+          });
+
           return ListView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: dateKeys.length,
@@ -156,7 +193,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                 clipBehavior: Clip.antiAlias,
                 child: ExpansionTile(
                   initiallyExpanded: index == 0, // กางของวันล่าสุดไว้เสมอ
-                  backgroundColor: Colors.blue.shade50.withOpacity(0.2),
+                  backgroundColor: Colors.blue.shade50.withValues(alpha: 0.2),
                   title: Text(
                     'วันที่: $dateKey', // หัวข้อคือวันที่ เช่น วันที่: 27 Mar 2026
                     style: const TextStyle(
@@ -204,7 +241,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: sColor.withOpacity(0.2),
+                                  color: sColor.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -228,7 +265,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 // ✅ 1. แก้ไขตอนกดขยายรูปเช็คชื่อ
                                 onTap: () {
                                   if (d.faceImageUrl != null) {
-                                    final validUrl = UserService.absoluteAvatarUrl(d.faceImageUrl);
+                                    final validUrl =
+                                        UserService.absoluteAvatarUrl(
+                                          d.faceImageUrl,
+                                        );
                                     if (validUrl != null) {
                                       _showImageDialog(validUrl);
                                     }
@@ -243,12 +283,22 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                   ),
                                   child: d.faceImageUrl != null
                                       ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           // ✅ 2. แก้ไขตอนแสดงรูปเช็คชื่อ
                                           child: Image.network(
-                                            UserService.absoluteAvatarUrl(d.faceImageUrl) ?? '',
+                                            UserService.absoluteAvatarUrl(
+                                                  d.faceImageUrl,
+                                                ) ??
+                                                '',
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.grey),
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Icon(
+                                                      Icons.person,
+                                                      color: Colors.grey,
+                                                    ),
                                           ),
                                         )
                                       : const Icon(
@@ -292,7 +342,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                   // ✅ 3. แก้ไขตอนกดขยายรูปสุ่มตรวจ
                                   onTap: () {
                                     if (d.reverifyImageUrl != null) {
-                                      final validUrl = UserService.absoluteAvatarUrl(d.reverifyImageUrl);
+                                      final validUrl =
+                                          UserService.absoluteAvatarUrl(
+                                            d.reverifyImageUrl,
+                                          );
                                       if (validUrl != null) {
                                         _showImageDialog(validUrl);
                                       }
@@ -307,12 +360,25 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                     ),
                                     child: d.reverifyImageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                             // ✅ 4. แก้ไขตอนแสดงรูปสุ่มตรวจ
                                             child: Image.network(
-                                              UserService.absoluteAvatarUrl(d.reverifyImageUrl) ?? '',
+                                              UserService.absoluteAvatarUrl(
+                                                    d.reverifyImageUrl,
+                                                  ) ??
+                                                  '',
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.verified, color: Colors.blue),
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Icon(
+                                                    Icons.verified,
+                                                    color: Colors.blue,
+                                                  ),
                                             ),
                                           )
                                         : const Icon(
@@ -324,7 +390,8 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'ตรวจสอบซ้ำ',

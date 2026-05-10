@@ -54,6 +54,7 @@ dependencies:
   firebase_messaging: ^16.2.0
   open_filex: ^4.7.0
   jwt_decoder: ^2.0.1
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:

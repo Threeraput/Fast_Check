@@ -32,6 +32,36 @@ class _StudentReportTabState extends State<StudentReportTab> {
     _loadMyReports();
   }
 
+  DateTime _parseSortTime(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    try {
+      return DateTime.parse(raw).toLocal();
+    } catch (_) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+  }
+
+  String _dateGroupKey(AttendanceReportDetail d) {
+    final dt = _parseSortTime(
+      d.checkInTime ?? d.sessionStart ?? d.reverifyTime,
+    );
+    return DateFormat('dd MMM yyyy').format(dt);
+  }
+
+  Map<String, List<AttendanceReportDetail>> _groupDailyByDate(
+    List<AttendanceReportDetail> details,
+  ) {
+    final grouped = <String, List<AttendanceReportDetail>>{};
+    for (final d in details) {
+      final key = _dateGroupKey(d);
+      grouped.putIfAbsent(key, () => <AttendanceReportDetail>[]);
+      grouped[key]!.add(d);
+    }
+    return grouped;
+  }
+
   Future<void> _loadMyReports() async {
     setState(() {
       _loading = true;
@@ -59,10 +89,25 @@ class _StudentReportTabState extends State<StudentReportTab> {
       final filteredReports = reports
           .where((r) => r.classId == widget.classId)
           .toList();
+      filteredReports.sort(
+        (a, b) => _parseSortTime(
+          b.generatedAt,
+        ).compareTo(_parseSortTime(a.generatedAt)),
+      );
+
       final reportIds = filteredReports.map((r) => r.reportId).toSet();
       final filteredDaily = dailyReports
           .where((d) => reportIds.contains(d.reportId))
           .toList();
+      filteredDaily.sort((a, b) {
+        final bTime = _parseSortTime(
+          b.checkInTime ?? b.sessionStart ?? b.reverifyTime,
+        );
+        final aTime = _parseSortTime(
+          a.checkInTime ?? a.sessionStart ?? a.reverifyTime,
+        );
+        return bTime.compareTo(aTime);
+      });
 
       setState(() {
         _myReports = filteredReports;
@@ -188,14 +233,56 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
           // ประวัติรายวัน
           if (_myDailyReports.isNotEmpty) ...[
-            Text(
-              'ประวัติการเช็คชื่อรายวัน',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ..._myDailyReports.map((detail) => _buildDailyDetailCard(detail)),
+            ...() {
+              final grouped = _groupDailyByDate(_myDailyReports);
+              final entries = grouped.entries.toList();
+
+              return [
+                Text(
+                  'ประวัติการเช็คชื่อรายวัน',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...entries.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final day = entry.value.key;
+                  final items = entry.value.value;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      initiallyExpanded: i == 0,
+                      backgroundColor: Colors.blue.shade50.withValues(
+                        alpha: 0.2,
+                      ),
+                      title: Text(
+                        'วันที่: $day',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${items.length} รายการ',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      children: items
+                          .map((d) => _buildDailyDetailCard(d, showDate: false))
+                          .toList(),
+                    ),
+                  );
+                }),
+              ];
+            }(),
           ],
         ],
       ),
@@ -225,7 +312,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.2),
+                      color: color.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(Icons.school, color: color, size: 28),
@@ -382,7 +469,10 @@ class _StudentReportTabState extends State<StudentReportTab> {
     );
   }
 
-  Widget _buildDailyDetailCard(AttendanceReportDetail detail) {
+  Widget _buildDailyDetailCard(
+    AttendanceReportDetail detail, {
+    bool showDate = true,
+  }) {
     Color statusColor;
     String statusText;
 
@@ -420,13 +510,19 @@ class _StudentReportTabState extends State<StudentReportTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'วันที่: ${_formatDateTime(detail.sessionStart ?? detail.checkInTime ?? '').split(' ')[0]}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                if (showDate)
+                  Text(
+                    'วันที่: ${_formatDateTime(detail.sessionStart ?? detail.checkInTime ?? '').split(' ')[0]}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  )
+                else
+                  const Text(
+                    'เช็คชื่อ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
-                ),
                 Text(
                   statusText,
                   style: TextStyle(
@@ -535,7 +631,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
   String _formatDate(String date) {
     try {
       final dt = DateTime.parse(date);
-      return DateFormat('dd MMM yyyy HH:mm', 'th').format(dt);
+      return DateFormat('dd MMM yyyy HH:mm').format(dt);
     } catch (_) {
       return date;
     }

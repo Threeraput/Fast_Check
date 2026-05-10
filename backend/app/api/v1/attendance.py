@@ -8,6 +8,8 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
     status,
     UploadFile,
     File,
@@ -40,11 +42,16 @@ from app.schemas.attendance_schema import (
 from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
 from app.core.deps import get_current_user, role_required
+from app.core.security import decode_access_token
 from app.services.attendance_service import (
     record_check_in,
     handle_reverification,
     manual_override_attendance,
     handle_silent_location_update,
+)
+from app.services.live_attendance_ws import (
+    live_attendance_ws_manager,
+    get_live_session_payload,
 )
 from app.services.location_service import (
     update_teacher_location_log,
@@ -85,6 +92,103 @@ def _has_role(user: User, role_name: str) -> bool:
         return False
 
 
+def _extract_ws_token(websocket: WebSocket) -> str | None:
+    auth = websocket.headers.get("authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+
+    token = websocket.query_params.get("token")
+    if token:
+        return token.strip()
+
+    return None
+
+
+def _get_ws_user(websocket: WebSocket, db: Session) -> User | None:
+    token = _extract_ws_token(websocket)
+    if not token:
+        return None
+
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        return None
+
+    return user
+
+
+def _can_watch_live_session(db: Session, session_id: UUID, user: User) -> bool:
+    session = (
+        db.query(AttendanceSession)
+        .join(Class, AttendanceSession.class_id == Class.class_id)
+        .filter(AttendanceSession.session_id == session_id)
+        .first()
+    )
+    if not session:
+        return False
+
+    roles = {getattr(r, "name", "") for r in (user.roles or [])}
+    if "admin" in roles:
+        return True
+
+    if "teacher" not in roles:
+        return False
+
+    return str(session.classroom.teacher_id) == str(user.user_id)
+
+
+@router.websocket("/sessions/{session_id}/live")
+async def live_session_attendance(
+    websocket: WebSocket,
+    session_id: UUID,
+    db: Session = Depends(get_db),
+):
+    user = _get_ws_user(websocket, db)
+    if not user:
+        await websocket.close(code=1008)
+        return
+
+    if not _can_watch_live_session(db, session_id, user):
+        await websocket.close(code=1008)
+        return
+
+    session_key = str(session_id)
+    await live_attendance_ws_manager.connect(session_key, websocket)
+
+    try:
+        payload = get_live_session_payload(db, session_id)
+        if payload is None:
+            await websocket.send_json(
+                {
+                    "event": "error",
+                    "message": "Session not found",
+                    "session_id": session_key,
+                }
+            )
+        else:
+            await websocket.send_json({"event": "snapshot", **payload})
+
+        while True:
+            try:
+                msg = await websocket.receive_text()
+            except Exception:
+                break
+
+            if msg.strip().lower() == "ping":
+                await websocket.send_json({"event": "pong"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await live_attendance_ws_manager.disconnect(session_key, websocket)
+
+
 # ------------------------------------
 # 1) POST /attendance/check-in
 # ------------------------------------
@@ -115,6 +219,24 @@ async def check_in(
             student_lat=class_data.latitude,
             student_lon=class_data.longitude,
         )
+
+        payload = get_live_session_payload(db, class_data.session_id)
+        if payload:
+            latest_item = payload.get("attendees", [None])[0]
+            await live_attendance_ws_manager.broadcast(
+                str(class_data.session_id),
+                {
+                    "event": "checkin_added",
+                    "session_id": str(class_data.session_id),
+                    "item": latest_item,
+                    "summary": payload.get("summary", {}),
+                    "checked_in_count": payload.get("checked_in_count", 0),
+                    "total_students": payload.get("total_students", 0),
+                    "waiting_count": payload.get("waiting_count", 0),
+                    "server_time": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
         return attendance_record
     except HTTPException:
         raise
