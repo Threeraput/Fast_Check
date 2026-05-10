@@ -27,6 +27,8 @@ class ClassDetailsScreen extends StatefulWidget {
 
 class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   final GlobalKey<_StreamTabState> _streamKey = GlobalKey<_StreamTabState>();
+  final GlobalKey<_ClassworkTabState> _classworkKey =
+      GlobalKey<_ClassworkTabState>();
   int _currentIndex = 0;
   bool _loading = true;
   bool _error = false;
@@ -157,7 +159,14 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
                   '/create-assignment',
                   arguments: widget.classId,
                 );
-                if (ok == true) setState(() {}); // รีเฟรชหลังเพิ่มงาน
+                if (ok == true) {
+                  await _classworkKey.currentState?._refresh();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('สร้างงานสำเร็จ')),
+                    );
+                  }
+                }
               },
             )
           : null,
@@ -203,7 +212,11 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           onCreateAnnouncement: _openCreateAnnouncement,
         );
       case 1:
-        return _ClassworkTab(classId: widget.classId, isTeacher: _isTeacher);
+        return _ClassworkTab(
+          key: _classworkKey,
+          classId: widget.classId,
+          isTeacher: _isTeacher,
+        );
       case 2:
         //  แท็บรายงานจริง
         return ClassReportTab(classId: widget.classId);
@@ -405,12 +418,11 @@ class _StreamTabState extends State<_StreamTab> {
                 if (!mounted) return;
 
                 if (created != null) {
-                  await Future.delayed(const Duration(seconds: 4));
                   insertOptimisticSession(created);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
                   );
-                  await _refresh(force: true);
+                  _refresh(force: true);
                 }
               },
               icon: const Icon(Icons.play_circle_outline),
@@ -460,7 +472,11 @@ class _StreamTabState extends State<_StreamTab> {
 class _ClassworkTab extends StatefulWidget {
   final String classId;
   final bool isTeacher;
-  const _ClassworkTab({required this.classId, required this.isTeacher});
+  const _ClassworkTab({
+    super.key,
+    required this.classId,
+    required this.isTeacher,
+  });
 
   @override
   State<_ClassworkTab> createState() => _ClassworkTabState();

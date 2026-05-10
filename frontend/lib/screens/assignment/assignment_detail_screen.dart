@@ -168,7 +168,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
       await ClassworkSimpleService.deleteAssignmentAttachment(
         item.attachmentId,
       );
-      await _fetchAttachments();
+      if (!mounted) return;
+      setState(() {
+        _attachments = _attachments
+            .where((attachment) => attachment.attachmentId != item.attachmentId)
+            .toList();
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -208,11 +213,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     FocusScope.of(context).unfocus();
 
     try {
-      await ClassworkSimpleService.addComment(
+      final created = await ClassworkSimpleService.addComment(
         assignmentId: widget.assignmentId,
         content: text,
       );
-      _fetchComments();
+      if (!mounted) return;
+      setState(() {
+        _comments = [created, ..._comments];
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

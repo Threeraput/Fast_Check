@@ -46,10 +46,14 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
         throw Exception('สร้างงานสำเร็จแต่ไม่พบ assignment_id');
       }
 
-      for (final f in _attachmentFiles) {
-        await ClassworkSimpleService.uploadAssignmentAttachment(
-          assignmentId: assignmentId,
-          file: f,
+      if (_attachmentFiles.isNotEmpty) {
+        await Future.wait(
+          _attachmentFiles.map(
+            (f) => ClassworkSimpleService.uploadAssignmentAttachment(
+              assignmentId: assignmentId,
+              file: f,
+            ),
+          ),
         );
       }
 
@@ -69,7 +73,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
     } finally {
-      setState(() => _submitting = false);
+      if (mounted) setState(() => _submitting = false);
     }
   }
 

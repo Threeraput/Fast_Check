@@ -191,33 +191,33 @@ class FeedService {
       final kind = f.extra['kind']?.toString();
       return f.type == FeedType.checkin || kind == 'checkin';
     });
-    for (final f in checkins) {
-      final sid = f.extra['session_id']?.toString();
-      if (sid == null || sid.isEmpty) {
-        result.add(f);
-        continue;
-      }
-      try {
-        final status = await AttendanceService.getMyStatusForSession(sid);
-        final hasCheckedIn = _truthy(status, [
-          'has_checked_in',
-          'checked_in',
-          'present',
-        ]);
-        final reverifyCompleted = _truthy(status, [
-          'reverify_completed',
-          'has_reverified',
-          'reverify_passed',
-          'reverified',
-        ]);
+    final checkinResults = await Future.wait(
+      checkins.map((f) async {
+        final sid = f.extra['session_id']?.toString();
+        if (sid == null || sid.isEmpty) return f;
+        try {
+          final status = await AttendanceService.getMyStatusForSession(sid);
+          final hasCheckedIn = _truthy(status, [
+            'has_checked_in',
+            'checked_in',
+            'present',
+          ]);
+          final reverifyCompleted = _truthy(status, [
+            'reverify_completed',
+            'has_reverified',
+            'reverify_passed',
+            'reverified',
+          ]);
 
-        // แสดงเฉพาะกรณีที่ยังไม่ครบขั้นตอน
-        if (!(hasCheckedIn && reverifyCompleted)) {
-          result.add(f);
+          // แสดงเฉพาะกรณีที่ยังไม่ครบขั้นตอน
+          return (hasCheckedIn && reverifyCompleted) ? null : f;
+        } catch (_) {
+          return f; // fallback ถ้าเรียกไม่สำเร็จ
         }
-      } catch (_) {
-        result.add(f); // fallback ถ้าเรียกไม่สำเร็จ
-      }
+      }),
+    );
+    for (final f in checkinResults) {
+      if (f != null) result.add(f);
     }
 
     // 3) เพิ่ม “งานของนักเรียน” (สถานะของฉัน) — ไม่ต้องดึงงานครูซ้ำอีก
