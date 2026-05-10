@@ -42,6 +42,13 @@ class ClassworkAssignment(Base):
         passive_deletes=True,
     )
 
+    attachments = relationship(
+        "ClassworkAttachment",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     __table_args__ = (
         # กันชื่องานซ้ำในคลาสเดียวกัน (ถ้าคุณอยากให้ซ้ำได้ ให้ลบบรรทัดนี้)
         UniqueConstraint("class_id", "title", name="uq_cw_assign_class_title"),

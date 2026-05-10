@@ -38,6 +38,20 @@ class AssignmentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class AssignmentAttachmentResponse(BaseModel):
+    attachment_id: UUID
+    assignment_id: UUID
+    uploaded_by: UUID
+    file_name: str
+    storage_path: str
+    mime_type: str
+    size_bytes: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # -------------------------------------------------------------------
 # Submission (การส่งของนักเรียน)
 # -------------------------------------------------------------------

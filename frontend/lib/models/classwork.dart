@@ -40,7 +40,7 @@ class ClassworkSubmission {
   final String submissionId;
   final String assignmentId;
   final String studentId;
-  
+
   final String? contentUrl; // เช่น "workpdf/<uuid>.pdf"
   final DateTime? submittedAt;
 
@@ -131,7 +131,9 @@ class ClassworkAssignment {
   });
 
   factory ClassworkAssignment.fromJson(Map<String, dynamic> j) {
-    print('📦 DEBUG MODEL parsing: ${j['title']} -> is_accepting: ${j['is_accepting_submissions']}');
+    print(
+      '📦 DEBUG MODEL parsing: ${j['title']} -> is_accepting: ${j['is_accepting_submissions']}',
+    );
     return ClassworkAssignment(
       assignmentId: j['assignment_id']?.toString() ?? '',
       classId: j['class_id']?.toString() ?? '',
@@ -164,6 +166,45 @@ class ClassworkAssignment {
     'updated_at': updatedAt.toUtc().toIso8601String(),
     'is_accepting_submissions': isAcceptingSubmissions,
   };
+}
+
+class AssignmentAttachment {
+  final String attachmentId;
+  final String assignmentId;
+  final String uploadedBy;
+  final String fileName;
+  final String storagePath;
+  final String mimeType;
+  final int sizeBytes;
+  final DateTime createdAt;
+
+  AssignmentAttachment({
+    required this.attachmentId,
+    required this.assignmentId,
+    required this.uploadedBy,
+    required this.fileName,
+    required this.storagePath,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.createdAt,
+  });
+
+  factory AssignmentAttachment.fromJson(Map<String, dynamic> j) {
+    return AssignmentAttachment(
+      attachmentId: j['attachment_id']?.toString() ?? '',
+      assignmentId: j['assignment_id']?.toString() ?? '',
+      uploadedBy: j['uploaded_by']?.toString() ?? '',
+      fileName: j['file_name']?.toString() ?? 'attachment',
+      storagePath: j['storage_path']?.toString() ?? '',
+      mimeType: j['mime_type']?.toString() ?? 'application/octet-stream',
+      sizeBytes: (j['size_bytes'] is num)
+          ? (j['size_bytes'] as num).toInt()
+          : int.tryParse('${j['size_bytes']}') ?? 0,
+      createdAt:
+          DateTime.tryParse(j['created_at']?.toString() ?? '')?.toLocal() ??
+          DateTime.now(),
+    );
+  }
 }
 
 /// มุมมองฝั่งนักเรียน: งาน + สถานะของฉัน (my_submission) + computed_status

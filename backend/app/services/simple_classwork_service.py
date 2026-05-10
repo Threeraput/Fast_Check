@@ -8,12 +8,14 @@ from sqlalchemy import and_, func, or_
 import sqlalchemy as sa
 
 from app.models.classwork_assignment import ClassworkAssignment
+from app.models.classwork_attachment import ClassworkAttachment
 from app.models.classwork_submission import ClassworkSubmission
 from app.models.classwork_enums import SubmissionLateness
 from app.models.class_model import Class
 from app.models.user import User
 from app.models.association import class_students
 from app.utils.pdf_storage import save_pdf  # คุณทำไว้แล้ว
+from app.utils.classwork_material_storage import save_material_file, delete_material_file
 from fastapi import HTTPException as ApiException
 
 # ---------- Helper ----------
@@ -33,6 +35,19 @@ def _ensure_student_in_class(db: Session, student_id: UUID, class_id: UUID):
     ).first()
     if not exists:
         raise ApiException(403, "Student is not enrolled in this class.")
+
+
+def _ensure_user_can_view_assignment(db: Session, assignment: ClassworkAssignment, user: User):
+    role_names = getattr(user, "roles_list", []) or []
+    if "admin" in role_names:
+        return
+    if "teacher" in role_names:
+        _ensure_teacher_of_class(db, user.user_id, assignment.class_id)
+        return
+    if "student" in role_names:
+        _ensure_student_in_class(db, user.user_id, assignment.class_id)
+        return
+    raise ApiException(403, "Not authorized to view this assignment")
 
 # ---------- Core ----------
 def create_assignment(
@@ -225,3 +240,81 @@ def list_assignments_for_teacher_view(
 
     q = q.order_by(ClassworkAssignment.due_date.asc())
     return q.all()
+
+
+async def add_assignment_attachment(
+    db: Session,
+    *,
+    assignment_id: UUID,
+    teacher_id: UUID,
+    file,
+) -> ClassworkAttachment:
+    assignment = (
+        db.query(ClassworkAssignment)
+        .filter(ClassworkAssignment.assignment_id == assignment_id)
+        .first()
+    )
+    if not assignment:
+        raise ApiException(404, "Assignment not found")
+
+    _ensure_teacher_of_class(db, teacher_id, assignment.class_id)
+
+    storage_path, mime_type, size_bytes = await save_material_file(file)
+    attachment = ClassworkAttachment(
+        assignment_id=assignment.assignment_id,
+        uploaded_by=teacher_id,
+        file_name=file.filename or "attachment",
+        storage_path=storage_path,
+        mime_type=mime_type,
+        size_bytes=size_bytes,
+    )
+    db.add(attachment)
+    db.commit()
+    db.refresh(attachment)
+    return attachment
+
+
+def list_assignment_attachments(
+    db: Session,
+    *,
+    assignment_id: UUID,
+    user: User,
+) -> list[ClassworkAttachment]:
+    assignment = (
+        db.query(ClassworkAssignment)
+        .filter(ClassworkAssignment.assignment_id == assignment_id)
+        .first()
+    )
+    if not assignment:
+        raise ApiException(404, "Assignment not found")
+
+    _ensure_user_can_view_assignment(db, assignment, user)
+    return (
+        db.query(ClassworkAttachment)
+        .filter(ClassworkAttachment.assignment_id == assignment.assignment_id)
+        .order_by(ClassworkAttachment.created_at.asc())
+        .all()
+    )
+
+
+def remove_assignment_attachment(
+    db: Session,
+    *,
+    attachment_id: UUID,
+    teacher_id: UUID,
+) -> None:
+    attachment = (
+        db.query(ClassworkAttachment)
+        .options(joinedload(ClassworkAttachment.assignment))
+        .filter(ClassworkAttachment.attachment_id == attachment_id)
+        .first()
+    )
+    if not attachment:
+        raise ApiException(404, "Attachment not found")
+
+    _ensure_teacher_of_class(db, teacher_id, attachment.assignment.class_id)
+
+    storage_path = attachment.storage_path
+    db.delete(attachment)
+    db.commit()
+    delete_material_file(storage_path)

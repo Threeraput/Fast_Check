@@ -16,6 +16,7 @@ from app.core.deps import get_current_user, role_required
 from app.models.user import User
 from app.schemas.classwork_new_schema import (
     AssignmentCreate,
+    AssignmentAttachmentResponse,
     AssignmentResponse,
     SubmissionResponse,
     AssignmentWithMySubmission,
@@ -29,6 +30,9 @@ from app.services.simple_classwork_service import (
     list_submissions_for_teacher,
     grade_submission,
     _ensure_teacher_of_class,
+    add_assignment_attachment,
+    list_assignment_attachments,
+    remove_assignment_attachment,
 )
 from app.models.classwork_assignment import ClassworkAssignment
 from app.models.classwork_submission import ClassworkSubmission
@@ -38,6 +42,51 @@ from app.models.association import class_students
 
 
 router = APIRouter(prefix="/classwork-simple", tags=["Classwork (Simple)"])
+
+
+@router.post(
+    "/assignments/{assignment_id}/attachments",
+    response_model=AssignmentAttachmentResponse,
+    dependencies=[Depends(role_required(["teacher"]))],
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_assignment_attachment_route(
+    assignment_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    return await add_assignment_attachment(
+        db,
+        assignment_id=assignment_id,
+        teacher_id=me.user_id,
+        file=file,
+    )
+
+
+@router.get(
+    "/assignments/{assignment_id}/attachments",
+    response_model=List[AssignmentAttachmentResponse],
+)
+def list_assignment_attachments_route(
+    assignment_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    return list_assignment_attachments(db, assignment_id=assignment_id, user=me)
+
+
+@router.delete(
+    "/attachments/{attachment_id}",
+    dependencies=[Depends(role_required(["teacher"]))],
+)
+def delete_assignment_attachment_route(
+    attachment_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    remove_assignment_attachment(db, attachment_id=attachment_id, teacher_id=me.user_id)
+    return {"message": "Attachment deleted"}
 
 
 # -----------------------------

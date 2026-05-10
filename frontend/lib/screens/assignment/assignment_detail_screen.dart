@@ -36,6 +36,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
   List<ClassworkSubmission> _submissions = [];
   bool _isLoadingSubmissions = true;
+  List<AssignmentAttachment> _attachments = [];
+  bool _isLoadingAttachments = true;
+  bool _busyAttachmentAction = false;
   Classroom? _classroom;
   bool _isLoadingClassroom = false;
   bool _isAccepting = true;
@@ -49,6 +52,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
       vsync: this,
     );
     _fetchComments();
+    _fetchAttachments();
 
     if (widget.isTeacher) {
       _fetchStudentSubmissions();
@@ -103,6 +107,75 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     } catch (e) {
       if (mounted) setState(() => _isLoadingSubmissions = false);
       print("Error fetching student submissions: $e");
+    }
+  }
+
+  Future<void> _fetchAttachments() async {
+    try {
+      final items = await ClassworkSimpleService.getAssignmentAttachments(
+        widget.assignmentId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _attachments = items;
+        _isLoadingAttachments = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _attachments = [];
+        _isLoadingAttachments = false;
+      });
+    }
+  }
+
+  Future<void> _openAttachment(AssignmentAttachment item) async {
+    try {
+      await ClassworkSimpleService.openAttachmentFile(
+        storagePath: item.storagePath,
+        preferredName: item.fileName,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เปิดไฟล์ไม่สำเร็จ: $e')));
+    }
+  }
+
+  Future<void> _deleteAttachment(AssignmentAttachment item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('ลบไฟล์แนบ'),
+        content: Text('ต้องการลบไฟล์ ${item.fileName} ใช่หรือไม่'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    setState(() => _busyAttachmentAction = true);
+    try {
+      await ClassworkSimpleService.deleteAssignmentAttachment(
+        item.attachmentId,
+      );
+      await _fetchAttachments();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ลบไฟล์ไม่สำเร็จ: $e')));
+    } finally {
+      if (mounted) setState(() => _busyAttachmentAction = false);
     }
   }
 
@@ -192,7 +265,10 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
       children: [
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _fetchComments,
+            onRefresh: () async {
+              await _fetchComments();
+              await _fetchAttachments();
+            },
             child: ListView.builder(
               itemCount: 1 + _comments.length,
               itemBuilder: (context, index) {
@@ -250,6 +326,72 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                         ),
                         const SizedBox(height: 20),
                         const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.attach_file,
+                                color: Colors.blueAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'เอกสารประกอบงาน',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_isLoadingAttachments)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: LinearProgressIndicator(minHeight: 3),
+                          )
+                        else if (_attachments.isEmpty)
+                          Text(
+                            'ไม่มีไฟล์แนบ',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          )
+                        else
+                          ..._attachments.map((item) {
+                            final kb = (item.sizeBytes / 1024).toStringAsFixed(
+                              1,
+                            );
+                            return Card(
+                              margin: const EdgeInsets.only(top: 8),
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: Colors.blueAccent,
+                                ),
+                                title: Text(
+                                  item.fileName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text('$kb KB'),
+                                onTap: _busyAttachmentAction
+                                    ? null
+                                    : () => _openAttachment(item),
+                                trailing: widget.isTeacher
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.redAccent,
+                                        ),
+                                        onPressed: _busyAttachmentAction
+                                            ? null
+                                            : () => _deleteAttachment(item),
+                                      )
+                                    : const Icon(Icons.open_in_new, size: 18),
+                              ),
+                            );
+                          }),
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
@@ -444,7 +586,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   try {
                     // 2. ยิง API ไปหลังบ้าน
                     await ClassworkSimpleService.toggleSubmissionStatus(
-                      widget.assignmentId, 
+                      widget.assignmentId,
                       val,
                     );
                     // ถ้าสำเร็จก็ปล่อยผ่านไปเลย UI เปลี่ยนไปรอแล้ว
@@ -452,17 +594,24 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                     // 3. ถ้า API พัง ให้เด้งสวิตช์กลับไปค่าเดิม (สำคัญมาก!)
                     if (mounted) {
                       setState(() {
-                        _isAccepting = !val; 
+                        _isAccepting = !val;
                       });
-                      
+
                       // โชว์แจ้งเตือน Error
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.white),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
-                              Expanded(child: Text('อัปเดตสถานะไม่สำเร็จ: ${e.toString().replaceAll('Exception: ', '')}')),
+                              Expanded(
+                                child: Text(
+                                  'อัปเดตสถานะไม่สำเร็จ: ${e.toString().replaceAll('Exception: ', '')}',
+                                ),
+                              ),
                             ],
                           ),
                           backgroundColor: Colors.redAccent,

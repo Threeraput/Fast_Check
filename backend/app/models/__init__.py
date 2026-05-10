@@ -13,6 +13,7 @@ from .association import user_roles, role_permissions, class_students # ตร�
 from .teacher_location import TeacherLocation
 from .student_location import StudentLocation
 from .classwork_assignment import ClassworkAssignment
+from .classwork_attachment import ClassworkAttachment
 from .classwork_submission import ClassworkSubmission
 from .announcement import Announcement
 from .attendance_report import AttendanceReport 
