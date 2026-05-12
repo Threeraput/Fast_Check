@@ -15,6 +15,7 @@ from app.models.user import User
 # อย่าลืม Import Model ที่ต้องใช้ ถ้าอันไหนมีอยู่แล้วด้านบนก็ไม่ต้องใส่ซ้ำนะครับ
 from app.models.attendance_report import AttendanceReport
 from app.models.attendance_session import AttendanceSession
+from app.models.association import class_students # นำเข้าตารางสมาชิกคลาส
 
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
@@ -143,6 +144,8 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
         .join(AttendanceReportDetail, AttendanceSession.session_id == AttendanceReportDetail.session_id)
         .join(AttendanceReport, AttendanceReportDetail.report_id == AttendanceReport.report_id)
         .join(User, AttendanceReport.student_id == User.user_id)
+        # ✨ เพิ่ม: กรองเอาเฉพาะคนที่ยังเป็นนักเรียนในคลาสนี้อยู่ (ไม่เอาคนที่ถูกลบออกไปแล้ว)
+        .join(class_students, (class_students.c.student_id == User.user_id) & (class_students.c.class_id == class_id))
         .filter(AttendanceReport.class_id == class_id)
         .order_by(AttendanceSession.start_time.asc(), User.student_id.asc()) 
         .all()

@@ -6,6 +6,7 @@ from app.database import get_db
 from app.core.deps import get_current_user, get_roles_from_token, role_required
 from app.models.user import User
 from app.models.attendance_report import AttendanceReport
+from app.models.association import class_students # เพิ่มการนำเข้าตารางสมาชิกคลาส
 from app.schemas.attendance_report_schema import AttendanceReportResponse
 from app.services.attendance_report_service import generate_reports_for_class
 
@@ -92,7 +93,8 @@ def generate_class_reports(class_id: UUID, db: Session = Depends(get_db)):
 def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     rows = (
         db.query(AttendanceReport)
-        #  เพิ่ม joinedload student
+        # ✨ เพิ่ม: Join สมาชิกปัจจุบันเพื่อกรองเอาเฉพาะคนที่ยังอยู่ในคลาส
+        .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
         .options(
             joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
         )
@@ -111,7 +113,11 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
 )
 def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
     rows = (
-        db.query(AttendanceReport).filter(AttendanceReport.class_id == class_id).all()
+        db.query(AttendanceReport)
+        # ✨ เพิ่ม: Join สมาชิกปัจจุบันเพื่อกรองเอาเฉพาะคนที่ยังอยู่ในคลาส
+        .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
+        .filter(AttendanceReport.class_id == class_id)
+        .all()
     )
     if not rows:
         raise HTTPException(status_code=404, detail="No reports found for this class")
