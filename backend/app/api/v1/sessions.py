@@ -1,5 +1,5 @@
 # backend/app/api/v1/sessions.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 import uuid
 from typing import List
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
+from app.models.attendance_session import AttendanceSession # เพิ่มบรรทัดนี้
 from app.schemas.session_schema import SessionOpenRequest, SessionResponse
 from app.core.deps import get_current_user
 from app.services.attendance_session_service import (
@@ -136,10 +137,36 @@ async def list_active_sessions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # ดึง sessions ที่ยัง active จาก service
-    sessions = service_get_active_sessions(db)
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
 
-    # (ถ้าต้องการกรองเฉพาะคลาสที่นักเรียนลงทะเบียน ค่อยเพิ่ม logic ที่นี่)
+    # เช็คว่าเป็นอาจารย์หรือแอดมินไหม
+    is_privileged = any(r.name in ["admin", "teacher"] for r in current_user.roles)
+
+    if is_privileged:
+        # ครูเห็น: 
+        # 1. อันที่กำลังเปิดอยู่ (end_time >= now)
+        # 2. อันที่จบไปแล้ว แต่เพิ่งทำ Silent Check ไปไม่เกิน 10 นาที
+        sessions = (
+            db.query(AttendanceSession)
+            .filter(
+                (AttendanceSession.end_time >= now) | 
+                (
+                    (AttendanceSession.silent_check_scheduled_at.isnot(None)) & 
+                    (AttendanceSession.silent_check_scheduled_at >= now - timedelta(minutes=10))
+                )
+            )
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
+    else:
+        # นักเรียนเห็น: เฉพาะอันที่กำลังเปิดอยู่เท่านั้น
+        sessions = (
+            db.query(AttendanceSession)
+            .filter(AttendanceSession.start_time <= now, AttendanceSession.end_time >= now)
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
 
     #  แปลงเป็น Pydantic list
     items: List[SessionResponse] = []

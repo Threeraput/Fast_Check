@@ -456,14 +456,39 @@ async def override_attendance_status(
 
 
 @router.get("/sessions/active", response_model=List[SessionResponse])
-def list_active_sessions(db: Session = Depends(get_db)):
+def list_active_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     now = datetime.now(timezone.utc)
-    qs = (
-        db.query(AttendanceSession)
-        .filter(AttendanceSession.start_time <= now, AttendanceSession.end_time >= now)
-        .order_by(AttendanceSession.start_time.desc())
-        .all()
-    )
+    
+    # เช็คว่าเป็นอาจารย์หรือแอดมินไหม
+    is_privileged = any(r.name in ["admin", "teacher"] for r in current_user.roles)
+
+    if is_privileged:
+        # ครูเห็น: 
+        # 1. อันที่กำลังเปิดอยู่ (end_time >= now)
+        # 2. อันที่จบไปแล้ว แต่เพิ่งทำ Silent Check ไปไม่เกิน 10 นาที
+        qs = (
+            db.query(AttendanceSession)
+            .filter(
+                (AttendanceSession.end_time >= now) | 
+                (
+                    (AttendanceSession.silent_check_scheduled_at.isnot(None)) & 
+                    (AttendanceSession.silent_check_scheduled_at >= now - timedelta(minutes=10))
+                )
+            )
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
+    else:
+        # นักเรียนเห็น: เฉพาะอันที่กำลังเปิดอยู่เท่านั้น
+        qs = (
+            db.query(AttendanceSession)
+            .filter(AttendanceSession.start_time <= now, AttendanceSession.end_time >= now)
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
     return qs
 
 
