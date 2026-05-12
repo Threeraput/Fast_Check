@@ -102,6 +102,7 @@ async def create_classroom(
         db=db,
         name=class_create.name,
         teacher_id=current_user.user_id,
+        description=class_create.description,
         start_time=class_create.start_time,
         end_time=class_create.end_time,
     )
