@@ -1,5 +1,6 @@
 // lib/screens/teacher_open_checkin_sheet.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // เพิ่มบรรทัดนี้
 // ใช้ SessionsService ให้ตรงกับส่วนอื่นของแอป
 import 'package:frontend/services/sessions_service.dart';
 import 'package:numberpicker/numberpicker.dart';
@@ -321,12 +322,16 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
             TextFormField(
               controller: _radiusCtl,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly, // อนุญาตเฉพาะตัวเลขเท่านั้น
+              ],
               decoration: const InputDecoration(
                 labelText: 'รัศมี (เมตร)',
                 border: OutlineInputBorder(),
-                helperText: 'เช่น 100 เมตร',
+                helperText: 'เช่น 100 เมตร (ขั้นต่ำ 1 เมตร)',
+                suffixText: 'เมตร',
               ),
-              validator: (v) => _requiredInt(v, min: 10, max: 2000),
+              validator: (v) => _requiredInt(v, min: 1, max: 2000), // เปลี่ยนขั้นต่ำเป็น 1
             ),
 
             const SizedBox(height: 16),
