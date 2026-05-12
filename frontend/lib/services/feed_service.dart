@@ -90,6 +90,10 @@ class FeedService {
     try {
       final anns = await AnnouncementService.listByClassId(classId);
       for (final a in anns) {
+        final annExpiresAt = DateTime.tryParse(
+          a['expires_at']?.toString() ?? '',
+        )?.toLocal();
+
         items.add(
           FeedItem(
             id: 'ann:${a['announcement_id']}',
@@ -99,7 +103,7 @@ class FeedService {
             postedAt:
                 DateTime.tryParse(a['created_at']?.toString() ?? '') ??
                 DateTime.now(),
-            expiresAt: a['expires_at'],
+            expiresAt: annExpiresAt,
             extra: {
               'kind': 'announcement',
               'body': a['body'],

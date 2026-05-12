@@ -358,8 +358,8 @@ class _HeaderRow extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: Colors.red,
-          child: Icon(icon, size: 18, color: Colors.white),
+          backgroundColor: iconColor.withAlpha(35),
+          child: Icon(icon, size: 18, color: iconColor),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -426,7 +426,7 @@ class _AnnouncementCard extends StatelessWidget {
             children: [
               _HeaderRow(
                 icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
-                iconColor: pinned ? Colors.red : Colors.blueGrey,
+                iconColor: pinned ? Colors.red.shade700 : Colors.blue.shade700,
                 title: pinned ? '[ปักหมุด] $title' : title,
                 dateText: df.format(postedAt.toLocal()),
               ),

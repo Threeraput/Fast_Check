@@ -159,11 +159,19 @@ class MyApp extends StatelessWidget {
 
         '/assignment-detail': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map;
+          final dueDateIso = args['dueDateIso']?.toString();
+          final dueDate = DateTime.tryParse(dueDateIso ?? '');
+          final rawMaxScore = args['maxScore'];
+          final int? maxScore = rawMaxScore is num
+              ? rawMaxScore.toInt()
+              : int.tryParse(rawMaxScore?.toString() ?? '');
           return AssignmentDetailScreen(
             assignmentId: args['assignmentId'],
             title: args['title'] ?? 'Assignment',
             classId: args['classId'],
             isTeacher: args['isTeacher'] ?? false,
+            dueDate: dueDate,
+            maxScore: maxScore,
           );
         },
         '/edit-announcement': (context) {
