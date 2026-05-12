@@ -210,4 +210,31 @@ class FaceService {
       throw Exception('เกิดข้อผิดพลาดในการลบใบหน้า: $e');
     }
   }
+
+  /// ดึงข้อมูลใบหน้าที่ลงทะเบียนไว้ของตัวเอง
+  static Future<Map<String, dynamic>?> getMyFaceSample() async {
+    try {
+      final token = await AuthService.getAccessToken();
+      if (token == null) return null;
+
+      final url = Uri.parse('$API_BASE_URL/face-recognition/me');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final body = json.decode(utf8.decode(response.bodyBytes));
+        if (body == null) return null;
+        return body as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching face sample: $e');
+      return null;
+    }
+  }
 }
