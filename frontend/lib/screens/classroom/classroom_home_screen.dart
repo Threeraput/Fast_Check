@@ -185,6 +185,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
     // เพิ่ม q: _searchQuery ตรงนี้
     final page = await AdminService.listClasses(
       q: _searchQuery,
+      isArchived: false, // เฉพาะคลาสที่ยังไม่เก็บ
       limit: fetchLimit,
       offset: 0,
     );
@@ -278,14 +279,14 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   }
 
   // =========================
-  // ADMIN: ลบคลาส
+  // ADMIN: เก็บคลาส
   // =========================
-  Future<void> _adminDeleteClass(String classId, String className) async {
+  Future<void> _adminArchiveClass(String classId, String className) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('ยืนยันการลบคลาส'),
-        content: Text('ต้องการลบ "$className" ใช่หรือไม่?'),
+        title: const Text('ยืนยันการเก็บคลาส'),
+        content: Text('ต้องการเก็บ "$className" ไว้ในคลังใช่หรือไม่?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -294,7 +295,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('ลบ'),
+            child: const Text('เก็บ'),
           ),
         ],
       ),
@@ -311,7 +312,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ลบคลาสไม่สำเร็จ: $e')));
+        ).showSnackBar(SnackBar(content: Text('เก็บคลาสไม่สำเร็จ: $e')));
       }
     }
   }
@@ -407,6 +408,22 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                       onTap: () async {
                         Navigator.pop(context);
                         await _openAdmin();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.archive),
+                      title: const Text('ชั้นเรียนที่เก็บ'),
+                      onTap: () {
+                        // 1. สั่งปิดแถบเมนูด้านข้างลงไปก่อน
+                        Navigator.pop(context);
+
+                        // 2. นำทางไปหน้าต่างใหม่ (ที่เรากำลังจะสร้าง)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ArchivedClassesScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -823,7 +840,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
                 Expanded(
                   child: _AdminClasses(
                     futureAll: _futureAllClasses,
-                    onDelete: _adminDeleteClass,
+                    onArchive: _adminArchiveClass,
                     onRefresh: _refresh,
                   ),
                 ),
@@ -928,11 +945,11 @@ class _StudentClasses extends StatelessWidget {
 class _AdminClasses extends StatelessWidget {
   final Future<List<_AdminClassItem>>? futureAll;
   final Future<void> Function() onRefresh;
-  final Future<void> Function(String classId, String className) onDelete;
+  final Future<void> Function(String classId, String className) onArchive;
   const _AdminClasses({
     required this.futureAll,
     required this.onRefresh,
-    required this.onDelete,
+    required this.onArchive,
   });
 
   @override
@@ -990,11 +1007,11 @@ class _AdminClasses extends StatelessWidget {
                     'Teacher: ${it.teacherName}  •  Students: ${it.studentCount}',
                     style: TextStyle(color: Colors.white.withOpacity(0.92)),
                   ),
-                  // แอดมิน: มีปุ่มลบเท่านั้น
+                  // แอดมิน: มีปุ่มเก็บคลาสเท่านั้น
                   trailing: IconButton(
-                    tooltip: 'ลบคลาส',
-                    onPressed: () => onDelete(it.classId, it.name),
-                    icon: const Icon(Icons.delete, color: Colors.white),
+                    tooltip: 'เก็บคลาส',
+                    onPressed: () => onArchive(it.classId, it.name),
+                    icon: const Icon(Icons.archive, color: Colors.white70),
                   ),
                   // ❌ ไม่พาเข้า class details สำหรับแอดมินในหน้านี้
                   onTap: null,

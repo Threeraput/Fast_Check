@@ -43,6 +43,7 @@ from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
 from app.core.deps import get_current_user, role_required
 from app.core.security import decode_access_token
+from app.core.deps import get_current_user, get_roles_from_token, role_required
 from app.services.attendance_service import (
     record_check_in,
     handle_reverification,
@@ -198,8 +199,9 @@ async def check_in(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
-    if "student" not in [role.name for role in current_user.roles]:
+    token_roles: list = Depends(get_roles_from_token)
+):  
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can check in.")
 
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -256,8 +258,9 @@ async def update_teacher_location(
     location_data: TeacherLocationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
-    if not _has_role(current_user, "teacher"):
+    if "teacher" not in token_roles:
         raise HTTPException(
             status_code=403, detail="Only teachers can update their location."
         )
@@ -285,8 +288,9 @@ async def track_student_location(
     log_data: StudentLocationLogCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
-    if not _has_role(current_user, "student"):
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can track location.")
 
     try:
@@ -313,9 +317,10 @@ async def re_verify_check_in(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
     # ตรวจ role
-    if "student" not in [role.name for role in current_user.roles]:
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Access denied.")
 
     # ตรวจไฟล์รูป
@@ -410,10 +415,10 @@ async def override_attendance_status(
     override_data: AttendanceManualOverride = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token),
 ):
-    roles = {r.name for r in getattr(current_user, "roles", [])}
-    is_admin = "admin" in roles
-    is_teacher = "teacher" in roles
+    is_admin = "admin" in token_roles
+    is_teacher = "teacher" in token_roles
 
     if not (is_admin or is_teacher):
         raise HTTPException(status_code=403, detail="Access denied.")

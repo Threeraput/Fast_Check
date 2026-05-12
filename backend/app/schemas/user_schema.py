@@ -79,6 +79,7 @@ class UserResponse(UserBase):
     avatar_url: Optional[str] = None
     student_id: Optional[str] = Field(None, max_length=20)
     teacher_id: Optional[str] = Field(None, max_length=20)
+    deleted_at: Optional[datetime] = None
 
 
 # ---------------------------

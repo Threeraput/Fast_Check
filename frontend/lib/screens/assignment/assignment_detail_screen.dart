@@ -4,6 +4,7 @@ import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/comment_model.dart';
 import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
+import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/screens/assignment/grading_screen.dart';
 
@@ -424,6 +425,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                 }
 
                 final comment = _comments[index - 1];
+                final String? fullAvatarUrl = UserService.absoluteAvatarUrl(
+                  comment.avatarUrl,
+                );
                 return Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -432,15 +436,20 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.blueGrey,
-                        child: Text(
-                          comment.commenterName.isNotEmpty
-                              ? comment.commenterName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
+                      fullAvatarUrl != null
+                          ? CircleAvatar(
+                              backgroundImage: NetworkImage(fullAvatarUrl),
+                              radius: 20,
+                            )
+                          : CircleAvatar(
+                              backgroundColor: Colors.blueGrey,
+                              child: Text(
+                                comment.commenterName.isNotEmpty
+                                    ? comment.commenterName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -668,14 +677,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                       leading: CircleAvatar(
                         backgroundColor: Colors.blue.shade100,
                         child: Text(
-                          submission.studentId.isNotEmpty
-                              ? submission.studentId[0].toUpperCase()
+                          submission.username.isNotEmpty
+                              ? submission.username[0].toUpperCase()
                               : '?',
                           style: const TextStyle(color: Colors.blueAccent),
                         ),
                       ),
                       title: Text(
-                        submission.studentId,
+                        '${submission.firstName} ${submission.lastName}',
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                       subtitle: Text(

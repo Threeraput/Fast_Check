@@ -40,7 +40,10 @@ class ClassworkSubmission {
   final String submissionId;
   final String assignmentId;
   final String studentId;
-
+  final String username;
+  final String firstName;
+  final String lastName;
+  
   final String? contentUrl; // เช่น "workpdf/<uuid>.pdf"
   final DateTime? submittedAt;
 
@@ -55,6 +58,9 @@ class ClassworkSubmission {
     required this.submissionId,
     required this.assignmentId,
     required this.studentId,
+    required this.username,
+    required this.firstName,
+    required this.lastName,
     required this.contentUrl,
     required this.submittedAt,
     required this.submissionStatus,
@@ -74,6 +80,9 @@ class ClassworkSubmission {
       submissionId: j['submission_id']?.toString() ?? '',
       assignmentId: j['assignment_id']?.toString() ?? '',
       studentId: j['student_id']?.toString() ?? '',
+      username: j['username']?.toString() ?? '',
+      firstName: j['first_name']?.toString() ?? '',
+      lastName: j['last_name']?.toString() ?? '',
       contentUrl: j['content_url']?.toString(),
       submittedAt: _parseDt(j['submitted_at']),
       submissionStatus: latenessFromString(j['submission_status']?.toString()),
@@ -94,6 +103,9 @@ class ClassworkSubmission {
     'submission_id': submissionId,
     'assignment_id': assignmentId,
     'student_id': studentId,
+    'username': username,
+    'first_name': firstName,
+    'last_name': lastName,
     'content_url': contentUrl,
     'submitted_at': submittedAt?.toUtc().toIso8601String(),
     'submission_status': latenessToString(submissionStatus),

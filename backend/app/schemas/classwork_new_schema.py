@@ -78,6 +78,9 @@ class SubmissionResponse(BaseModel):
     submission_id: UUID
     assignment_id: UUID
     student_id: UUID
+    username: str = ""
+    first_name: str = ""
+    last_name: str = ""
     content_url: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness   # On_Time / Late / Not_Submitted
@@ -160,7 +163,7 @@ class CommentUserMini(BaseModel):
     user_id: UUID
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    # profile_picture_url: Optional[str] = None  # ถ้าใน User model ของคุณมีรูปโปรไฟล์ เอาคอมเมนต์บรรทัดนี้ออกได้ครับ
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True

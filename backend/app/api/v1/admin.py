@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import string
 import random
 
@@ -23,6 +23,7 @@ from app.models.attendance import Attendance
 from app.models.association import user_roles
 #  association table สำหรับนับนักเรียนในคลาส
 from app.models.association import class_students
+from app.services import class_service
 from app.services.db_service import approve_teacher
 from app.core.deps import get_current_admin_user
 
@@ -122,7 +123,8 @@ async def admin_list_users(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    query = db.query(User)
+    # 🚨 1. ดักเงื่อนไขแรกสุดเลย: เอาเฉพาะคนที่ "ยังไม่โดนลบ" (deleted_at เป็น None)
+    query = db.query(User).filter(User.deleted_at.is_(None))
 
     if q:
         like = f"%{q.strip()}%"
@@ -161,15 +163,78 @@ async def admin_list_users(
                 updated_at=u.updated_at,
                 last_login_at=u.last_login_at,
                 roles=[r.name for r in u.roles],
-                # ส่ง avatar_url ออกด้วย
                 avatar_url=getattr(u, "avatar_url", None),
+                # 🚨 2. ส่งค่า deleted_at กลับไปให้หน้าบ้านด้วย 
+                # (เผื่อในอนาคต Flutter อยากเอาไปเช็คอะไรเพิ่ม)
+                deleted_at=getattr(u, "deleted_at", None),
             )
         )
 
     return AdminUsersPage(total=total, limit=limit, offset=offset, items=items)
 
 # ===========================
-# Admin - Delete user
+# Admin - List users in TRASH (Soft Deleted)
+# ===========================
+@router.get("/users/trash", response_model=AdminUsersPage)
+async def admin_list_trash_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+    q: Optional[str] = Query(None, description="search by username/email/first/last name"),
+    role: Optional[str] = Query(None, description="filter by role: admin|teacher|student"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    # 🚨 1. หัวใจหลัก: ดึงเฉพาะคนที่ถูกลบแล้ว (deleted_at ไม่ใช่ None)
+    query = db.query(User).filter(User.deleted_at.isnot(None))
+
+    if q:
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(
+            User.username.ilike(like),
+            User.email.ilike(like),
+            User.first_name.ilike(like),
+            User.last_name.ilike(like),
+        ))
+
+    if role:
+        rl = role.strip().lower()
+        query = query.join(User.roles).filter(func.lower(Role.name) == rl)
+
+    total = query.count()
+    rows = (
+        query
+        # 🚨 2. เปลี่ยนมาเรียงตาม "วันที่โดนลบ" (ล่าสุดอยู่บนสุด) จะสมเหตุสมผลกว่า
+        .order_by(User.deleted_at.desc()) 
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+
+    items: List[UserResponse] = []
+    for u in rows:
+        items.append(
+            UserResponse(
+                user_id=u.user_id,
+                username=u.username,
+                first_name=u.first_name,
+                last_name=u.last_name,
+                email=u.email,
+                is_active=u.is_active,
+                is_approved=getattr(u, "is_approved", None),
+                created_at=u.created_at,
+                updated_at=u.updated_at,
+                last_login_at=u.last_login_at,
+                roles=[r.name for r in u.roles],
+                avatar_url=getattr(u, "avatar_url", None),
+                # ส่งค่า deleted_at กลับไปด้วย เพื่อให้หน้าแอปเอาไปโชว์ว่า "ลบไปเมื่อไหร่"
+                deleted_at=u.deleted_at, 
+            )
+        )
+
+    return AdminUsersPage(total=total, limit=limit, offset=offset, items=items)
+
+# ===========================
+# Admin - Soft Delete user (ย้ายลงถังขยะ)
 # ===========================
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_delete_user(
@@ -178,11 +243,72 @@ async def admin_delete_user(
     current_user: User = Depends(get_current_admin_user),
 ):
     u = db.get(User, user_id)
+    
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
-    db.delete(u)  # หรือ soft delete: u.is_active = False; db.add(u)
+        
+    # เช็คก่อนว่าคนนี้อยู่ในถังขยะอยู่แล้วหรือเปล่า จะได้ไม่ปั๊มเวลาซ้ำ
+    if getattr(u, "deleted_at", None) is not None:
+        raise HTTPException(status_code=400, detail="User นี้ถูกลบไปแล้ว")
+
+    # 🚨 ยกเลิกการใช้ db.delete(u) แล้วเปลี่ยนมาประทับเวลาแทน
+    u.deleted_at = datetime.now(timezone.utc)
+    
+    # 💡 ออปชันเสริม: จะปรับ is_active เป็น False ด้วยก็ได้ เพื่อความชัวร์ในหลายๆ ระบบ
+    # u.is_active = False 
+
+    db.add(u)
     db.commit()
     return None
+
+# ===========================
+# Admin - Restore user from TRASH
+# ===========================
+@router.patch("/users/{user_id}/restore", response_model=UserResponse)
+async def admin_restore_user(
+    user_id: uuid.UUID = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    u = db.get(User, user_id)
+    
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # 🚨 เช็คก่อนว่า User คนนี้อยู่ในถังขยะจริงๆ ไหม (ถ้าไม่ได้โดนลบ ก็ไม่รู้จะกู้คืนทำไม)
+    if getattr(u, "deleted_at", None) is None:
+        raise HTTPException(status_code=400, detail="User นี้ไม่ได้อยู่ในถังขยะและยังใช้งานได้ตามปกติ")
+
+    # 🌟 พระเอกของงานนี้: เช็ดตรายางวันที่โดนลบทิ้งไปซะ!
+    u.deleted_at = None
+    
+    # 💡 ออปชันเสริม: ถ้าตอนคุณทำ Soft Delete มีการตั้ง u.is_active = False ไปด้วย 
+    # ตอนกู้คืนก็อย่าลืมปลุกให้เขากลับมา Active ด้วยนะครับ
+    u.is_active = True 
+
+    db.add(u)
+    db.commit()
+    
+    # ดึงข้อมูลล่าสุดหลังจากอัปเดต เพื่อส่งกลับไปให้หน้าบ้านอัปเดต UI
+    db.refresh(u) 
+    
+    # (ถ้ามีตัวแปร avatar_url อย่าลืมดึงมาใส่ด้วยแบบนี้ครับ)
+    # เราสามารถใช้ from_orm หรือส่งเป็น dict ได้ขึ้นอยู่กับโครงสร้างที่คุณใช้ประจำ
+    return UserResponse(
+        user_id=u.user_id,
+        username=u.username,
+        first_name=u.first_name,
+        last_name=u.last_name,
+        email=u.email,
+        is_active=u.is_active,
+        is_approved=getattr(u, "is_approved", None),
+        created_at=u.created_at,
+        updated_at=u.updated_at,
+        last_login_at=u.last_login_at,
+        roles=[r.name for r in u.roles],
+        avatar_url=getattr(u, "avatar_url", None),
+        deleted_at=u.deleted_at, # ตอนนี้จะเป็น None แล้ว
+    )
 
 # ===========================
 # Admin - System summary report
@@ -244,10 +370,13 @@ async def admin_list_classes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
     q: Optional[str] = Query(None, description="search by class name/code"),
+    is_archived: Optional[bool] = Query(None, description="Filter by archived status"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     base = db.query(ClassModel)
+    if is_archived is not None:
+        base = base.filter(ClassModel.is_archived == is_archived)
     if q:
         like = f"%{q.strip()}%"
         filters = [ClassModel.name.ilike(like)]
@@ -287,6 +416,7 @@ async def admin_list_classes(
                 code=getattr(c, "code", None),
                 student_count=counts_map.get(c.class_id, 0),
                 created_at=getattr(c, "created_at", datetime.utcnow()),
+                is_archived=getattr(c, "is_archived", False),
                 teacher=UserResponse(
                     user_id=teacher.user_id,
                     username=teacher.username,
@@ -310,6 +440,24 @@ async def admin_list_classes(
         offset=offset,
         items=items,
     )
+
+# ===========================
+# Admin - Archive class
+# ===========================
+@router.delete("/classes/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_archive_class(
+    class_id: uuid.UUID = Path(..., description="UUID of the classroom to archive"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    class_service.delete_classroom(
+        db=db,
+        class_id=class_id,
+        user_id=current_user.user_id,
+        is_admin=True,
+    )
+    return None
+
 # ===========================
 # Admin - Create class (แก้ 500 จาก code = NULL)
 # ===========================

@@ -10,6 +10,7 @@ class AdminClassSummary(BaseModel):
     code: Optional[str] = None
     student_count: int
     created_at: datetime
+    is_archived: bool
     teacher: Optional[UserResponse] = None
 
     class Config:
