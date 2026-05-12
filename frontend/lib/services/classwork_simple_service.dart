@@ -430,6 +430,39 @@ class ClassworkSimpleService {
     }
   }
 
+  /// สั่งดาวน์โหลดรายงานสถิติงานรวมทั้งคลาส (Classwork Overall Stats)
+  static Future<void> exportClassworkOverallStats(
+    String classId,
+    String token,
+  ) async {
+    try {
+      final url = Uri.parse('$_base/class/$classId/export-stats');
+
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '${dir.path}/classwork_overall_stats_$timestamp.xlsx';
+
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final result = await OpenFilex.open(filePath);
+        if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("เกิดข้อผิดพลาด: $e");
+    }
+  }
+
   // ฟังก์ชันสำหรับเปิด/ปิดการรับงาน
   static Future<void> toggleSubmissionStatus(
     String assignmentId,

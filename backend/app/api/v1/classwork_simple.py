@@ -474,6 +474,100 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+
+# -------------------------------------------------------------
+# API เส้นใหม่: Export สถิติงานรวมทั้งคลาส (Classwork Overall Stats)
+# -------------------------------------------------------------
+@router.get("/class/{class_id}/export-stats")
+def export_class_overall_stats(class_id: UUID, db: Session = Depends(get_db)):
+    """ดาวน์โหลดไฟล์ Excel สรุปคะแนนงานทุกชิ้นของนักเรียนทุกคนในคลาส"""
+    
+    # 1. ดึงข้อมูลงานทั้งหมดในคลาสนี้
+    assignments = (
+        db.query(ClassworkAssignment)
+        .filter(ClassworkAssignment.class_id == class_id)
+        .order_by(ClassworkAssignment.created_at.asc())
+        .all()
+    )
+    
+    if not assignments:
+        # ถ้าไม่มีงานเลย ก็สร้างไฟล์เปล่าที่มีแค่รายชื่อนักเรียน
+        pass
+
+    # 2. ดึงรายชื่อนักเรียนในคลาส
+    students = (
+        db.query(
+            User.user_id,
+            User.student_id.label("student_code"),
+            User.first_name,
+            User.last_name
+        )
+        .join(class_students, User.user_id == class_students.c.student_id)
+        .filter(class_students.c.class_id == class_id)
+        .order_by(User.student_id.asc())
+        .all()
+    )
+
+    # 3. สร้างไฟล์ Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "สถิติงานรวม"
+
+    # หัวตาราง: ข้อมูลพื้นฐาน + รายชิ้นงาน
+    headers = ["รหัสนักศึกษา", "ชื่อ-นามสกุล"]
+    for asg in assignments:
+        headers.append(f"{asg.title}\n(เต็ม {asg.max_score})")
+    headers.append("คะแนนรวม")
+    
+    ws.append(headers)
+
+    # 4. วนลูปใส่นักเรียนแต่ละคน
+    for s in students:
+        row_data = [
+            s.student_code or "-",
+            f"{s.first_name or ''} {s.last_name or ''}".strip()
+        ]
+        
+        total_score = 0.0
+        
+        for asg in assignments:
+            # ดึงคะแนนงานนี้ของนักเรียน
+            sub = (
+                db.query(ClassworkSubmission)
+                .filter(
+                    ClassworkSubmission.assignment_id == asg.assignment_id,
+                    ClassworkSubmission.student_id == s.user_id
+                )
+                .first()
+            )
+            
+            score = 0.0
+            if sub and sub.graded:
+                score = sub.score or 0.0
+            
+            row_data.append(score if sub and sub.graded else "-")
+            total_score += score
+
+        row_data.append(total_score)
+        
+        ws.append(row_data)
+
+    # 5. ปรับความกว้างคอลัมน์และรูปแบบ (Optional แต่ทำให้สวย)
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = 15
+
+    # 6. ส่งไฟล์กลับ
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"classwork_stats_{class_id}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # ========================================================
 # API เส้นใหม่: อาจารย์เปิด/ปิดสวิตช์รับงาน
 # ========================================================

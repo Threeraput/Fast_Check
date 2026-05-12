@@ -3,6 +3,7 @@ import 'package:frontend/models/attendance_report.dart';
 import 'package:frontend/models/attendance_report_detail.dart';
 import 'package:frontend/screens/classwork/classwork_report_detail_screen.dart';
 import 'package:frontend/services/attendance_report_service.dart';
+import 'package:frontend/services/classwork_simple_service.dart'; // เพิ่ม import นี้
 import 'package:shared_preferences/shared_preferences.dart';
 import 'student_report_detail_screen.dart';
 import 'package:intl/intl.dart';
@@ -112,25 +113,63 @@ class _ClassReportTabState extends State<ClassReportTab> {
     }
   }
 
-  Future<void> _downloadReport() async {
+  Future<void> _showExportOptions() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'เลือกประเภทการส่งออก (Excel)',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline, color: Colors.green),
+                title: const Text('รายงานการเข้าเรียนรายวัน'),
+                subtitle: const Text('สรุปการเช็คชื่อของนักเรียนทุกคน'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadAttendanceReport();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined, color: Colors.blue),
+                title: const Text('สถิติการส่งงานของคลาส'),
+                subtitle: const Text('สรุปคะแนนและสถานะการส่งงานทุกชิ้น'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadClassworkStats();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadAttendanceReport() async {
     setState(() {
       _isDownloading = true;
     });
 
     try {
-      // 1. เปิดกระเป๋า SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-
-      // 2. หยิบ Token ออกมาโดยใช้ Key คำว่า 'accessToken' ให้ตรงเป๊ะ!
       String realToken = prefs.getString('accessToken') ?? '';
 
       if (realToken.isEmpty) {
         throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
       }
 
-      print('=== [UI DEBUG] เริ่มกดปุ่มดาวน์โหลด ===');
-
-      // 3. ส่ง Token จริงไปให้ Service ลุย!
       await AttendanceReportService.exportDetailedReport(
         widget.classId,
         realToken,
@@ -139,13 +178,53 @@ class _ClassReportTabState extends State<ClassReportTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('ดาวน์โหลดและเปิดไฟล์สำเร็จ!'),
+            content: Text('ดาวน์โหลดรายงานการเข้าเรียนสำเร็จ!'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      print('=== [UI DEBUG] 🚨 จับ Error ได้ที่หน้าจอ: $e ===');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadClassworkStats() async {
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String realToken = prefs.getString('accessToken') ?? '';
+
+      if (realToken.isEmpty) {
+        throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
+      }
+
+      await ClassworkSimpleService.exportClassworkOverallStats(
+        widget.classId,
+        realToken,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ดาวน์โหลดสถิติงานสำเร็จ!'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -196,7 +275,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
           ElevatedButton.icon(
             onPressed: _isDownloading
                 ? null
-                : _downloadReport, // ถ้าโหลดอยู่จะกดซ้ำไม่ได้
+                : _showExportOptions, // เปลี่ยนจาก _downloadReport เป็น _showExportOptions
             icon: _isDownloading
                 ? const SizedBox(
                     width: 20,
