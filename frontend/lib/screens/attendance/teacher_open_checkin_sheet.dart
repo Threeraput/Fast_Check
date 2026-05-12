@@ -80,83 +80,19 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
       if (!mounted) return;
 
       // แปลงเป็น Map ส่งกลับไปให้หน้าแม่ทำ optimistic UI
-      // (พยายามใส่ทั้งคีย์ที่ FeedService/ActiveSessionsBanner รองรับ)
+      // ใช้ค่า sessionId จากโมเดลโดยตรง เพื่อให้ปุ่ม Live ใช้ UUID จริงทันที
       final created = <String, dynamic>{
-        'session_id':
-            ( /* ถ้าโมเดลมี field id */ (() {
-              try {
-                return (s as dynamic).id?.toString();
-              } catch (_) {
-                return null;
-              }
-            })()) ??
-            '',
-        'id': (() {
-          try {
-            return (s as dynamic).id?.toString();
-          } catch (_) {
-            return null;
-          }
-        })(),
-        'class_id': widget.classId,
-        'start_time': (() {
-          try {
-            return (s as dynamic).startTime?.toIso8601String();
-          } catch (_) {
-            return null;
-          }
-        })(),
-        'end_time': (() {
-          try {
-            return (s as dynamic).endTime?.toIso8601String();
-          } catch (_) {
-            return null;
-          }
-        })(),
-        'expires_at': (() {
-          // เผื่อฝั่งแสดงผลดู expires_at
-          try {
-            return (s as dynamic).endTime?.toIso8601String();
-          } catch (_) {
-            return null;
-          }
-        })(),
-        'reverify_enabled': (() {
-          try {
-            return (s as dynamic).reverifyEnabled == true;
-          } catch (_) {
-            return false;
-          }
-        })(),
-        'radius_meters': (() {
-          try {
-            return (s as dynamic).radiusMeters;
-          } catch (_) {
-            return radius;
-          }
-        })(),
-        'anchor_lat': (() {
-          try {
-            return (s as dynamic).anchorLat;
-          } catch (_) {
-            return pos.latitude;
-          }
-        })(),
-        'anchor_lon': (() {
-          try {
-            return (s as dynamic).anchorLon;
-          } catch (_) {
-            return pos.longitude;
-          }
-        })(),
+        'session_id': s.sessionId,
+        'id': s.sessionId,
+        'class_id': s.classId,
+        'start_time': s.openedAt.toIso8601String(),
+        'end_time': s.expiresAt?.toIso8601String(),
+        'expires_at': s.expiresAt?.toIso8601String(),
+        'reverify_enabled': s.reverifyEnabled,
+        'radius_meters': s.radiusMeters,
+        'anchor_lat': s.anchorLat,
+        'anchor_lon': s.anchorLon,
       };
-
-      // ถ้าไม่มี id เลย ให้ fallback เป็นเวลาเพื่อไม่ให้การ์ดหลุด (ยังไงก็จะ refresh ทับภายหลัง)
-      if ((created['session_id']?.toString().isEmpty ?? true) &&
-          (created['id']?.toString().isEmpty ?? true)) {
-        created['session_id'] =
-            '${widget.classId}-${DateTime.now().millisecondsSinceEpoch}';
-      }
 
       // ส่ง Map กลับไป (แทน true) เพื่อให้หน้าแม่ insertOptimisticSession()
       Navigator.of(context).pop(created);
