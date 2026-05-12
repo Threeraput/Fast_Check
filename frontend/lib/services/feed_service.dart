@@ -74,6 +74,7 @@ class FeedService {
             extra: {
               'session_id': id,
               'reverify_enabled': s['reverify_enabled'] == true,
+              'late_cutoff_time': s['late_cutoff_time'], // เพิ่มบรรทัดนี้
               'radius': s['radius_meters'],
               'anchor_lat': s['anchor_lat'],
               'anchor_lon': s['anchor_lon'],

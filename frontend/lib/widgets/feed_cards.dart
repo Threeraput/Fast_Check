@@ -159,6 +159,11 @@ class _FeedCard extends StatelessWidget {
         ? 'หมดอายุ: ${dfTime.format(item.expiresAt!.toLocal())}'
         : 'กำลังเปิดอยู่';
 
+    // เพิ่มการดึงเวลาสาย
+    final lateStr = item.extra['late_cutoff_time']?.toString();
+    final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
+    final lateTxt = late != null ? DateFormat('HH:mm').format(late.toLocal()) : null;
+
     final radius = item.extra['radius']?.toString();
     final lat = item.extra['anchor_lat']?.toString();
     final lon = item.extra['anchor_lon']?.toString();
@@ -171,6 +176,7 @@ class _FeedCard extends StatelessWidget {
         context: context,
         title: 'เช็คชื่อ',
         expText: expText,
+        lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
         radius: radius,
         lat: isTeacher ? lat : null,
         lon: isTeacher ? lon : null,
@@ -200,6 +206,7 @@ class _FeedCard extends StatelessWidget {
           context: context,
           title: 'เช็คชื่อ',
           expText: expText,
+          lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
           radius: radius,
           lat: isTeacher ? lat : null,
           lon: isTeacher ? lon : null,
@@ -218,6 +225,7 @@ class _FeedCard extends StatelessWidget {
     required BuildContext context,
     required String title,
     required String expText,
+    required String? lateTxt,
     required String? radius,
     required String? lat,
     required String? lon,
@@ -262,6 +270,19 @@ class _FeedCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            if (lateTxt != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'สายหลังจาก: $lateTxt น.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 3),
 
