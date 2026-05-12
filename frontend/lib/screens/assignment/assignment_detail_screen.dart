@@ -236,6 +236,10 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               if (my.score != null) Text('คะแนนที่ได้: ${my.score}'),
               const SizedBox(height: 8),
               FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red.shade700,
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: _busyMySubmissionAction
                     ? null
                     : _openMySubmissionFile,
