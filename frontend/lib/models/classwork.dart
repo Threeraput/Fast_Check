@@ -43,7 +43,7 @@ class ClassworkSubmission {
   final String username;
   final String firstName;
   final String lastName;
-  
+
   final String? contentUrl; // เช่น "workpdf/<uuid>.pdf"
   final DateTime? submittedAt;
 
@@ -144,8 +144,14 @@ class ClassworkAssignment {
 
   factory ClassworkAssignment.fromJson(Map<String, dynamic> j) {
     print(
-      '📦 DEBUG MODEL parsing: ${j['title']} -> is_accepting: ${j['is_accepting_submissions']}',
+      '📦 DEBUG MODEL parsing: ${j['title']} -> created_at: ${j['created_at']} -> due_date: ${j['due_date']}',
     );
+    final dueDate =
+        DateTime.tryParse(j['due_date']?.toString() ?? '')?.toLocal() ??
+        DateTime.now();
+    final createdDate = DateTime.tryParse(
+      j['created_at']?.toString() ?? '',
+    )?.toLocal();
     return ClassworkAssignment(
       assignmentId: j['assignment_id']?.toString() ?? '',
       classId: j['class_id']?.toString() ?? '',
@@ -154,15 +160,11 @@ class ClassworkAssignment {
       maxScore: (j['max_score'] is num)
           ? (j['max_score'] as num).toInt()
           : (j['max_score'] as int? ?? 100),
-      dueDate:
-          DateTime.tryParse(j['due_date']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
-      createdAt:
-          DateTime.tryParse(j['created_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
+      dueDate: dueDate,
+      createdAt: createdDate ?? dueDate,
       updatedAt:
           DateTime.tryParse(j['updated_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
+          dueDate,
       isAcceptingSubmissions: j['is_accepting_submissions'] ?? true,
     );
   }

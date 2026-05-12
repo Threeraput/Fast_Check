@@ -297,16 +297,36 @@ class FeedService {
     bool force = false,
   }) async {
     final items = await getClassFeed(classId, force: force);
-    items.sort((a, b) {
-      final aIsAnn = (a.extra['kind']?.toString() == 'announcement');
-      final bIsAnn = (b.extra['kind']?.toString() == 'announcement');
+    final deduped = _uniqByIdKind(items);
+
+    // ใช้กติกาเดียวกับฝั่งนักเรียน: เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด
+    deduped.sort((a, b) {
+      final now = DateTime.now();
+      final aKind = a.extra['kind']?.toString();
+      final bKind = b.extra['kind']?.toString();
+
+      final aIsCheckin = a.type == FeedType.checkin || aKind == 'checkin';
+      final bIsCheckin = b.type == FeedType.checkin || bKind == 'checkin';
+
+      if (aIsCheckin || bIsCheckin) {
+        final aExpired = a.expiresAt != null && a.expiresAt!.isBefore(now);
+        final bExpired = b.expiresAt != null && b.expiresAt!.isBefore(now);
+
+        if (aExpired != bExpired) return aExpired ? 1 : -1;
+        if (aIsCheckin != bIsCheckin) return aIsCheckin ? -1 : 1;
+      }
+
+      final aIsAnn = aKind == 'announcement';
+      final bIsAnn = bKind == 'announcement';
       if (aIsAnn && bIsAnn) {
         final ap = a.extra['pinned'] == true;
         final bp = b.extra['pinned'] == true;
         if (ap != bp) return bp ? 1 : -1;
       }
+
       return b.postedAt.compareTo(a.postedAt);
     });
-    return items;
+
+    return deduped;
   }
 }
