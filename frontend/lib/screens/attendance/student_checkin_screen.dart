@@ -16,34 +16,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
   late Future<void> _init;
   String? _sessionId;
   bool _busy = false;
-
-  String _friendlyCheckinError(ApiException e) {
-    final msg = e.message.toLowerCase();
-    final code = e.statusCode;
-
-    if (code == 403 ||
-        msg.contains('location check failed') ||
-        msg.contains('อยู่นอก')) {
-      return 'คุณอยู่นอกพื้นที่ที่อาจารย์กำหนดไว้สำหรับการเช็คชื่อ';
-    }
-    if (code == 400 && msg.contains('no face')) {
-      return 'ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นใบหน้าชัดเจน';
-    }
-    if (code == 400 && msg.contains('exactly one face')) {
-      return 'กรุณาถ่ายภาพที่มีใบหน้าเพียง 1 คน';
-    }
-    if (code == 409) {
-      return 'คุณเช็คชื่อคาบนี้ไปแล้ว';
-    }
-    if (code == 401) {
-      return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
-    }
-    if (code == 404) {
-      return 'ไม่พบรอบเช็คชื่อ กรุณารีเฟรชหน้าแล้วลองใหม่';
-    }
-
-    return e.message;
-  }
+  String _statusText = '';
 
   @override
   void initState() {
@@ -52,15 +25,12 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
   }
 
   Future<void> _bootstrap() async {
-    // 1) หา session ที่ active ของคลาสนี้ (รองรับหลาย schema)
     final sessions = await AttendanceService.getActiveSessions();
     final matched = sessions.firstWhere((m) {
-      final cid =
-          (m['class_id']?.toString()) ??
+      final cid = (m['class_id']?.toString()) ??
           (m['classId']?.toString()) ??
           ((m['class'] is Map)
-              ? (m['class']['id']?.toString() ??
-                    m['class']['class_id']?.toString())
+              ? (m['class']['id']?.toString() ?? m['class']['class_id']?.toString())
               : null);
       return cid == widget.classId;
     }, orElse: () => {});
@@ -71,31 +41,46 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
     }
   }
 
-  /// เปิดหน้า /verify-face แล้วคาดหวังผลลัพธ์กลับมา
-  /// รองรับ:
-  /// - Map: {"verified": true, "imagePath": "/path/to/selfie.jpg", "score": 0.87}
-  /// - String: "/path/to/selfie.jpg" (ถือว่า verified = true)
-  /// - true / 'success' (แต่ควรส่ง path มาด้วยเพื่ออัปโหลดใน check-in)
+  String _friendlyCheckinError(dynamic e) {
+    if (e is ApiException) {
+      final msg = e.message.toLowerCase();
+      final code = e.statusCode;
+
+      if (code == 403 || msg.contains('location check failed') || msg.contains('อยู่นอก')) {
+        return 'คุณอยู่นอกพื้นที่ที่อาจารย์กำหนดไว้สำหรับการเช็คชื่อ';
+      }
+      if (code == 400 && (msg.contains('no face') || msg.contains('not found'))) {
+        return 'ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นใบหน้าชัดเจน';
+      }
+      if (code == 400 && msg.contains('exactly one face')) {
+        return 'กรุณาถ่ายภาพที่มีใบหน้าเพียง 1 คนเท่านั้น';
+      }
+      if (code == 409) {
+        return 'คุณได้ทำการเช็คชื่อในคาบเรียนนี้ไปเรียบร้อยแล้ว';
+      }
+      if (code == 401) {
+        return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง';
+      }
+      if (code == 500) {
+        return 'ระบบเซิร์ฟเวอร์ขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง';
+      }
+      return e.message;
+    }
+    
+    final errStr = e.toString().toLowerCase();
+    if (errStr.contains('timeout')) return 'การเชื่อมต่อล่าช้าเกินไป กรุณาตรวจสอบอินเทอร์เน็ต';
+    if (errStr.contains('permission denied')) return 'กรุณาอนุญาตให้แอปเข้าถึงตำแหน่ง (GPS) เพื่อเช็คชื่อ';
+    
+    return e.toString().replaceFirst('Exception: ', '');
+  }
+
   Future<Map<String, dynamic>?> _openVerifyFace() async {
     final res = await Navigator.pushNamed(context, '/verify-face');
     if (!mounted) return null;
-
     if (res == null) return null;
-
-    if (res is Map<String, dynamic>) {
-      return res;
-    }
-
-    if (res is String) {
-      return {"verified": true, "imagePath": res};
-    }
-
-    if (res == true || res == 'success') {
-      // กรณีหน้า verify-face ทำ upload เองทั้งหมดและฝั่ง Check-in ไม่ต้องใช้รูป
-      // แต่โปรเจกต์นี้คาดหวังส่งรูปใน check-in ด้วย ดังนั้น return null จะให้แจ้งเตือนผู้ใช้
-      return {"verified": true};
-    }
-
+    if (res is Map<String, dynamic>) return res;
+    if (res is String) return {"verified": true, "imagePath": res};
+    if (res == true || res == 'success') return {"verified": true};
     return null;
   }
 
@@ -108,39 +93,29 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       return;
     }
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _statusText = 'กำลังเตรียมความพร้อม...';
+    });
+
     try {
-      // 1) ไปหน้า verify-face
+      setState(() => _statusText = 'กำลังตรวจสอบใบหน้า...');
       final face = await _openVerifyFace();
-      if (face == null) throw Exception('ยกเลิกการตรวจสอบใบหน้า');
+      if (face == null) {
+        setState(() => _busy = false);
+        return;
+      }
 
       final verified = (face['verified'] == true);
       final imagePath = (face['imagePath'] ?? face['path'])?.toString();
 
-      if (!verified) {
-        throw Exception('ตรวจสอบใบหน้าไม่สำเร็จ กรุณาลองใหม่');
-      }
-      if (imagePath == null || imagePath.isEmpty) {
-        // ถ้าหน้า /verify-face ไม่ส่ง path รูปกลับมา แต่คุณยังต้องอัปโหลดรูปใน check-in → แจ้งผู้ใช้
-        throw Exception(
-          'ไม่พบไฟล์รูปจาก /verify-face (imagePath). กรุณาแก้ให้ route ส่ง imagePath กลับมา',
-        );
-      }
+      if (!verified) throw Exception('ตรวจสอบใบหน้าไม่สำเร็จ กรุณาลองใหม่');
+      if (imagePath == null) throw Exception('ไม่พบข้อมูลรูปภาพใบหน้า');
 
-      // (ออปชัน) ใช้ค่าความมั่นใจขั้นต่ำ ถ้า /verify-face ส่ง score มา
-      final score = (face['score'] is num)
-          ? (face['score'] as num).toDouble()
-          : null;
-      if (score != null && score < 0.6) {
-        throw Exception(
-          'ความมั่นใจต่ำเกินไป (${(score * 100).toStringAsFixed(0)}%) กรุณาลองถ่ายใหม่',
-        );
-      }
-
-      // 2) GPS
+      setState(() => _statusText = 'กำลังค้นหาพิกัด GPS...');
       final pos = await LocationHelper.getCurrentPositionOrThrow();
 
-      // 3) ส่งเช็คชื่อ (อัปโหลดรูป + พิกัด)
+      setState(() => _statusText = 'กำลังบันทึกการเช็คชื่อ...');
       await AttendanceService.checkIn(
         sessionId: _sessionId!,
         imagePath: imagePath,
@@ -149,153 +124,142 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('เช็คชื่อสำเร็จ')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('เช็คชื่อสำเร็จเรียบร้อยแล้ว'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
-
       final msg = _friendlyCheckinError(e);
-      print('🧩 [StudentCheckinScreen] api error: ${e.message}');
 
-      // ตรวจว่ามีคำว่า 403 หรือข้อความที่เกี่ยวกับรัศมี
       if (e.statusCode == 403 || msg.contains('นอกพื้นที่')) {
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text(
-              'อยู่นอกรัศมีที่กำหนด',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: const Text(
-              'คุณอยู่นอกพื้นที่ที่อาจารย์กำหนดไว้สำหรับการเช็คชื่อ\n'
-              'กรุณาเข้าใกล้พื้นที่ที่กำหนดและลองใหม่อีกครั้ง',
-            ),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(backgroundColor: Colors.blueAccent),
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  style: TextStyle(color: Colors.white),
-                  'ตกลง',
-                ),
-              ),
-            ],
-          ),
-        );
+        await _showOutOfRangeDialog();
       } else {
-        // Error อื่น ๆ แสดง SnackBar ตามปกติ
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+        );
       }
     } catch (e) {
       if (!mounted) return;
-      final msg = e.toString().replaceFirst('Exception: ', '');
-      print('🧩 [StudentCheckinScreen] error: $msg');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      final msg = _friendlyCheckinError(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _showOutOfRangeDialog() async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.location_off, size: 64, color: Colors.red),
+        title: const Text('อยู่นอกพื้นที่เช็คชื่อ', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('คุณอยู่ห่างจากห้องเรียนเกินไป', textAlign: TextAlign.center),
+            SizedBox(height: 12),
+            Text(
+              '💡 คำแนะนำ: กรุณาเข้าใกล้ห้องเรียนมากขึ้น และตรวจสอบว่าเปิด GPS ความแม่นยำสูงแล้ว',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ตกลง'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('เช็คชื่อด้วยใบหน้า')),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('เช็คชื่อเข้าเรียน', style: TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+      ),
       body: FutureBuilder(
         future: _init,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.blue),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return Center(child: Text(snap.error.toString()));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('เกิดข้อผิดพลาด: ${_friendlyCheckinError(snap.error)}', textAlign: TextAlign.center),
+                ],
+              ),
+            );
           }
           return Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.verified_user),
-                    textColor: Colors.black,
-                    title: const Text('ยืนยันตัวตนด้วยใบหน้า'),
-                    subtitle: const Text(
-                      'ระบบจะพาคุณไปยังหน้าตรวจสอบใบหน้า (/verify-face)',
-                    ),
-                  ),
+                _buildInfoCard(
+                  Icons.verified_user_outlined,
+                  'ยืนยันตัวตน',
+                  'แอปจะเปิดกล้องเพื่อตรวจสอบใบหน้าของคุณ',
+                  Colors.blue,
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.my_location),
-                    textColor: Colors.black,
-                    title: const Text('ใช้ตำแหน่งปัจจุบัน'),
-                    subtitle: const Text(
-                      'ต้องเปิด Location เพื่อยืนยันการเช็คชื่อ',
-                    ),
-                  ),
+                const SizedBox(height: 16),
+                _buildInfoCard(
+                  Icons.location_on_outlined,
+                  'ตรวจสอบพิกัด',
+                  'คุณต้องอยู่ภายในระยะที่อาจารย์กำหนด',
+                  Colors.green,
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  color: Colors.orange.shade50, // พื้นหลังสีส้มอ่อน
-                  elevation: 0, // ปิดเงาให้ดูแบนราบสไตล์ Modern
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.orange.shade200), // ขอบสีส้ม
-                  ),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons
-                          .warning_amber_rounded, // เปลี่ยนไอคอนเป็นเครื่องหมายเตือน
-                      color: Colors.orange.shade700,
-                      size: 32,
-                    ),
-                    title: Text(
-                      'ข้อควรระวัง',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade800,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        'กรุณาถ่ายให้เห็นใบหน้าของคุณเพียงคนเดียวเท่านั้น (ห้ามมีบุคคลอื่นในเฟรม)',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 16),
+                _buildWarningCard(),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
+                  height: 54,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(44),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 4,
                     ),
                     onPressed: _busy ? null : _checkIn,
                     icon: _busy
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.blue,
-                              strokeWidth: 2,
-                            ),
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                           )
-                        : const Icon(Icons.check_circle),
+                        : const Icon(Icons.check_circle_outline, size: 24),
                     label: Text(
-                      _busy ? 'กำลังเช็คชื่อ...' : 'เช็คชื่อเดี๋ยวนี้',
+                      _busy ? _statusText : 'เริ่มการเช็คชื่อ',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -303,6 +267,48 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(IconData icon, String title, String subtitle, Color color) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildWarningCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange[100]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.tips_and_updates_outlined, color: Colors.orange[800]),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'ห้ามมีบุคคลอื่นอยู่ในเฟรมขณะสแกนหน้า เพื่อความถูกต้องของระบบ',
+              style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
       ),
     );
   }

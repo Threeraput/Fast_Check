@@ -210,7 +210,6 @@ class FaceService {
       throw Exception('เกิดข้อผิดพลาดในการลบใบหน้า: $e');
     }
   }
-
   /// ดึงข้อมูลใบหน้าที่ลงทะเบียนไว้ของตัวเอง
   static Future<Map<String, dynamic>?> getMyFaceSample() async {
     try {
