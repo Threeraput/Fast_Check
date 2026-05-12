@@ -262,14 +262,35 @@ class _StreamTabState extends State<_StreamTab> {
 
   Future<void> _refresh({bool force = false}) async {
     setState(() {
-      _futureFeed = FeedService.getClassFeed(widget.classId).then((list) {
-        _lastFeed = list;
-        return list;
-      });
+      _futureFeed = FeedService.getClassFeed(widget.classId, force: force).then(
+        (list) {
+          _lastFeed = list;
+          return list;
+        },
+      );
     });
   }
 
   void refreshFeed() => _refresh(force: true);
+
+  /// ซิงค์ข้อมูลแบบเงียบ (ไม่ trigger setState) - อัปเดต _lastFeed เท่านั้น
+  void _syncFeedSilently() {
+    FeedService.getClassFeed(widget.classId, force: true)
+        .then((list) {
+          if (!mounted) return;
+          _lastFeed = list;
+        })
+        .catchError((_) {
+          // ซิงค์ล้มเหลว ไม่ต้องทำอะไร
+        });
+  }
+
+  void refreshFeedEventually({Duration delay = const Duration(seconds: 2)}) {
+    Future.delayed(delay, () {
+      if (!mounted) return;
+      _syncFeedSilently(); // ใช้ sync เงียบแทน _refresh
+    });
+  }
 
   void insertOptimisticSession(Map<String, dynamic> s) {
     final id = s['session_id']?.toString() ?? s['id']?.toString() ?? '';
@@ -422,7 +443,7 @@ class _StreamTabState extends State<_StreamTab> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
                   );
-                  _refresh(force: true);
+                  refreshFeedEventually();
                 }
               },
               icon: const Icon(Icons.play_circle_outline),

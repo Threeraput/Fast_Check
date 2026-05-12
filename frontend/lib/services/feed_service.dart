@@ -1,7 +1,4 @@
 // lib/services/feed_service.dart
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-
 import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:frontend/models/classwork.dart';
 import '../models/feed_item.dart';
@@ -43,12 +40,15 @@ List<FeedItem> _uniqByIdKind(Iterable<FeedItem> items) {
 
 class FeedService {
   /// ดึงฟีดพื้นฐาน (เช็คชื่อ) + รวม "ประกาศ" + ต่อท้าย "งาน (ครู)"
-  static Future<List<FeedItem>> getClassFeed(String classId) async {
+  static Future<List<FeedItem>> getClassFeed(
+    String classId, {
+    bool force = false,
+  }) async {
     final items = <FeedItem>[];
 
     // 1) เช็คชื่อ (เดิม)
     try {
-      final sessions = await AttendanceService.getActiveSessions();
+      final sessions = await AttendanceService.getActiveSessions(force: force);
       for (final s in sessions) {
         if ((s['class_id']?.toString() ?? '') != classId) continue;
 
@@ -171,12 +171,13 @@ class FeedService {
 
   /// ฟีดสำหรับนักเรียน (เช็คชื่อ + งานนักเรียน + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForStudentWithAssignments(
-    String classId,
-  ) async {
+    String classId, {
+    bool force = false,
+  }) async {
     final result = <FeedItem>[];
 
     // ดึง base แค่ครั้งเดียว
-    final base = await getClassFeed(classId);
+    final base = await getClassFeed(classId, force: force);
 
     // 1) รวม "ประกาศ" จาก base ครั้งเดียว
     for (final f in base) {
@@ -288,9 +289,10 @@ class FeedService {
 
   /// ฟีดของครู (เช็คชื่อ + งานครู + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForTeacherWithAssignments(
-    String classId,
-  ) async {
-    final items = await getClassFeed(classId);
+    String classId, {
+    bool force = false,
+  }) async {
+    final items = await getClassFeed(classId, force: force);
     items.sort((a, b) {
       final aIsAnn = (a.extra['kind']?.toString() == 'announcement');
       final bIsAnn = (b.extra['kind']?.toString() == 'announcement');
