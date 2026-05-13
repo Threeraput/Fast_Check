@@ -95,11 +95,16 @@ class AttendanceReportService {
   }
 
   /// นักเรียนดูรายงานรายวันของตัวเอง
-  static Future<List<AttendanceReportDetail>> getMyDailyReports() async {
+  static Future<List<AttendanceReportDetail>> getMyDailyReports({
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final url = Uri.parse('$baseUrl/attendance/reports/details/my');
+    // 👈 เพิ่ม Query Params
+    final url = Uri.parse('$baseUrl/attendance/reports/details/my').replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
+    );
     try {
       final res = await _get(url, token);
       // หลังบ้านจะ 404 ถ้ายังไม่มี detail → คืนลิสต์ว่าง
@@ -222,12 +227,17 @@ class AttendanceReportService {
 
   /// ครูดูรายงานรายวันของนักเรียน "เจาะจงรายบุคคล" (เพื่อดูรูปเช็คชื่อ)
   static Future<List<AttendanceReportDetail>> getStudentDailyReports(
-    String studentId,
-  ) async {
+    String studentId, {
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
+    
+    // 👈 เพิ่ม Query Params
     final url = Uri.parse(
       '$baseUrl/attendance/reports/details/student/$studentId',
+    ).replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
     );
     try {
       final res = await _get(url, token);

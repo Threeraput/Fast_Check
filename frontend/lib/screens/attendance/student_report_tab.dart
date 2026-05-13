@@ -70,7 +70,9 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
     try {
       final reports = await AttendanceReportService.getMyReports();
-      final dailyReports = await AttendanceReportService.getMyDailyReports();
+      final dailyReports = await AttendanceReportService.getMyDailyReports(
+        classId: widget.classId,
+      );
 
       // โหลดรายชื่อคลาสที่นักเรียนอยู่ เพื่อ map classId -> className
       try {

@@ -27,6 +27,7 @@ router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Detai
 # ---------------------------------------------------------
 @router.get("/my", response_model=list[AttendanceReportDetailResponse])
 def get_my_daily_reports(
+    class_id: UUID = None, # 👈 เพิ่ม class_id เป็นตัวเลือก
     db: Session = Depends(get_db), 
     me: User = Depends(get_current_user), 
     token_roles: list = Depends(get_roles_from_token)
@@ -36,19 +37,24 @@ def get_my_daily_reports(
     if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
-    # ปรับปรุงการ Query: ดึงข้อมูลพร้อมกับข้อมูลรูปภาพและเวลาเริ่มคาบที่บันทึกไว้
+    query = db.query(AttendanceReportDetail).join(AttendanceReportDetail.report)
+    
+    # กรอง student_id เสมอ
+    filters = [AttendanceReportDetail.report.has(student_id=me.user_id)]
+    
+    # 👈 ถ้าส่ง class_id มาให้กรองเพิ่ม
+    if class_id:
+        filters.append(AttendanceReportDetail.report.has(class_id=class_id))
+
     results = (
-        db.query(AttendanceReportDetail)
-        .join(AttendanceReportDetail.report)
-        .filter(AttendanceReportDetail.report.has(student_id=me.user_id))
+        query.filter(*filters)
         .order_by(AttendanceReportDetail.created_at.desc())
         .all()
     )
 
     if not results:
-        raise HTTPException(status_code=404, detail="No daily reports found")
+        return [] # คืนค่าลิสต์ว่างแทนที่จะ Error เพื่อให้ UI ทำงานต่อได้
 
-    # แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema (ทั้ง 2 รูป)
     for r in results:
         r.face_image_url = r.face_image_path
         r.reverify_image_url = r.reverify_image_path
@@ -62,13 +68,12 @@ def get_my_daily_reports(
 @router.get(
     "/class/{class_id}",
     response_model=list[AttendanceReportDetailResponse],
-    dependencies=[Depends(role_required(["teacher", "admin"]))],  # เพิ่ม admin เผื่อไว้
+    dependencies=[Depends(role_required(["teacher", "admin"]))],
 )
 def get_class_daily_reports(
     class_id: UUID, db: Session = Depends(get_db)
-):  #  เปลี่ยน str เป็น UUID
+):
     """ให้ครู/แอดมินดูรายงานรายวันของคลาส"""
-    # ใช้ joinedload เพื่อประสิทธิภาพ และดึงข้อมูลรูปภาพ/วันที่มาด้วย
     results = (
         db.query(AttendanceReportDetail)
         .options(joinedload(AttendanceReportDetail.report))
@@ -78,11 +83,8 @@ def get_class_daily_reports(
     )
 
     if not results:
-        raise HTTPException(
-            status_code=404, detail="No daily reports found for this class"
-        )
+        return []
 
-    #  แมปค่า path รูปภาพจาก DB เข้าสู่ field url ใน Schema (ทั้ง 2 รูป)
     for r in results:
         r.face_image_url = r.face_image_path
         r.reverify_image_url = r.reverify_image_path
@@ -98,22 +100,30 @@ def get_class_daily_reports(
     response_model=list[AttendanceReportDetailResponse],
     dependencies=[Depends(role_required(["teacher", "admin"]))],
 )
-def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
+def get_student_daily_reports(
+    student_id: UUID, 
+    class_id: UUID = None, # 👈 เพิ่ม class_id เป็นตัวเลือก
+    db: Session = Depends(get_db)
+):
     """ให้อาจารย์ดูประวัติการเช็คชื่อราย session ของนักเรียนคนใดคนหนึ่ง"""
 
-    # Query หา AttendanceReportDetail โดยกรองจาก student_id ในตาราง Report
+    query = db.query(AttendanceReportDetail).join(AttendanceReportDetail.report)
+    
+    filters = [AttendanceReportDetail.report.has(student_id=student_id)]
+    
+    # 👈 กรองคลาสเรียนด้วย ถ้าส่งมา
+    if class_id:
+        filters.append(AttendanceReportDetail.report.has(class_id=class_id))
+
     results = (
-        db.query(AttendanceReportDetail)
-        .join(AttendanceReportDetail.report)
-        .filter(AttendanceReportDetail.report.has(student_id=student_id))
+        query.filter(*filters)
         .order_by(AttendanceReportDetail.created_at.desc())
         .all()
     )
 
     if not results:
-        raise HTTPException(status_code=404, detail="ไม่พบประวัติการเช็คชื่อของนักเรียนคนนี้")
+        return []
 
-    #  แมป Path รูปภาพ (ทั้งรูปแรกและรูป Re-verify) เข้าสู่ URL ใน Schema
     for r in results:
         r.face_image_url = r.face_image_path
         r.reverify_image_url = r.reverify_image_path

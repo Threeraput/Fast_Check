@@ -6,8 +6,13 @@ import '../../services/attendance_report_service.dart';
 
 class StudentReportDetailScreen extends StatefulWidget {
   final String studentId;
+  final String? classId; // 👈 เพิ่ม classId
 
-  const StudentReportDetailScreen({super.key, required this.studentId});
+  const StudentReportDetailScreen({
+    super.key,
+    required this.studentId,
+    this.classId,
+  });
 
   @override
   State<StudentReportDetailScreen> createState() =>
@@ -22,6 +27,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     super.initState();
     _futureDetails = AttendanceReportService.getStudentDailyReports(
       widget.studentId,
+      classId: widget.classId, // 👈 ส่งไปที่ service
     );
   }
 

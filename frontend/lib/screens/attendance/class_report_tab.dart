@@ -568,6 +568,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                             // ไปที่ไฟล์ student_report_detail_screen.dart
                             StudentReportDetailScreen(
                               studentId: report.studentId,
+                              classId: widget.classId, // 👈 ส่ง classId ไปด้วย
                             ),
                       ),
                     );
