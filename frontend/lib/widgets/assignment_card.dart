@@ -41,6 +41,10 @@ class AssignmentCard extends StatelessWidget {
     final bool alreadySubmitted =
         my != null ||
         (extra['computed_status']?.toString() ?? '') != 'Not_Submitted';
+    final dynamic rawScore = my?['score'];
+    final int? myScore = rawScore is num
+        ? rawScore.toInt()
+        : int.tryParse(rawScore?.toString() ?? '');
     final bool isAcceptingSubmissions =
         extra['is_accepting_submissions'] is bool
         ? extra['is_accepting_submissions'] as bool
@@ -53,7 +57,9 @@ class AssignmentCard extends StatelessWidget {
         onTap: () {
           // 👈 3. ย้ายคำสั่งเปลี่ยนหน้ามาไว้ตรงนี้ (กดตรงไหนของ Card ก็ทำงาน)
           // 🚨 วางกับดักจุดที่ 3: เช็คค่าสุดท้ายก่อนส่งไปหน้า Detail
-          print('🚀 DEBUG NAVIGATING: Sending isAccepting = ${isAcceptingSubmissions}');
+          print(
+            '🚀 DEBUG NAVIGATING: Sending isAccepting = ${isAcceptingSubmissions}',
+          );
           Navigator.pushNamed(
             context,
             '/assignment-detail',
@@ -62,6 +68,8 @@ class AssignmentCard extends StatelessWidget {
               'title': title,
               'classId': classId,
               'isTeacher': isTeacher,
+              'dueDateIso': dueIso,
+              'maxScore': maxScore,
             },
           ).then((_) => onChanged?.call());
         },
@@ -105,6 +113,13 @@ class AssignmentCard extends StatelessWidget {
               if (maxScore != null)
                 Text(
                   'คะแนนเต็ม: $maxScore',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              if (!isTeacher && alreadySubmitted)
+                Text(
+                  myScore != null
+                      ? 'คะแนนที่ได้: $myScore'
+                      : 'คะแนนที่ได้: ยังไม่ได้ตรวจ',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
 

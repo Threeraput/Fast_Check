@@ -19,7 +19,8 @@ class AnnouncementDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<AnnouncementDetailScreen> createState() => _AnnouncementDetailScreenState();
+  State<AnnouncementDetailScreen> createState() =>
+      _AnnouncementDetailScreenState();
 }
 
 class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
@@ -36,7 +37,9 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   Future<void> _fetchComments() async {
     try {
       // เรียกใช้ Service ของ Announcement ที่เราเพิ่งสร้าง
-      final comments = await AnnouncementService.getComments(widget.announcementId);
+      final comments = await AnnouncementService.getComments(
+        widget.announcementId,
+      );
       if (mounted) {
         setState(() {
           _comments = comments;
@@ -55,18 +58,21 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
 
     _commentController.clear();
     FocusScope.of(context).unfocus(); // ซ่อนคีย์บอร์ดตอนส่งเสร็จ
-    
+
     try {
-      await AnnouncementService.addComment(
+      final created = await AnnouncementService.addComment(
         announcementId: widget.announcementId,
         content: text,
       );
-      _fetchComments(); // รีเฟรชคอมเมนต์ใหม่
+      if (!mounted) return;
+      setState(() {
+        _comments = [created, ..._comments];
+      });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ส่งคอมเมนต์ไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ส่งคอมเมนต์ไม่สำเร็จ: $e')));
       }
     }
   }
@@ -74,7 +80,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy, HH:mm');
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -91,13 +97,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                 // จำนวน item = 1 (ตัวประกาศ) + จำนวนคอมเมนต์
                 itemCount: 1 + _comments.length,
                 itemBuilder: (context, index) {
-                  
                   // ====== ส่วนที่ 1: รายละเอียดประกาศ (อยู่บนสุดเสมอ) ======
                   if (index == 0) {
                     return Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade300),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,7 +117,11 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                   color: Colors.orange.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.campaign, color: Colors.orange, size: 28),
+                                child: const Icon(
+                                  Icons.campaign,
+                                  color: Colors.orange,
+                                  size: 28,
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -119,14 +130,21 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                   children: [
                                     Text(
                                       widget.title,
-                                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      widget.postedAt != null 
-                                          ? 'ประกาศเมื่อ: ${df.format(widget.postedAt!)}' 
+                                      widget.postedAt != null
+                                          ? 'ประกาศเมื่อ: ${df.format(widget.postedAt!)}'
                                           : 'ประกาศ',
-                                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -136,7 +154,9 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                           const SizedBox(height: 20),
                           // เนื้อหาประกาศ
                           Text(
-                            widget.body?.isNotEmpty == true ? widget.body! : '(ไม่มีเนื้อหาเพิ่มเติม)',
+                            widget.body?.isNotEmpty == true
+                                ? widget.body!
+                                : '(ไม่มีเนื้อหาเพิ่มเติม)',
                             style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
                           const SizedBox(height: 24),
@@ -146,7 +166,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               'ความคิดเห็นในชั้นเรียน (${_comments.length})',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ],
@@ -177,7 +200,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                       ? UserService.absoluteAvatarUrl(avatarUrl) 
                       : null;
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -206,12 +232,20 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                 children: [
                                   Text(
                                     comment.commenterName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    DateFormat('dd MMM HH:mm').format(comment.createdAt),
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    DateFormat(
+                                      'dd MMM HH:mm',
+                                    ).format(comment.createdAt),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -241,7 +275,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                   color: Colors.black.withOpacity(0.05),
                   offset: const Offset(0, -2),
                   blurRadius: 5,
-                )
+                ),
               ],
             ),
             child: SafeArea(
@@ -261,7 +295,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -272,7 +309,11 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: _sendComment,
                     ),
                   ),

@@ -16,6 +16,7 @@ from app.core.deps import get_current_user, role_required
 from app.models.user import User
 from app.schemas.classwork_new_schema import (
     AssignmentCreate,
+    AssignmentAttachmentResponse,
     AssignmentResponse,
     SubmissionResponse,
     AssignmentWithMySubmission,
@@ -29,6 +30,9 @@ from app.services.simple_classwork_service import (
     list_submissions_for_teacher,
     grade_submission,
     _ensure_teacher_of_class,
+    add_assignment_attachment,
+    list_assignment_attachments,
+    remove_assignment_attachment,
 )
 from app.models.classwork_assignment import ClassworkAssignment
 from app.models.classwork_submission import ClassworkSubmission
@@ -38,6 +42,51 @@ from app.models.association import class_students
 
 
 router = APIRouter(prefix="/classwork-simple", tags=["Classwork (Simple)"])
+
+
+@router.post(
+    "/assignments/{assignment_id}/attachments",
+    response_model=AssignmentAttachmentResponse,
+    dependencies=[Depends(role_required(["teacher"]))],
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_assignment_attachment_route(
+    assignment_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    return await add_assignment_attachment(
+        db,
+        assignment_id=assignment_id,
+        teacher_id=me.user_id,
+        file=file,
+    )
+
+
+@router.get(
+    "/assignments/{assignment_id}/attachments",
+    response_model=List[AssignmentAttachmentResponse],
+)
+def list_assignment_attachments_route(
+    assignment_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    return list_assignment_attachments(db, assignment_id=assignment_id, user=me)
+
+
+@router.delete(
+    "/attachments/{attachment_id}",
+    dependencies=[Depends(role_required(["teacher"]))],
+)
+def delete_assignment_attachment_route(
+    attachment_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    remove_assignment_attachment(db, attachment_id=attachment_id, teacher_id=me.user_id)
+    return {"message": "Attachment deleted"}
 
 
 # -----------------------------
@@ -419,6 +468,100 @@ def export_assignment_report(assignment_id: UUID, db: Session = Depends(get_db))
     output.seek(0)
 
     filename = f"report_{assignment.title.replace(' ', '_')}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+# -------------------------------------------------------------
+# API เส้นใหม่: Export สถิติงานรวมทั้งคลาส (Classwork Overall Stats)
+# -------------------------------------------------------------
+@router.get("/class/{class_id}/export-stats")
+def export_class_overall_stats(class_id: UUID, db: Session = Depends(get_db)):
+    """ดาวน์โหลดไฟล์ Excel สรุปคะแนนงานทุกชิ้นของนักเรียนทุกคนในคลาส"""
+    
+    # 1. ดึงข้อมูลงานทั้งหมดในคลาสนี้
+    assignments = (
+        db.query(ClassworkAssignment)
+        .filter(ClassworkAssignment.class_id == class_id)
+        .order_by(ClassworkAssignment.created_at.asc())
+        .all()
+    )
+    
+    if not assignments:
+        # ถ้าไม่มีงานเลย ก็สร้างไฟล์เปล่าที่มีแค่รายชื่อนักเรียน
+        pass
+
+    # 2. ดึงรายชื่อนักเรียนในคลาส
+    students = (
+        db.query(
+            User.user_id,
+            User.student_id.label("student_code"),
+            User.first_name,
+            User.last_name
+        )
+        .join(class_students, User.user_id == class_students.c.student_id)
+        .filter(class_students.c.class_id == class_id)
+        .order_by(User.student_id.asc())
+        .all()
+    )
+
+    # 3. สร้างไฟล์ Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "สถิติงานรวม"
+
+    # หัวตาราง: ข้อมูลพื้นฐาน + รายชิ้นงาน
+    headers = ["รหัสนักศึกษา", "ชื่อ-นามสกุล"]
+    for asg in assignments:
+        headers.append(f"{asg.title}\n(เต็ม {asg.max_score})")
+    headers.append("คะแนนรวม")
+    
+    ws.append(headers)
+
+    # 4. วนลูปใส่นักเรียนแต่ละคน
+    for s in students:
+        row_data = [
+            s.student_code or "-",
+            f"{s.first_name or ''} {s.last_name or ''}".strip()
+        ]
+        
+        total_score = 0.0
+        
+        for asg in assignments:
+            # ดึงคะแนนงานนี้ของนักเรียน
+            sub = (
+                db.query(ClassworkSubmission)
+                .filter(
+                    ClassworkSubmission.assignment_id == asg.assignment_id,
+                    ClassworkSubmission.student_id == s.user_id
+                )
+                .first()
+            )
+            
+            score = 0.0
+            if sub and sub.graded:
+                score = sub.score or 0.0
+            
+            row_data.append(score if sub and sub.graded else "-")
+            total_score += score
+
+        row_data.append(total_score)
+        
+        ws.append(row_data)
+
+    # 5. ปรับความกว้างคอลัมน์และรูปแบบ (Optional แต่ทำให้สวย)
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = 15
+
+    # 6. ส่งไฟล์กลับ
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"classwork_stats_{class_id}.xlsx"
     return Response(
         content=output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

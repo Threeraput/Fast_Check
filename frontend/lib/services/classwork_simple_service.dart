@@ -112,6 +112,95 @@ class ClassworkSimpleService {
     throw _errorFrom(res);
   }
 
+  static Future<AssignmentAttachment> uploadAssignmentAttachment({
+    required String assignmentId,
+    required File file,
+  }) async {
+    final url = Uri.parse('$_base/assignments/$assignmentId/attachments');
+    final req = http.MultipartRequest('POST', url);
+    req.headers.addAll(await _headersAuthOnly());
+
+    final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
+    req.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        file.path,
+        contentType: MediaType.parse(mime),
+      ),
+    );
+
+    final streamed = await req.send().timeout(_kTimeout);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 201 || res.statusCode == 200) {
+      return AssignmentAttachment.fromJson(json.decode(res.body));
+    }
+    throw _errorFrom(res);
+  }
+
+  static Future<List<AssignmentAttachment>> getAssignmentAttachments(
+    String assignmentId,
+  ) async {
+    final url = Uri.parse('$_base/assignments/$assignmentId/attachments');
+    final res = await http
+        .get(url, headers: await _headersAuthOnly())
+        .timeout(_kTimeout);
+
+    if (res.statusCode == 200) {
+      return decodeList(res.body, (m) => AssignmentAttachment.fromJson(m));
+    }
+    throw _errorFrom(res);
+  }
+
+  static Future<void> deleteAssignmentAttachment(String attachmentId) async {
+    final url = Uri.parse('$_base/attachments/$attachmentId');
+    final res = await http
+        .delete(url, headers: await _headersAuthOnly())
+        .timeout(_kTimeout);
+    if (res.statusCode != 200) {
+      throw _errorFrom(res);
+    }
+  }
+
+  static String buildPublicFileUrl(String storagePath) {
+    final base = AppConfig.uploadsfileUrl.replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = storagePath.replaceFirst(RegExp(r'^/+'), '');
+    return '$base/$cleanPath';
+  }
+
+  static Future<void> openAttachmentFile({
+    required String storagePath,
+    String? preferredName,
+  }) async {
+    final url = Uri.parse(buildPublicFileUrl(storagePath));
+    final response = await http.get(url).timeout(_kTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('ดาวน์โหลดไฟล์ไม่สำเร็จ (${response.statusCode})');
+    }
+
+    final dir = await getTemporaryDirectory();
+    final ext = _extractExtension(preferredName ?? storagePath);
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final filename = 'assignment_attachment_$ts$ext';
+    final path = '${dir.path}/$filename';
+
+    final f = File(path);
+    await f.writeAsBytes(response.bodyBytes);
+
+    final opened = await OpenFilex.open(path);
+    if (opened.type != ResultType.done) {
+      throw Exception('ไม่สามารถเปิดไฟล์ได้: ${opened.message}');
+    }
+  }
+
+  static String _extractExtension(String pathOrName) {
+    final sanitized = pathOrName.split('?').first;
+    final dot = sanitized.lastIndexOf('.');
+    if (dot < 0 || dot == sanitized.length - 1) return '';
+    final ext = sanitized.substring(dot).toLowerCase();
+    if (ext.length > 10) return '';
+    return ext;
+  }
+
   static Future<List<dynamic>> listSubmissionsForTeacher(
     String assignmentId,
   ) async {
@@ -340,19 +429,54 @@ class ClassworkSimpleService {
       throw Exception("เกิดข้อผิดพลาด: $e");
     }
   }
+
+  /// สั่งดาวน์โหลดรายงานสถิติงานรวมทั้งคลาส (Classwork Overall Stats)
+  static Future<void> exportClassworkOverallStats(
+    String classId,
+    String token,
+  ) async {
+    try {
+      final url = Uri.parse('$_base/class/$classId/export-stats');
+
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '${dir.path}/classwork_overall_stats_$timestamp.xlsx';
+
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final result = await OpenFilex.open(filePath);
+        if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("เกิดข้อผิดพลาด: $e");
+    }
+  }
+
   // ฟังก์ชันสำหรับเปิด/ปิดการรับงาน
-  static Future<void> toggleSubmissionStatus(String assignmentId, bool isAccepting) async {
+  static Future<void> toggleSubmissionStatus(
+    String assignmentId,
+    bool isAccepting,
+  ) async {
     // 1. เปลี่ยนมาใช้ $_base ให้เหมือนฟังก์ชันอื่น
-    final url = Uri.parse('$_base/assignments/$assignmentId/toggle-status'); 
-    
+    final url = Uri.parse('$_base/assignments/$assignmentId/toggle-status');
+
     try {
       final response = await http.patch(
         url,
         // 2. ใช้ _headersJson() ถูกต้องแล้วครับ เพราะเราส่ง body เป็น json
-        headers: await _headersJson(), 
-        body: jsonEncode({
-          'is_accepting': isAccepting,
-        }),
+        headers: await _headersJson(),
+        body: jsonEncode({'is_accepting': isAccepting}),
       );
 
       print('=== STATUS CODE: ${response.statusCode} ===');

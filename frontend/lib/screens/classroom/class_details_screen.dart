@@ -27,6 +27,8 @@ class ClassDetailsScreen extends StatefulWidget {
 
 class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   final GlobalKey<_StreamTabState> _streamKey = GlobalKey<_StreamTabState>();
+  final GlobalKey<_ClassworkTabState> _classworkKey =
+      GlobalKey<_ClassworkTabState>();
   int _currentIndex = 0;
   bool _loading = true;
   bool _error = false;
@@ -157,7 +159,14 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
                   '/create-assignment',
                   arguments: widget.classId,
                 );
-                if (ok == true) setState(() {}); // รีเฟรชหลังเพิ่มงาน
+                if (ok == true) {
+                  await _classworkKey.currentState?._refresh();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('สร้างงานสำเร็จ')),
+                    );
+                  }
+                }
               },
             )
           : null,
@@ -203,7 +212,11 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           onCreateAnnouncement: _openCreateAnnouncement,
         );
       case 1:
-        return _ClassworkTab(classId: widget.classId, isTeacher: _isTeacher);
+        return _ClassworkTab(
+          key: _classworkKey,
+          classId: widget.classId,
+          isTeacher: _isTeacher,
+        );
       case 2:
         //  แท็บรายงานจริง
         return ClassReportTab(classId: widget.classId);
@@ -249,14 +262,35 @@ class _StreamTabState extends State<_StreamTab> {
 
   Future<void> _refresh({bool force = false}) async {
     setState(() {
-      _futureFeed = FeedService.getClassFeed(widget.classId).then((list) {
-        _lastFeed = list;
-        return list;
-      });
+      _futureFeed = FeedService.getClassFeed(widget.classId, force: force).then(
+        (list) {
+          _lastFeed = list;
+          return list;
+        },
+      );
     });
   }
 
   void refreshFeed() => _refresh(force: true);
+
+  /// ซิงค์ข้อมูลแบบเงียบ (ไม่ trigger setState) - อัปเดต _lastFeed เท่านั้น
+  void _syncFeedSilently() {
+    FeedService.getClassFeed(widget.classId, force: true)
+        .then((list) {
+          if (!mounted) return;
+          _lastFeed = list;
+        })
+        .catchError((_) {
+          // ซิงค์ล้มเหลว ไม่ต้องทำอะไร
+        });
+  }
+
+  void refreshFeedEventually({Duration delay = const Duration(seconds: 2)}) {
+    Future.delayed(delay, () {
+      if (!mounted) return;
+      _syncFeedSilently(); // ใช้ sync เงียบแทน _refresh
+    });
+  }
 
   void insertOptimisticSession(Map<String, dynamic> s) {
     final id = s['session_id']?.toString() ?? s['id']?.toString() ?? '';
@@ -405,12 +439,11 @@ class _StreamTabState extends State<_StreamTab> {
                 if (!mounted) return;
 
                 if (created != null) {
-                  await Future.delayed(const Duration(seconds: 4));
                   insertOptimisticSession(created);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
                   );
-                  await _refresh(force: true);
+                  refreshFeedEventually();
                 }
               },
               icon: const Icon(Icons.play_circle_outline),
@@ -460,7 +493,11 @@ class _StreamTabState extends State<_StreamTab> {
 class _ClassworkTab extends StatefulWidget {
   final String classId;
   final bool isTeacher;
-  const _ClassworkTab({required this.classId, required this.isTeacher});
+  const _ClassworkTab({
+    super.key,
+    required this.classId,
+    required this.isTeacher,
+  });
 
   @override
   State<_ClassworkTab> createState() => _ClassworkTabState();

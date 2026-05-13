@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/services/user_service.dart';
+import 'package:frontend/services/face_service.dart'; // เพิ่ม import นี้
+import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   User? _me;
+  Map<String, dynamic>? _faceSample; // เพิ่มตัวแปรเก็บข้อมูลใบหน้า
   bool _loading = true;
   bool _saving = false;
 
@@ -44,6 +47,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final fresh = await UserService.fetchMe(); // โหลดล่าสุด (มี avatar_url)
       _applyUser(fresh);
+      
+      // เพิ่ม: โหลดข้อมูลใบหน้าถ้าเป็นนักเรียน
+      if (_hasRole('student')) {
+        final face = await FaceService.getMyFaceSample();
+        setState(() {
+          _faceSample = face;
+        });
+      }
+
       setState(() {
         _loading = false;
       });
@@ -175,36 +187,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final me = _me;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50], // พื้นหลังสีเทาอ่อนให้ดูสะอาด
       appBar: AppBar(
-        title: const Text('โปรไฟล์ของฉัน'),
+        elevation: 0,
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+        title: const Text('โปรไฟล์ของฉัน', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           if (_editing) ...[
-            TextButton(
+            IconButton(
               onPressed: _saving ? null : _saveProfile,
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                    style: TextStyle(
-                      color: Colors.green,
-                    ),
-                    'บันทึก'),
+              icon: _saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check, color: Colors.white),
             ),
-            TextButton(
+            IconButton(
               onPressed: _saving ? null : _cancelEdit,
-              child: const Text(
-                style: TextStyle(
-                      color: Color.fromARGB(255, 243, 96, 96),
-                    ),
-                'ยกเลิก'),
+              icon: const Icon(Icons.close, color: Colors.white),
             ),
           ] else
             IconButton(
-              tooltip: 'แก้ไข',
-              icon: const Icon(Icons.edit),
+              tooltip: 'แก้ไขโปรไฟล์',
+              icon: const Icon(Icons.edit_note),
               onPressed: _toggleEdit,
             ),
         ],
@@ -212,148 +216,277 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : me == null
-          ? const Center(child: Text('ไม่พบข้อมูลผู้ใช้'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              ? const Center(child: Text('ไม่พบข้อมูลผู้ใช้'))
+              : SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // ===== Header ส่วนบน =====
+                      _buildHeader(me),
+
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ===== ข้อมูลส่วนตัว =====
+                            _buildSectionTitle('ข้อมูลส่วนตัว'),
+                            _buildInfoCard([
+                              _buildInfoTile(Icons.email_outlined, 'อีเมล', me.email ?? '-', isReadOnly: true),
+                              _buildEditableTile(Icons.person_outline, 'ชื่อผู้ใช้', _usernameCtrl),
+                              _buildEditableTile(Icons.badge_outlined, 'ชื่อจริง', _firstNameCtrl),
+                              _buildEditableTile(Icons.badge_outlined, 'นามสกุล', _lastNameCtrl),
+                            ]),
+
+                            const SizedBox(height: 20),
+
+                            // ===== ข้อมูลการเรียน/การทำงาน =====
+                            _buildSectionTitle('ข้อมูลตัวตนในระบบ'),
+                            _buildInfoCard([
+                              if (_hasRole('teacher') && _nz(me.teacherId) != null)
+                                _buildInfoTile(Icons.school_outlined, 'รหัสอาจารย์', me.teacherId!, isReadOnly: true),
+                              if (_hasRole('student') && _nz(me.studentId) != null)
+                                _buildInfoTile(Icons.badge, 'รหัสนักเรียน', me.studentId!, isReadOnly: true),
+                              _buildInfoTile(Icons.verified_user_outlined, 'บทบาท', me.roles.join(', ').toUpperCase(), isReadOnly: true),
+                            ]),
+
+                            const SizedBox(height: 20),
+
+                            // ===== ส่วนแสดงใบหน้า =====
+                            if (_hasRole('student')) ...[
+                              _buildSectionTitle('ใบหน้าที่ลงทะเบียนไว้'),
+                              _buildFaceCard(),
+                            ],
+                            
+                            const SizedBox(height: 32),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildHeader(User me) {
+    final imgUrl = UserService.absoluteAvatarUrl(me.avatarUrl);
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.blueAccent,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 54,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.blueGrey[50],
+                  backgroundImage: imgUrl != null ? NetworkImage(imgUrl) : null,
+                  child: imgUrl == null
+                      ? Text(me.username[0].toUpperCase(), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold))
+                      : null,
+                ),
+              ),
+              if (_editing)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white,
+                    radius: 18,
+                    child: IconButton(
+                      icon: const Icon(Icons.camera_alt, size: 18, color: Colors.blueAccent),
+                      onPressed: _pickAndUploadAvatar,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '${me.firstName ?? ''} ${me.lastName ?? ''}'.trim().isNotEmpty 
+              ? '${me.firstName} ${me.lastName}' 
+              : me.username,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              me.roles.first.toUpperCase(),
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700], letterSpacing: 0.5),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(List<Widget> children) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(children: children),
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(IconData icon, String label, String value, {bool isReadOnly = false}) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, size: 20, color: Colors.blueAccent),
+      ),
+      title: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      subtitle: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.black87)),
+    );
+  }
+
+  Widget _buildEditableTile(IconData icon, String label, TextEditingController controller) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _editing ? Colors.orange[50] : Colors.blue[50],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 20, color: _editing ? Colors.orange : Colors.blueAccent),
+      ),
+      title: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      subtitle: _editing
+          ? TextField(
+              controller: controller,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8), border: InputBorder.none),
+            )
+          : Text(controller.text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+    );
+  }
+
+  Widget _buildFaceCard() {
+    if (_faceSample == null) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey[200]!)),
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+            child: Icon(Icons.face_retouching_off, size: 20, color: Colors.grey[400]),
+          ),
+          title: const Text('ยังไม่ได้ลงทะเบียนใบหน้า', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+        ),
+      );
+    }
+
+    final imageUrl = UserService.absoluteAvatarUrl(_faceSample!['image_url']) ?? '';
+    final dateStr = DateFormat('dd MMM yyyy HH:mm').format(DateTime.parse(_faceSample!['created_at']));
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey[200]!)),
+      child: ListTile(
+        onTap: () => _showFacePreview(imageUrl, dateStr), // กดเพื่อขยาย
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.face, size: 20, color: Colors.green),
+        ),
+        title: const Text('ใบหน้าที่ลงทะเบียนไว้', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        subtitle: Text('ลงทะเบียนเมื่อ: $dateStr', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        trailing: const Icon(Icons.open_in_full, size: 18, color: Colors.grey),
+      ),
+    );
+  }
+
+  void _showFacePreview(String imageUrl, String dateStr) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, stack) => Container(
+                    height: 200,
+                    width: double.infinity,
+                    color: Colors.grey[100],
+                    child: const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                  ),
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withOpacity(0.5),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // ===== Avatar =====
-                  Builder(
-                    builder: (context) {
-                      final imgUrl = UserService.absoluteAvatarUrl(
-                        me.avatarUrl,
-                      );
-                      return Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 48,
-                            backgroundColor: Colors.blueGrey.shade100,
-                            backgroundImage: imgUrl != null
-                                ? NetworkImage(imgUrl)
-                                : null,
-                            child: imgUrl == null
-                                ? Text(
-                                    me.username.isNotEmpty
-                                        ? me.username[0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                      fontSize: 36,
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: (!_editing || _saving)
-                                    ? null
-                                    : _pickAndUploadAvatar,
-                                icon: const Icon(
-                                  color: Colors.black38,
-                                  Icons.photo),
-                                label: const Text(
-                                  style: TextStyle(
-                                    color: Colors.black
-                                  ),
-                                  'เปลี่ยนรูป'),
-                              ),
-                              const SizedBox(width: 8),
-                              if (_nz(me.avatarUrl) != null)
-                                TextButton.icon(
-                                  onPressed: (!_editing || _saving)
-                                      ? null
-                                      : _deleteAvatar,
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  label: const Text(
-                                    'ลบรูป',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                  const Text('ใบหน้ายืนยันตัวตน', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('บันทึกเมื่อ: $dateStr', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                   const SizedBox(height: 16),
-
-                  // ===== Email (read-only) =====
-                  TextFormField(
-                    initialValue: me.email ?? '',
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'อีเมล (แก้ไขไม่ได้)',
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ===== Username =====
-                  TextField(
-                    controller: _usernameCtrl,
-                    enabled: _editing && !_saving,
-                    decoration: const InputDecoration(
-                      labelText: 'ชื่อผู้ใช้',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ===== First / Last name =====
-                  TextField(
-                    controller: _firstNameCtrl,
-                    enabled: _editing && !_saving,
-                    decoration: const InputDecoration(
-                      labelText: 'ชื่อจริง',
-                      prefixIcon: Icon(Icons.badge_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _lastNameCtrl,
-                    enabled: _editing && !_saving,
-                    decoration: const InputDecoration(
-                      labelText: 'นามสกุล',
-                      prefixIcon: Icon(Icons.badge_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ===== แสดงรหัสตามบทบาท (read-only) =====
-                  if (_hasRole('teacher') && _nz(me.teacherId) != null) ...[
-                    TextFormField(
-                      initialValue: me.teacherId!,
-                      readOnly: true,
-                      decoration: const InputDecoration(
-                        labelText: 'รหัสอาจารย์ (Teacher ID)',
-                        prefixIcon: Icon(Icons.school_outlined),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('ปิด'),
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (_hasRole('student') && _nz(me.studentId) != null) ...[
-                    TextFormField(
-                      initialValue: me.studentId!,
-                      readOnly: true,
-                      decoration: const InputDecoration(
-                        labelText: 'รหัสนักเรียน (Student ID)',
-                        prefixIcon: Icon(Icons.badge),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // หมายเหตุ: ไม่เปิดให้แก้ studentId/teacherId ที่หน้าจอนี้
+                  ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
     );
   }
 }

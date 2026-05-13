@@ -13,6 +13,8 @@ class AssignmentDetailScreen extends StatefulWidget {
   final String title;
   final String? classId;
   final bool isTeacher;
+  final DateTime? dueDate;
+  final int? maxScore;
 
   const AssignmentDetailScreen({
     super.key,
@@ -20,6 +22,8 @@ class AssignmentDetailScreen extends StatefulWidget {
     required this.title,
     this.classId,
     this.isTeacher = false,
+    this.dueDate,
+    this.maxScore,
   });
 
   @override
@@ -37,6 +41,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
   List<ClassworkSubmission> _submissions = [];
   bool _isLoadingSubmissions = true;
+  ClassworkSubmission? _mySubmission;
+  bool _isLoadingMySubmission = false;
+  bool _busyMySubmissionAction = false;
+  List<AssignmentAttachment> _attachments = [];
+  bool _isLoadingAttachments = true;
+  bool _busyAttachmentAction = false;
   Classroom? _classroom;
   bool _isLoadingClassroom = false;
   bool _isAccepting = true;
@@ -50,6 +60,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
       vsync: this,
     );
     _fetchComments();
+    _fetchAttachments();
+    _fetchMySubmission();
 
     if (widget.isTeacher) {
       _fetchStudentSubmissions();
@@ -107,6 +119,224 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     }
   }
 
+  Future<void> _fetchMySubmission() async {
+    if (widget.isTeacher || widget.classId == null) return;
+
+    setState(() {
+      _isLoadingMySubmission = true;
+    });
+
+    try {
+      final views = await ClassworkSimpleService.getStudentAssignmentsTyped(
+        widget.classId!,
+      );
+      final matched = views.where((v) {
+        return v.assignment.assignmentId == widget.assignmentId;
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _mySubmission = matched.isNotEmpty ? matched.first.mySubmission : null;
+        _isLoadingMySubmission = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _mySubmission = null;
+        _isLoadingMySubmission = false;
+      });
+      print('Error fetching my submission: $e');
+    }
+  }
+
+  Future<void> _openMySubmissionFile() async {
+    final filePath = _mySubmission?.contentUrl;
+    if (filePath == null || filePath.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ไม่พบไฟล์งานที่ส่ง')));
+      return;
+    }
+
+    setState(() => _busyMySubmissionAction = true);
+    try {
+      await ClassworkSimpleService.openAttachmentFile(
+        storagePath: filePath,
+        preferredName: 'my_submission.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เปิดไฟล์ที่ส่งไม่สำเร็จ: $e')));
+    } finally {
+      if (mounted) setState(() => _busyMySubmissionAction = false);
+    }
+  }
+
+  String _statusLabel(SubmissionLateness status) {
+    switch (status) {
+      case SubmissionLateness.onTime:
+        return 'ตรงเวลา';
+      case SubmissionLateness.late:
+        return 'ส่งช้า';
+      case SubmissionLateness.notSubmitted:
+        return 'ยังไม่ส่ง';
+    }
+  }
+
+  String _fileNameFromStoragePath(String? path) {
+    if (path == null || path.trim().isEmpty) return '-';
+    final clean = path.split('?').first.trim();
+    if (clean.isEmpty) return '-';
+    final name = clean.split('/').last;
+    if (name.isEmpty) return '-';
+    return Uri.decodeComponent(name);
+  }
+
+  Widget _buildMySubmissionSection() {
+    if (widget.isTeacher) return const SizedBox.shrink();
+
+    final my = _mySubmission;
+    final submittedAt = my?.submittedAt;
+    final submittedFileName = _fileNameFromStoragePath(my?.contentUrl);
+    final submittedAtText = submittedAt != null
+        ? DateFormat('dd MMM yyyy, HH:mm').format(submittedAt)
+        : '-';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'งานที่ฉันส่ง',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            const SizedBox(height: 6),
+            if (_isLoadingMySubmission)
+              const LinearProgressIndicator(minHeight: 3)
+            else if (my == null)
+              Text(
+                'ยังไม่ได้ส่งงาน',
+                style: TextStyle(color: Colors.grey.shade700),
+              )
+            else ...[
+              Text('สถานะ: ${_statusLabel(my.submissionStatus)}'),
+              Text('ไฟล์ที่ส่ง: $submittedFileName'),
+              Text('เวลาส่ง: $submittedAtText'),
+              if (my.score != null) Text('คะแนนที่ได้: ${my.score}'),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _busyMySubmissionAction
+                    ? null
+                    : _openMySubmissionFile,
+                icon: _busyMySubmissionAction
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.open_in_new),
+                label: Text(
+                  _busyMySubmissionAction
+                      ? 'กำลังเปิดไฟล์...'
+                      : 'ดูไฟล์ที่ส่งแล้ว',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _fetchAttachments() async {
+    try {
+      final items = await ClassworkSimpleService.getAssignmentAttachments(
+        widget.assignmentId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _attachments = items;
+        _isLoadingAttachments = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _attachments = [];
+        _isLoadingAttachments = false;
+      });
+    }
+  }
+
+  Future<void> _openAttachment(AssignmentAttachment item) async {
+    try {
+      await ClassworkSimpleService.openAttachmentFile(
+        storagePath: item.storagePath,
+        preferredName: item.fileName,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เปิดไฟล์ไม่สำเร็จ: $e')));
+    }
+  }
+
+  Future<void> _deleteAttachment(AssignmentAttachment item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('ลบไฟล์แนบ'),
+        content: Text('ต้องการลบไฟล์ ${item.fileName} ใช่หรือไม่'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    setState(() => _busyAttachmentAction = true);
+    try {
+      await ClassworkSimpleService.deleteAssignmentAttachment(
+        item.attachmentId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _attachments = _attachments
+            .where((attachment) => attachment.attachmentId != item.attachmentId)
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ลบไฟล์ไม่สำเร็จ: $e')));
+    } finally {
+      if (mounted) setState(() => _busyAttachmentAction = false);
+    }
+  }
+
   Future<void> _fetchClassroomMembers() async {
     if (widget.classId == null) return;
 
@@ -136,11 +366,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     FocusScope.of(context).unfocus();
 
     try {
-      await ClassworkSimpleService.addComment(
+      final created = await ClassworkSimpleService.addComment(
         assignmentId: widget.assignmentId,
         content: text,
       );
-      _fetchComments();
+      if (!mounted) return;
+      setState(() {
+        _comments = [created, ..._comments];
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -189,11 +422,22 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
   // แท็บที่ 1: Instructions (รายละเอียดงาน + คอมเมนต์)
   // ==========================================
   Widget _buildInstructionsTab() {
+    final dueText = widget.dueDate != null
+        ? DateFormat('dd MMM yyyy, HH:mm').format(widget.dueDate!.toLocal())
+        : 'ไม่ระบุ';
+    final scoreText = widget.maxScore != null
+        ? '${widget.maxScore} points'
+        : 'ไม่ระบุคะแนน';
+
     return Column(
       children: [
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _fetchComments,
+            onRefresh: () async {
+              await _fetchComments();
+              await _fetchAttachments();
+              await _fetchMySubmission();
+            },
             child: ListView.builder(
               itemCount: 1 + _comments.length,
               itemBuilder: (context, index) {
@@ -238,7 +482,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '100 points • ครบกำหนด: ไม่ระบุ',
+                                    '$scoreText • ครบกำหนด: $dueText',
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
@@ -251,6 +495,73 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                         ),
                         const SizedBox(height: 20),
                         const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.attach_file,
+                                color: Colors.blueAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'เอกสารประกอบงาน',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_isLoadingAttachments)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: LinearProgressIndicator(minHeight: 3),
+                          )
+                        else if (_attachments.isEmpty)
+                          Text(
+                            'ไม่มีไฟล์แนบ',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          )
+                        else
+                          ..._attachments.map((item) {
+                            final kb = (item.sizeBytes / 1024).toStringAsFixed(
+                              1,
+                            );
+                            return Card(
+                              margin: const EdgeInsets.only(top: 8),
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: Colors.blueAccent,
+                                ),
+                                title: Text(
+                                  item.fileName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text('$kb KB'),
+                                onTap: _busyAttachmentAction
+                                    ? null
+                                    : () => _openAttachment(item),
+                                trailing: widget.isTeacher
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.redAccent,
+                                        ),
+                                        onPressed: _busyAttachmentAction
+                                            ? null
+                                            : () => _deleteAttachment(item),
+                                      )
+                                    : const Icon(Icons.open_in_new, size: 18),
+                              ),
+                            );
+                          }),
+                        _buildMySubmissionSection(),
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(

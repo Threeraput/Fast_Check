@@ -143,6 +143,10 @@ class _SessionRow extends StatelessWidget {
     final end = endStr != null ? DateTime.tryParse(endStr) : null;
     final endTxt = end != null ? df.format(end.toLocal()) : '-';
 
+    final lateStr = data['late_cutoff_time']?.toString();
+    final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
+    final lateTxt = late != null ? df.format(late.toLocal()) : '-';
+
     final radius = data['radius_meters']?.toString();
     final lat = data['anchor_lat']?.toString();
     final lon = data['anchor_lon']?.toString();
@@ -163,6 +167,7 @@ class _SessionRow extends StatelessWidget {
         subtitle: Text(
           [
             if (end != null) 'หมดอายุ: $endTxt',
+            if (late != null) 'สายหลัง: $lateTxt',
             if (radius != null) 'รัศมี $radius m',
             if (lat != null && lon != null) 'Anchor: $lat, $lon',
           ].join(' · '),

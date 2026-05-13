@@ -15,6 +15,9 @@ from app.models.user import User
 # อย่าลืม Import Model ที่ต้องใช้ ถ้าอันไหนมีอยู่แล้วด้านบนก็ไม่ต้องใส่ซ้ำนะครับ
 from app.models.attendance_report import AttendanceReport
 from app.models.attendance_session import AttendanceSession
+from app.models.association import class_students # นำเข้าตารางสมาชิกคลาส
+from app.models.student_location import StudentLocation # นำเข้าตารางพิกัด
+from sqlalchemy import func # เพิ่ม func สำหรับ subquery
 
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
@@ -127,22 +130,49 @@ def get_student_daily_reports(student_id: UUID, db: Session = Depends(get_db)):
 def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     """ดาวน์โหลดไฟล์ Excel รายงานการเข้าเรียนแบบรายวันของทั้งคลาส"""
     
-    # 1️.ดึงข้อมูลโดยการ Join 4 ตารางเข้าด้วยกัน
+    # 1️. ดึงข้อมูลพิกัด Silent Check อันล่าสุดของแต่ละคนในแต่ละ Session
+    # เพื่อเอามา Join กับตาราง Attendance
+    silent_check_sub = (
+        db.query(
+            StudentLocation.student_id,
+            StudentLocation.session_id,
+            func.max(StudentLocation.timestamp).label("latest_ts")
+        )
+        .filter(StudentLocation.is_silent_check == True)
+        .group_by(StudentLocation.student_id, StudentLocation.session_id)
+        .subquery()
+    )
+
+    # 2. Query ข้อมูลหลัก
     results = (
         db.query(
+            AttendanceSession.session_id,
             AttendanceSession.start_time,
             AttendanceSession.end_time,
+            User.user_id,
             User.student_id.label("student_code"),
             User.first_name,
             User.last_name,
             AttendanceReportDetail.check_in_time,
             AttendanceReportDetail.status,
-            AttendanceReportDetail.is_reverified,
-            AttendanceReportDetail.reverify_time,
+            StudentLocation.timestamp.label("silent_check_at"),
+            StudentLocation.is_silent_check,
+            StudentLocation.distance_m
         )
         .join(AttendanceReportDetail, AttendanceSession.session_id == AttendanceReportDetail.session_id)
         .join(AttendanceReport, AttendanceReportDetail.report_id == AttendanceReport.report_id)
         .join(User, AttendanceReport.student_id == User.user_id)
+        .join(class_students, (class_students.c.student_id == User.user_id) & (class_students.c.class_id == class_id))
+        # Left Join กับข้อมูลพิกัด (ดึงพิกัดที่ timestamp ตรงกับ subquery ล่าสุด)
+        .outerjoin(silent_check_sub, 
+            (silent_check_sub.c.student_id == User.user_id) & 
+            (silent_check_sub.c.session_id == AttendanceSession.session_id)
+        )
+        .outerjoin(StudentLocation,
+            (StudentLocation.student_id == silent_check_sub.c.student_id) &
+            (StudentLocation.session_id == silent_check_sub.c.session_id) &
+            (StudentLocation.timestamp == silent_check_sub.c.latest_ts)
+        )
         .filter(AttendanceReport.class_id == class_id)
         .order_by(AttendanceSession.start_time.asc(), User.student_id.asc()) 
         .all()
@@ -151,7 +181,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
     if not results:
         raise HTTPException(status_code=404, detail="ไม่มีข้อมูลสำหรับการส่งออก")
 
-    # 2.เตรียมตัวช่วยแปลภาษาและฟอร์แมตวันที่
+    # 3.เตรียมตัวช่วยแปลภาษาและฟอร์แมตวันที่
     def translate_status(status_str: str) -> str:
         s = status_str.lower()
         if s == "present": return "เข้าเรียน"
@@ -165,39 +195,51 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
             return "-"
         return dt.strftime(fmt)
 
-    # สร้างไฟล์ Excel แท้ๆ แบบไร้ภาษาเอเลี่ยน
+    # สร้างไฟล์ Excel
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "รายงานรายวัน"
 
-    # เขียนหัวตาราง
-    headers = ["วันที่เรียน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "เวลาเริ่มคาบ", "เวลาสิ้นสุดคาบ", "เวลาที่เช็คชื่อ", "สถานะ", "สุ่มตรวจซ้ำ", "เวลาตรวจซ้ำ"]
+    # เขียนหัวตารางใหม่ (เพิ่ม ระยะทาง)
+    headers = [
+        "วันที่เรียน", 
+        "รหัสนักศึกษา", 
+        "ชื่อ-นามสกุล", 
+        "เวลาเริ่มคาบ", 
+        "เวลาสิ้นสุดคาบ", 
+        "เวลาที่เช็คชื่อ", 
+        "สถานะ", 
+        "สุ่มตรวจซ้ำ (Silent Check)", 
+        "เวลาตรวจซ้ำ",
+        "ระยะห่าง (เมตร)"
+    ]
     ws.append(headers)
 
-    # 3. วนลูปข้อมูลใส่ตาราง Excel
+    # 4. วนลูปข้อมูลใส่ตาราง Excel
     for r in results:
-        # แปลงข้อมูลเวลาให้เป็นแบบเต็ม (Full Datetime)
         date_str = format_dt(r.start_time, "%d/%m/%Y")
         start_time_full = format_dt(r.start_time, "%d/%m/%Y %H:%M:%S")
         end_time_full = format_dt(r.end_time, "%d/%m/%Y %H:%M:%S")
-        
         check_in_full = format_dt(r.check_in_time, "%d/%m/%Y %H:%M:%S")
-        reverify_full = format_dt(r.reverify_time, "%d/%m/%Y %H:%M:%S")
+        
+        # ใช้ข้อมูลจาก StudentLocation แทน Re-verify เดิม
+        silent_check_at_full = format_dt(r.silent_check_at, "%d/%m/%Y %H:%M:%S")
+        silent_check_status = "ใช่" if r.is_silent_check else "-"
+        distance_val = round(float(r.distance_m), 2) if r.distance_m is not None else "-"
         
         full_name = f"{r.first_name or ''} {r.last_name or ''}".strip()
-        reverified_text = "ใช่" if r.is_reverified else "-"
 
-        # 4. ใส่ข้อมูลลงไปทีละบรรทัดตามลำดับ Headers
         ws.append([
             date_str,
             r.student_code or "-",
             full_name or "ไม่ระบุชื่อ",
-            start_time_full,    # เวลาเริ่มคาบแบบเต็ม
-            end_time_full,      # เวลาสิ้นสุดคาบแบบเต็ม
-            check_in_full,      # เวลาที่นักเรียนกดเช็คชื่อ
+            start_time_full,
+            end_time_full,
+            check_in_full,
             translate_status(r.status),
-            reverified_text,
-            reverify_full
+            silent_check_status,
+            silent_check_at_full,
+            distance_val
         ])
 
     # 5.บันทึกไฟล์ Excel ลงในหน่วยความจำ

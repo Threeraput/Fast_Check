@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
 
@@ -16,6 +19,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
   final _titleController = TextEditingController();
   final _maxScoreController = TextEditingController(text: '100');
   DateTime? _dueDate;
+  List<File> _attachmentFiles = [];
 
   bool _submitting = false;
 
@@ -30,96 +34,157 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
 
     setState(() => _submitting = true);
     try {
-      await ClassworkSimpleService.createAssignment(
+      final created = await ClassworkSimpleService.createAssignment(
         classId: widget.classId,
         title: _titleController.text.trim(),
         maxScore: int.tryParse(_maxScoreController.text) ?? 100,
         dueDate: _dueDate!,
       );
 
+      final assignmentId = created['assignment_id']?.toString();
+      if (assignmentId == null || assignmentId.isEmpty) {
+        throw Exception('สร้างงานสำเร็จแต่ไม่พบ assignment_id');
+      }
+
+      if (_attachmentFiles.isNotEmpty) {
+        await Future.wait(
+          _attachmentFiles.map(
+            (f) => ClassworkSimpleService.uploadAssignmentAttachment(
+              assignmentId: assignmentId,
+              file: f,
+            ),
+          ),
+        );
+      }
+
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('สร้างงานสำเร็จ')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _attachmentFiles.isEmpty
+                ? 'สร้างงานสำเร็จ'
+                : 'สร้างงานและแนบไฟล์ ${_attachmentFiles.length} ไฟล์สำเร็จ',
+          ),
+        ),
+      );
       Navigator.pop(context, true); // ส่ง true กลับไปรีเฟรชหน้าก่อนหน้า
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
     } finally {
-      setState(() => _submitting = false);
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
-  Future<void> _pickDueDate() async {
-  final now = DateTime.now();
-
-  // 🔹 ส่วน Date Picker
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: now.add(const Duration(days: 1)),
-    firstDate: now,
-    lastDate: DateTime(now.year + 2),
-    builder: (BuildContext context, Widget? child) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.blue, // สีวงกลมวันที่เลือก
-            onPrimary: Colors.white, // สีตัวเลขในวงกลม
-            surface: Colors.white, // พื้นหลัง popup
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        child: child!,
-      );
-    },
-  );
-
-  if (picked == null) return;
-
-  // 🔹 ส่วน Time Picker
-  final time = await showTimePicker(
-    context: context,
-    initialTime: const TimeOfDay(hour: 23, minute: 59),
-    builder: (BuildContext context, Widget? child) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
-            secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
-            onPrimary: Colors.white, // สีตัวเลขในวงกลม
-            surface: Colors.white,
-            onSurface: Colors.black87, // สีข้อความทั่วไป
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
-            ),
-          ),
-        ),
-        child: child!,
-      );
-    },
-  );
-
-  if (time == null) return;
-
-  setState(() {
-    _dueDate = DateTime(
-      picked.year,
-      picked.month,
-      picked.day,
-      time.hour,
-      time.minute,
+  Future<void> _pickAttachmentFiles() async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: false,
+      type: FileType.custom,
+      allowedExtensions: [
+        'pdf',
+        'png',
+        'jpg',
+        'jpeg',
+        'webp',
+        'doc',
+        'docx',
+        'ppt',
+        'pptx',
+        'xls',
+        'xlsx',
+        'txt',
+      ],
     );
-  });
-}
+    if (picked == null || picked.files.isEmpty) return;
 
+    final newFiles = picked.files
+        .map((p) => p.path)
+        .whereType<String>()
+        .map((p) => File(p))
+        .toList();
+
+    if (newFiles.isEmpty) return;
+    setState(() {
+      _attachmentFiles = [..._attachmentFiles, ...newFiles];
+    });
+  }
+
+  void _removeAttachmentAt(int index) {
+    setState(() {
+      _attachmentFiles = List<File>.from(_attachmentFiles)..removeAt(index);
+    });
+  }
+
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+
+    // 🔹 ส่วน Date Picker
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 1)),
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: Colors.blue, // สีวงกลมวันที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white, // พื้นหลัง popup
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null) return;
+
+    // 🔹 ส่วน Time Picker
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 23, minute: 59),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
+              secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white,
+              onSurface: Colors.black87, // สีข้อความทั่วไป
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (time == null) return;
+
+    setState(() {
+      _dueDate = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +283,69 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 16),
+
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'ไฟล์แนบงาน',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _submitting
+                                  ? null
+                                  : _pickAttachmentFiles,
+                              icon: const Icon(Icons.attach_file),
+                              label: const Text('เพิ่มไฟล์'),
+                            ),
+                          ],
+                        ),
+                        if (_attachmentFiles.isEmpty)
+                          Text(
+                            'ยังไม่ได้เลือกไฟล์แนบ',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          )
+                        else
+                          ..._attachmentFiles.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final file = entry.value;
+                            final name = file.path.split(RegExp(r'[\\/]')).last;
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(
+                                Icons.insert_drive_file_outlined,
+                              ),
+                              title: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: IconButton(
+                                onPressed: _submitting
+                                    ? null
+                                    : () => _removeAttachmentAt(idx),
+                                icon: const Icon(Icons.close),
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
 
                   // ปุ่มบันทึก
@@ -226,9 +354,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
                     icon: Icon(color: Colors.white, Icons.save_outlined),
                     label: Text(
                       _submitting ? 'กำลังบันทึก...' : 'บันทึกงาน',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,

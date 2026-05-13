@@ -23,14 +23,48 @@ def generate_otp_code() -> str:
     # สร้าง OTP แบบ 6 หลัก
     return str(random.randint(100000, 999999))
 
+from fastapi import HTTPException, status
+
+# ฟังก์ชันสำหรับดึงผู้ใช้
+# ...
+
 def create_otp(db: Session, user_id: uuid.UUID) -> OTP:
-    # ลบ OTP เก่าที่ยังไม่หมดอายุของ user คนนี้ก่อน (ถ้ามี)
-    # เพื่อไม่ให้มี OTP ค้างเยอะเกินไป
-    db.query(OTP).filter(OTP.user_id == user_id, OTP.is_used == False, OTP.expires_at > datetime.now(timezone.utc)).delete()
+    now = datetime.now(timezone.utc)
+    
+    # 1. ตรวจสอบ Cooldown (Rate Limit): ห้ามขอใหม่ภายใน 60 วินาที
+    last_otp = (
+        db.query(OTP)
+        .filter(OTP.user_id == user_id)
+        .order_by(OTP.created_at.desc())
+        .first()
+    )
+    
+    if last_otp:
+        # ตรวจสอบส่วนต่างเวลา (Time Diff)
+        last_created = last_otp.created_at
+        if last_created.tzinfo is None:
+            last_created = last_created.replace(tzinfo=timezone.utc)
+            
+        diff = (now - last_created).total_seconds()
+        if diff < 60:
+            seconds_left = int(60 - diff)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"กรุณารออีก {seconds_left} วินาทีจึงจะสามารถขอรหัส OTP ใหม่ได้"
+            )
+
+    # 2. ลบ OTP เก่าที่ยังไม่หมดอายุของ user คนนี้ก่อน (ถ้ามี)
+    db.query(OTP).filter(
+        OTP.user_id == user_id, 
+        OTP.is_used == False, 
+        OTP.expires_at > now
+    ).delete()
     db.commit()
 
+    # 3. สร้างรหัสใหม่
     otp_code = generate_otp_code()
     otp_record = OTP(user_id=user_id, otp_code=otp_code)
+    otp_record.created_at = now # บันทึกเวลาที่สร้างจริง
 
     db.add(otp_record)
     db.commit()

@@ -176,6 +176,14 @@ def record_check_in(
         db.add(new_attendance)
         db.commit()
         db.refresh(new_attendance)
+        
+        # ✨ เพิ่ม: อัปเดตรายงานรายงานการเช็คชื่อแบบ Real-time รายบุคคล
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(session.class_id), str(student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report for student {student_id}: {report_err}")
+            
     except Exception as e:
         db.rollback()
         if os.path.exists(file_path):

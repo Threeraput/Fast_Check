@@ -36,7 +36,7 @@ def get_face_embedding(image_path: str) -> bytes:
         raise RuntimeError(f"Failed to process image: {e}")
 
 
-# ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน
+# ฟังก์ชันสำหรับบันทึก/อัปเดต face sample พร้อมระบบ Cooldown 30 วัน (ยกเว้นการแก้ไขครั้งแรก)
 def create_face_sample(db: Session, user_id: UUID, image_url: str, embedding: bytes) -> FaceSampleResponse:
     now = datetime.now(timezone.utc)
     
@@ -44,40 +44,46 @@ def create_face_sample(db: Session, user_id: UUID, image_url: str, embedding: by
     existing_sample = db.query(UserFaceSample).filter(UserFaceSample.user_id == user_id).first()
 
     if existing_sample:
-        # 2. ถ้ามีใบหน้าอยู่แล้ว ให้เช็ค Cooldown 30 วัน
-        last_updated = existing_sample.updated_at or existing_sample.created_at
+        # 2. ตรวจสอบว่าเป็น "การแก้ไขครั้งแรก" หรือไม่
+        # ถ้า updated_at ยังเป็น None หรือเท่ากับ created_at (ในกรณีที่บางระบบตั้งให้เท่ากันตอนสร้าง)
+        # เราจะอนุญาตให้เขาเปลี่ยนหน้าได้เลย 1 ครั้ง
         
-        # ป้องกัน error เรื่อง timezone
-        if last_updated.tzinfo is None:
-            last_updated = last_updated.replace(tzinfo=timezone.utc)
-
-        days_since_update = (now - last_updated).days
+        is_first_update = existing_sample.updated_at is None
         
-        # 3. ถ้าเพิ่งเปลี่ยนไปไม่ถึง 30 วัน -> ดีด Error!
-        if days_since_update < 30:
-            days_left = 30 - days_since_update
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"คุณเปลี่ยนใบหน้าไปแล้ว กรุณารออีก {days_left} วันจึงจะสามารถเปลี่ยนได้อีกครั้ง"
-            )
+        if not is_first_update:
+            # 3. ถ้าไม่ใช่การแก้ไขครั้งแรก (เคยแก้มาแล้ว) -> เช็ค Cooldown 30 วัน
+            last_updated = existing_sample.updated_at
             
-        # 4. ถ้าเกิน 30 วันแล้ว -> อนุญาตให้อัปเดตใบหน้าใหม่ทับของเดิมได้
+            # ป้องกัน error เรื่อง timezone
+            if last_updated.tzinfo is None:
+                last_updated = last_updated.replace(tzinfo=timezone.utc)
+
+            days_since_update = (now - last_updated).days
+            
+            if days_since_update < 30:
+                days_left = 30 - days_since_update
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"คุณเปลี่ยนใบหน้าไปแล้ว (ติดล็อค 30 วัน) กรุณารออีก {days_left} วันจึงจะสามารถเปลี่ยนได้อีกครั้ง"
+                )
+            
+        # 4. อนุญาตให้อัปเดตใบหน้าใหม่ (ทั้งกรณีการแก้ไขครั้งแรก หรือพ้นกำหนด 30 วันแล้ว)
         existing_sample.image_url = image_url
         existing_sample.face_embedding = embedding
-        existing_sample.updated_at = now
+        existing_sample.updated_at = now # บันทึกเวลาที่แก้ไข (จากนี้ไปจะเริ่มติด 30 วัน)
         
         db.commit()
         db.refresh(existing_sample)
         return FaceSampleResponse.from_orm(existing_sample)
 
     else:
-        # 5. ถ้ายังไม่เคยมีใบหน้าในระบบ -> สร้างใหม่เลย
+        # 5. ถ้าเป็นการลงทะเบียนครั้งแรก (No face in system) -> สร้างใหม่
         new_sample = UserFaceSample(
             user_id=user_id,
             image_url=image_url,
             face_embedding=embedding,
             created_at=now,
-            updated_at=now
+            updated_at=None # ตั้งเป็น None ไว้เพื่อให้ครั้งต่อไป "ยังไม่ติดล็อค 30 วัน"
         )
         db.add(new_sample)
         db.commit()

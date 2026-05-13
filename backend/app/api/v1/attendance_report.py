@@ -6,6 +6,7 @@ from app.database import get_db
 from app.core.deps import get_current_user, get_roles_from_token, role_required
 from app.models.user import User
 from app.models.attendance_report import AttendanceReport
+from app.models.association import class_students # เพิ่มการนำเข้าตารางสมาชิกคลาส
 from app.schemas.attendance_report_schema import AttendanceReportResponse
 from app.services.attendance_report_service import generate_reports_for_class
 
@@ -57,20 +58,41 @@ def get_my_report(
             detail="Only students can view their attendance details"
         )
 
+    # 1. ลองดึงรายงานที่มีอยู่ก่อน
     rows = (
         db.query(AttendanceReport)
-        #  เพิ่ม joinedload student เพื่อลด N+1 Query
         .options(
             joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
         )
         .filter(
             AttendanceReport.student_id == me.user_id,
-            AttendanceReport.class_id.isnot(None),  # กันแถวเสีย
+            AttendanceReport.class_id.isnot(None),
         )
         .all()
     )
+    
+    # 2. [Lazy Init] ถ้ายังไม่เคยมีรายงานเลย ให้สั่งสร้างสำหรับทุกคลาสที่นักเรียนคนนี้สังกัดอยู่
     if not rows:
-        raise HTTPException(status_code=404, detail="No reports found for this user")
+        # ดึง class_id ทั้งหมดที่นักเรียนคนนี้ลงทะเบียนไว้
+        from app.models.association import class_students
+        my_classes = db.query(class_students.c.class_id).filter(class_students.c.student_id == me.user_id).all()
+        
+        for (cid,) in my_classes:
+            generate_reports_for_class(db, str(cid))
+            
+        # ดึงใหม่อีกครั้งหลังจากสร้างแล้ว
+        rows = (
+            db.query(AttendanceReport)
+            .options(
+                joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
+            )
+            .filter(
+                AttendanceReport.student_id == me.user_id,
+                AttendanceReport.class_id.isnot(None),
+            )
+            .all()
+        )
+
     return [_to_schema(r) for r in rows]
 
 
@@ -90,9 +112,10 @@ def generate_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     dependencies=[Depends(role_required(["teacher"]))],
 )
 def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
+    # 1. ลองดึงรายงานที่มีอยู่ก่อน
     rows = (
         db.query(AttendanceReport)
-        #  เพิ่ม joinedload student
+        .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
         .options(
             joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
         )
@@ -101,6 +124,26 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
         )
         .all()
     )
+    
+    # 2. [Lazy Init] ถ้ายังไม่มีรายงานเลย หรือจำนวนคนไม่ตรงกับสมาชิกในคลาส ให้สั่ง Generate ใหม่
+    # เช็คจำนวนนักเรียนปัจจุบันในคลาส
+    student_count = db.query(class_students).filter(class_students.c.class_id == class_id).count()
+    
+    if not rows or len(rows) < student_count:
+        generate_reports_for_class(db, str(class_id))
+        # ดึงใหม่อีกครั้ง
+        rows = (
+            db.query(AttendanceReport)
+            .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
+            .options(
+                joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
+            )
+            .filter(
+                AttendanceReport.class_id == class_id, AttendanceReport.class_id.isnot(None)
+            )
+            .all()
+        )
+
     return [_to_schema(r) for r in rows]
 
 
@@ -111,7 +154,11 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
 )
 def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
     rows = (
-        db.query(AttendanceReport).filter(AttendanceReport.class_id == class_id).all()
+        db.query(AttendanceReport)
+        # ✨ เพิ่ม: Join สมาชิกปัจจุบันเพื่อกรองเอาเฉพาะคนที่ยังอยู่ในคลาส
+        .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
+        .filter(AttendanceReport.class_id == class_id)
+        .all()
     )
     if not rows:
         raise HTTPException(status_code=404, detail="No reports found for this class")

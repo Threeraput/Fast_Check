@@ -13,7 +13,7 @@ class SessionOpenRequest(BaseModel):
     class_id: UUID
     latitude: float
     longitude: float
-    radius_meters: conint(ge=10, le=2000) = Field(..., description="รัศมีเมตร")
+    radius_meters: conint(ge=1, le=2000) = Field(..., description="รัศมีเมตร")
     start_time: Optional[datetime] = None
     late_cutoff_time: Optional[datetime] = None   
     end_time: Optional[datetime] = None
