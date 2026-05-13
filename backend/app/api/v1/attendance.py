@@ -41,9 +41,8 @@ from app.schemas.attendance_schema import (
 )
 from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
-from app.core.deps import get_current_user, role_required
-from app.core.security import decode_access_token
 from app.core.deps import get_current_user, get_roles_from_token, role_required
+from app.core.security import decode_access_token
 from app.services.attendance_service import (
     record_check_in,
     handle_reverification,
@@ -59,7 +58,7 @@ from app.services.location_service import (
     log_student_location,
 )
 from app.services.face_recognition_service import get_face_embedding, compare_faces
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # ---------- NEW: ช่วยจัด EXIF orientation เพื่อลด false reject ----------
 from PIL import Image, ImageOps
@@ -133,16 +132,32 @@ def _can_watch_live_session(db: Session, session_id: UUID, user: User) -> bool:
         .first()
     )
     if not session:
+        logger.warning(f"❌ [_can_watch_live_session] Session {session_id} not found")
         return False
 
-    roles = {getattr(r, "name", "") for r in (user.roles or [])}
+    # ตรวจสอบบทบาทจาก roles_list (ที่ใส่ไว้ใน get_current_user) หรือ db.roles
+    roles = set()
+    if hasattr(user, "roles_list") and user.roles_list:
+        roles = set(user.roles_list)
+    else:
+        roles = {getattr(r, "name", "") for r in (user.roles or [])}
+
+    logger.info(f"🔍 [_can_watch_live_session] User {user.username} roles: {roles}")
+
     if "admin" in roles:
         return True
 
     if "teacher" not in roles:
+        logger.warning(f"❌ [_can_watch_live_session] User {user.username} is not a teacher")
         return False
 
-    return str(session.classroom.teacher_id) == str(user.user_id)
+    is_owner = str(session.classroom.teacher_id) == str(user.user_id)
+    if not is_owner:
+        logger.warning(
+            f"❌ [_can_watch_live_session] User {user.username} is not the owner of this class. "
+            f"Class teacher: {session.classroom.teacher_id}, User: {user.user_id}"
+        )
+    return is_owner
 
 
 @router.websocket("/sessions/{session_id}/live")
@@ -489,7 +504,19 @@ def list_active_sessions(
             .order_by(AttendanceSession.start_time.desc())
             .all()
         )
-    return qs
+    # แปลงเป็น Pydantic list อย่างปลอดภัย
+    items: List[SessionResponse] = []
+    for s in qs:
+        try:
+            # ใช้ model_validate สำหรับ Pydantic v2
+            items.append(SessionResponse.model_validate(s, from_attributes=True))
+        except Exception:
+            # fallback สำหรับ version ที่ต่างกัน หรือกรณีฉุกเฉิน
+            try:
+                items.append(SessionResponse.from_orm(s))
+            except Exception:
+                continue # ข้ามอันที่แปลงไม่ได้จริง ๆ เพื่อไม่ให้ทั้งหน้าพัง
+    return items
 
 
 @router.post("/re-verify/toggle", response_model=ToggleReverifyResponse)

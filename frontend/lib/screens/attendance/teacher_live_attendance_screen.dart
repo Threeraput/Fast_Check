@@ -153,10 +153,20 @@ class _TeacherLiveAttendanceScreenState
     }
 
     if (type == 'error') {
+      final msg = (event['message'] ?? 'Unknown error').toString();
       setState(() {
         _connecting = false;
-        _error = (event['message'] ?? 'Unknown error').toString();
+        _error = msg;
       });
+
+      if (msg == 'Session not found') {
+        // ถ้าไม่เจอ session ให้เด้งกลับ หรือบอกให้ชัดเจน
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ไม่พบข้อมูลการเช็คชื่อนี้ในระบบ')),
+          );
+        }
+      }
     }
   }
 

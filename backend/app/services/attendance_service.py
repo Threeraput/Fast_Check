@@ -65,8 +65,6 @@ def decide_status_by_hard_times(
         return AttendanceStatus.PRESENT
     if now >= s and now < l:
         return AttendanceStatus.PRESENT
-    if now >= s and now < l:
-        return AttendanceStatus.PRESENT
     if now >= l and now < e:
         return AttendanceStatus.LATE
 
