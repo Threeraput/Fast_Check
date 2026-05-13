@@ -3,12 +3,16 @@ import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/models/comment_model.dart';
 import 'package:frontend/services/announcement_service.dart';
+import 'package:frontend/services/classwork_simple_service.dart'; // 👈 เพิ่มตัวนี้
+import 'package:url_launcher/url_launcher.dart';
+import 'package:frontend/config.dart';
 
 class AnnouncementDetailScreen extends StatefulWidget {
   final String announcementId;
   final String title;
   final String? body;
   final DateTime? postedAt;
+  final List? attachments; // 👈 เพิ่มตัวนี้
 
   const AnnouncementDetailScreen({
     super.key,
@@ -16,6 +20,7 @@ class AnnouncementDetailScreen extends StatefulWidget {
     required this.title,
     this.body,
     this.postedAt,
+    this.attachments, // 👈 เพิ่มตัวนี้
   });
 
   @override
@@ -27,11 +32,23 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   List<AnnouncementComment> _comments = [];
   bool _isLoadingComments = true;
   final TextEditingController _commentController = TextEditingController();
+  List<AnnouncementAttachmentDto> _attachmentDtos = [];
 
   @override
   void initState() {
     super.initState();
     _fetchComments();
+    _initAttachments();
+  }
+
+  void _initAttachments() {
+    if (widget.attachments != null) {
+      setState(() {
+        _attachmentDtos = widget.attachments!
+            .map((e) => AnnouncementAttachmentDto.fromJson(e))
+            .toList();
+      });
+    }
   }
 
   Future<void> _fetchComments() async {
@@ -49,6 +66,22 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoadingComments = false);
       print("Error fetching announcement comments: $e");
+    }
+  }
+
+  Future<void> _openAttachment(AnnouncementAttachmentDto att) async {
+    try {
+      // ใช้ฟังก์ชันเดียวกับระบบงาน (Classwork) เพื่อความสม่ำเสมอ
+      await ClassworkSimpleService.openAttachmentFile(
+        storagePath: att.storagePath,
+        preferredName: att.fileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ไม่สามารถเปิดไฟล์ได้: $e')),
+        );
+      }
     }
   }
 
@@ -159,6 +192,55 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                 : '(ไม่มีเนื้อหาเพิ่มเติม)',
                             style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
+                          const SizedBox(height: 20),
+
+                          // 🔹 ส่วนของไฟล์แนบ (ถ้ามี)
+                          if (_attachmentDtos.isNotEmpty) ...[
+                            const Divider(),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                'ไฟล์แนบ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            ..._attachmentDtos.map(
+                              (att) => Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey.shade200),
+                                ),
+                                child: ListTile(
+                                  leading: Icon(
+                                    att.mimeType.contains('image')
+                                        ? Icons.image_outlined
+                                        : Icons.description_outlined,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  title: Text(
+                                    att.fileName,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  subtitle: Text(
+                                    '${(att.sizeBytes / 1024).toStringAsFixed(1)} KB',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.open_in_new,
+                                    size: 20,
+                                    color: Colors.grey,
+                                  ),
+                                  onTap: () => _openAttachment(att),
+                                ),
+                              ),
+                            ),
+                          ],
+
                           const SizedBox(height: 24),
                           const Divider(),
                           // หัวข้อบอกจำนวนคอมเมนต์
@@ -186,18 +268,18 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                   }
 
                   // ลบ 1 ออกจาก index เพราะ 0 เป็นประกาศไปแล้ว
-                  final comment = _comments[index - 1]; 
-                  
+                  final comment = _comments[index - 1];
+
                   // 🚨 1. ดึง URL ของรูปภาพ (คุณอาจจะต้องปรับบรรทัดนี้ให้ตรงกับ Data Model ของคุณ)
                   // ถ้าระบบคอมเมนต์มีส่ง avatarUrl มาด้วย:
-                  final String? avatarUrl = comment.avatarUrl; 
-                  
+                  final String? avatarUrl = comment.avatarUrl;
+
                   // หรือถ้าต้องไปหาในสมุดหน้าเหลือง:
                   // final String? avatarUrl = _userIndex[comment.userId]?.avatarUrl;
 
                   // 🚨 2. แปลงเป็น URL แบบเต็ม (ถ้าต้องใช้)
-                  final String? fullAvatarUrl = avatarUrl != null 
-                      ? UserService.absoluteAvatarUrl(avatarUrl) 
+                  final String? fullAvatarUrl = avatarUrl != null
+                      ? UserService.absoluteAvatarUrl(avatarUrl)
                       : null;
                   return Padding(
                     padding: const EdgeInsets.symmetric(
@@ -211,14 +293,16 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                         fullAvatarUrl != null && fullAvatarUrl.isNotEmpty
                             ? CircleAvatar(
                                 radius: 20,
-                                backgroundImage: NetworkImage(fullAvatarUrl), // โชว์รูป!
+                                backgroundImage: NetworkImage(
+                                  fullAvatarUrl,
+                                ), // โชว์รูป!
                               )
                             : CircleAvatar(
                                 radius: 20,
                                 backgroundColor: Colors.blueGrey,
                                 child: Text(
-                                  comment.commenterName.isNotEmpty 
-                                      ? comment.commenterName[0].toUpperCase() 
+                                  comment.commenterName.isNotEmpty
+                                      ? comment.commenterName[0].toUpperCase()
                                       : '?',
                                   style: const TextStyle(color: Colors.white),
                                 ),

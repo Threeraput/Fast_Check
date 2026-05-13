@@ -38,6 +38,13 @@ class Announcement(Base):
         passive_deletes=True,
     )
 
+    attachments = relationship(
+        "AnnouncementAttachment",
+        back_populates="announcement",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 # ----------------------------------------------------
 # 2. ตารางใหม่: สำหรับเก็บคอมเมนต์ในประกาศ
 # ----------------------------------------------------

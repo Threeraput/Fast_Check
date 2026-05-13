@@ -16,6 +16,7 @@ from .classwork_assignment import ClassworkAssignment
 from .classwork_attachment import ClassworkAttachment
 from .classwork_submission import ClassworkSubmission
 from .announcement import Announcement
+from .announcement_attachment import AnnouncementAttachment
 from .attendance_report import AttendanceReport 
 from .attendance_report_detail import AttendanceReportDetail
 from .otp import OTP

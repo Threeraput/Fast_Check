@@ -1,7 +1,7 @@
 # app/api/v1/announcements.py
 from typing import List
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,18 +12,35 @@ from app.schemas.announcement_schema import (
     AnnouncementUpdate,
     AnnouncementResponse,
     AnnouncementCommentCreate,
-    AnnouncementCommentResponse,  #  เติม 2 ตัวนี้
+    AnnouncementCommentResponse,
+    AnnouncementAttachmentResponse, # 👈 เพิ่มตัวนี้
 )
 from app.services.announcement_service import (
     create_announcement,
     list_announcements_for_class,
     update_announcement,
     delete_announcement,
+    get_announcement,
+    delete_announcement_attachment,
     create_announcement_comment,
-    get_announcement_comments,  #  เติม 2 ตัวนี้
+    get_announcement_comments,
+    create_announcement_attachment, # 👈 เพิ่มตัวนี้
 )
 
 router = APIRouter(prefix="/announcements", tags=["Announcements"])
+
+
+# ดึงประกาศชิ้นเดียว
+@router.get("/{announcement_id}", response_model=AnnouncementResponse)
+def get_announcement_route(
+    announcement_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    ann = get_announcement(db, announcement_id=announcement_id)
+    if not ann:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    return ann
 
 
 # ครูสร้างประกาศ
@@ -49,6 +66,43 @@ def create_announcement_route(
         expires_at=payload.expires_at,
     )
     return ann
+
+
+# ครูอัปโหลดไฟล์แนบประกาศ
+@router.post(
+    "/{announcement_id}/attachments",
+    response_model=AnnouncementAttachmentResponse,
+    dependencies=[Depends(role_required(["teacher"]))],
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_announcement_attachment_route(
+    announcement_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """อัปโหลดไฟล์ (PDF/Image) แนบไปกับประกาศ"""
+    return await create_announcement_attachment(
+        db,
+        announcement_id=announcement_id,
+        uploaded_by=me.user_id,
+        file=file,
+    )
+
+
+# ครูลบไฟล์แนบประกาศ
+@router.delete(
+    "/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(role_required(["teacher"]))],
+)
+def delete_attachment_route(
+    attachment_id: UUID,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    delete_announcement_attachment(db, teacher_id=me.user_id, attachment_id=attachment_id)
+    return
 
 
 # ทั้งครู/นักเรียน ดูประกาศของคลาส

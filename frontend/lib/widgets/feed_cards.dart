@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
+import 'package:frontend/screens/announcement/edit_announcement_screen.dart';
 import 'package:intl/intl.dart';
 import '../models/feed_item.dart';
 import '../screens/attendance/student_checkin_screen.dart';
@@ -142,6 +143,7 @@ class _FeedCard extends StatelessWidget {
           author: (extra['author_name'] ?? '') as String,
           expiresAt: item.expiresAt,
           announcementId: annId, //  ส่ง UUID แบบเพียว ๆ
+          attachments: extra['attachments'] as List?, // 👈 เพิ่มบรรทัดนี้
           isTeacher: isTeacher,
           onChanged: onChanged,
         );
@@ -400,6 +402,7 @@ class _AnnouncementCard extends StatelessWidget {
   final bool pinned;
   final String author;
   final String announcementId;
+  final List? attachments; // 👈 เพิ่มตัวนี้
   final bool isTeacher;
   final VoidCallback? onChanged;
 
@@ -410,6 +413,7 @@ class _AnnouncementCard extends StatelessWidget {
     required this.pinned,
     required this.author,
     required this.announcementId,
+    this.attachments, // 👈 เพิ่มตัวนี้
     required this.isTeacher,
     this.expiresAt,
     this.onChanged,
@@ -433,6 +437,7 @@ class _AnnouncementCard extends StatelessWidget {
                 title: title, // ส่งชื่อเรื่อง
                 body: body, // ส่งเนื้อหา
                 postedAt: postedAt, // ส่งเวลา
+                attachments: attachments, // 👈 เพิ่มตัวนี้
               ),
             ),
           ).then((_) {
@@ -483,76 +488,27 @@ class _AnnouncementCard extends StatelessWidget {
                       icon: const Icon(Icons.more_vert, color: Colors.grey),
                       onSelected: (value) async {
                         if (value == 'edit') {
-                          // ---------- ฟังก์ชันแก้ไข ----------
-                          final titleCtrl = TextEditingController(text: title);
-                          final bodyCtrl = TextEditingController(text: body);
-
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('แก้ไขประกาศ'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(
-                                    controller: titleCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'หัวข้อ',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: bodyCtrl,
-                                    maxLines: 4,
-                                    decoration: const InputDecoration(
-                                      labelText: 'เนื้อหา',
-                                    ),
-                                  ),
-                                ],
+                          // ---------- ไปหน้าแก้ไข ----------
+                          final ok = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditAnnouncementScreen(
+                                announcementId: announcementId,
+                                title: title,
+                                body: body,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text(
-                                    'ยกเลิก',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                  ),
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('บันทึก'),
-                                ),
-                              ],
                             ),
                           );
 
                           if (ok == true) {
-                            try {
-                              await AnnouncementService.update(
-                                announcementId: announcementId,
-                                title: titleCtrl.text,
-                                body: bodyCtrl.text,
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('อัปเดตประกาศสำเร็จ'),
+                                ),
                               );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('อัปเดตประกาศสำเร็จ'),
-                                  ),
-                                );
-                              }
-                              onChanged?.call();
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('อัปเดตไม่สำเร็จ: $e'),
-                                  ),
-                                );
-                              }
                             }
+                            onChanged?.call();
                           }
                         } else if (value == 'delete') {
                           // ---------- ฟังก์ชันลบ ----------
