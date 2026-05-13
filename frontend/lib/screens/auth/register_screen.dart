@@ -22,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _selectedRole;
   String? _message;
   bool _isLoading = false;
+  bool _isPasswordVisible = false; // 👈 เพิ่มสถานะการมองเห็นรหัสผ่าน
 
   final List<String> _roles = ['student', 'teacher'];
 
@@ -230,11 +231,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Icons.lock_outline,
                   color: Colors.blueAccent,
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.blueAccent,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              obscureText: true,
+              obscureText: !_isPasswordVisible,
             ),
             const SizedBox(height: 8),
 
