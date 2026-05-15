@@ -165,6 +165,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
             User.last_name,
             AttendanceReportDetail.check_in_time,
             AttendanceReportDetail.status,
+            AttendanceReportDetail.is_manual_override,
             StudentLocation.timestamp.label("silent_check_at"),
             StudentLocation.is_silent_check,
             StudentLocation.distance_m
@@ -221,7 +222,8 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
         "สถานะ", 
         "สุ่มตรวจซ้ำ (Silent Check)", 
         "เวลาตรวจซ้ำ",
-        "ระยะห่าง (เมตร)"
+        "ระยะห่าง (เมตร)",
+        "ปรับปรุงโดยอาจารย์"
     ]
     ws.append(headers)
 
@@ -238,6 +240,7 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
         distance_val = round(float(r.distance_m), 2) if r.distance_m is not None else "-"
         
         full_name = f"{r.first_name or ''} {r.last_name or ''}".strip()
+        manual_status = "ใช่" if r.is_manual_override else "-"
 
         ws.append([
             date_str,
@@ -249,7 +252,8 @@ def export_class_detailed_report(class_id: UUID, db: Session = Depends(get_db)):
             translate_status(r.status),
             silent_check_status,
             silent_check_at_full,
-            distance_val
+            distance_val,
+            manual_status
         ])
 
     # 5.บันทึกไฟล์ Excel ลงในหน่วยความจำ

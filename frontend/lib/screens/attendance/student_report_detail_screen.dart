@@ -73,17 +73,17 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             ListTile(
               leading: const Icon(Icons.check_circle, color: Colors.green),
               title: const Text('มาเรียน (Present)'),
-              onTap: () => _updateStatus(detail, 'Present'),
+              onTap: () => _confirmUpdateStatus(detail, 'Present'),
             ),
             ListTile(
               leading: const Icon(Icons.access_time, color: Colors.orange),
               title: const Text('สาย (Late)'),
-              onTap: () => _updateStatus(detail, 'Late'),
+              onTap: () => _confirmUpdateStatus(detail, 'Late'),
             ),
             ListTile(
               leading: const Icon(Icons.cancel, color: Colors.red),
               title: const Text('ขาด (Absent)'),
-              onTap: () => _updateStatus(detail, 'Absent'),
+              onTap: () => _confirmUpdateStatus(detail, 'Absent'),
             ),
             const SizedBox(height: 12),
           ],
@@ -92,8 +92,36 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     );
   }
 
-  Future<void> _updateStatus(AttendanceReportDetail detail, String newStatus) async {
+  void _confirmUpdateStatus(AttendanceReportDetail detail, String newStatus) {
     Navigator.pop(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการแก้ไขสถานะ'),
+        content: Text(
+          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateStatus(detail, newStatus);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateStatus(AttendanceReportDetail detail, String newStatus) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กำลังบันทึกการแก้ไข...')),
