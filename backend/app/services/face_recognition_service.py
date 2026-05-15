@@ -1,6 +1,7 @@
 # backend/app/services/face_recognition_service.py
 import face_recognition
 import numpy as np
+import math
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user_face_sample import UserFaceSample
@@ -44,33 +45,40 @@ def create_face_sample(db: Session, user_id: UUID, image_url: str, embedding: by
     existing_sample = db.query(UserFaceSample).filter(UserFaceSample.user_id == user_id).first()
 
     if existing_sample:
-        # 2. ตรวจสอบว่าเป็น "การแก้ไขครั้งแรก" หรือไม่
-        # ถ้า updated_at ยังเป็น None หรือเท่ากับ created_at (ในกรณีที่บางระบบตั้งให้เท่ากันตอนสร้าง)
-        # เราจะอนุญาตให้เขาเปลี่ยนหน้าได้เลย 1 ครั้ง
-        
-        is_first_update = existing_sample.updated_at is None
-        
-        if not is_first_update:
-            # 3. ถ้าไม่ใช่การแก้ไขครั้งแรก (เคยแก้มาแล้ว) -> เช็ค Cooldown 30 วัน
-            last_updated = existing_sample.updated_at
-            
-            # ป้องกัน error เรื่อง timezone
-            if last_updated.tzinfo is None:
-                last_updated = last_updated.replace(tzinfo=timezone.utc)
+        # 2. การลงทะเบียนครั้งแรกต้องเปลี่ยนได้ทันที: เริ่มนับคูลดาวน์หลัง "อัปเดตจริง" เท่านั้น
+        # รองรับข้อมูลเก่าที่ updated_at ถูกตั้งค่าเท่ากับ created_at ตั้งแต่ตอนสร้าง
+        created_at = existing_sample.created_at
+        updated_at = existing_sample.updated_at
 
-            days_since_update = (now - last_updated).days
-            
-            if days_since_update < 30:
-                days_left = 30 - days_since_update
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if updated_at and updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+        has_real_update = updated_at is not None and (
+            created_at is None or updated_at > created_at
+        )
+
+        if has_real_update:
+            # 3. เคยอัปเดตมาแล้ว -> เช็คคูลดาวน์ 30 วันจากเวลาอัปเดตล่าสุด
+            cooldown_until = updated_at + timedelta(days=30)
+            if now < cooldown_until:
+                remaining_seconds = (cooldown_until - now).total_seconds()
+                days_left = int(remaining_seconds // 86400)
+                # ถ้ามีเศษวินาทีเหลืออยู่ ให้บวกอีก 1 วัน (แต่ไม่เกิน 30)
+                if remaining_seconds % 86400 > 0:
+                    days_left += 1
+                days_left = min(days_left, 30)
+                days_left = max(days_left, 1)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"คุณเปลี่ยนใบหน้าไปแล้ว (ติดล็อค 30 วัน) กรุณารออีก {days_left} วันจึงจะสามารถเปลี่ยนได้อีกครั้ง"
                 )
             
-        # 4. อนุญาตให้อัปเดตใบหน้าใหม่ (ทั้งกรณีการแก้ไขครั้งแรก หรือพ้นกำหนด 30 วันแล้ว)
+        # 4. อนุญาตให้อัปเดตใบหน้าใหม่ (ครั้งแรกหลังลงทะเบียน หรือพ้นกำหนด 30 วันแล้ว)
         existing_sample.image_url = image_url
         existing_sample.face_embedding = embedding
-        existing_sample.updated_at = now # บันทึกเวลาที่แก้ไข (จากนี้ไปจะเริ่มติด 30 วัน)
+        existing_sample.updated_at = now # เริ่มนับ 30 วันจากการอัปเดตครั้งนี้
         
         db.commit()
         db.refresh(existing_sample)

@@ -17,7 +17,7 @@ class UserFaceSample(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # เพื่อเก็บเวลาที่มีการอัปเดตใบหน้า
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=None, onupdate=lambda: datetime.now(timezone.utc), nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="face_samples")
