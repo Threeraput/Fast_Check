@@ -12,6 +12,7 @@ class AnnouncementDetailScreen extends StatefulWidget {
   final String title;
   final String? body;
   final DateTime? postedAt;
+  final bool pinned;
   final List? attachments; // 👈 เพิ่มตัวนี้
 
   const AnnouncementDetailScreen({
@@ -20,6 +21,7 @@ class AnnouncementDetailScreen extends StatefulWidget {
     required this.title,
     this.body,
     this.postedAt,
+    this.pinned = false,
     this.attachments, // 👈 เพิ่มตัวนี้
   });
 
@@ -78,9 +80,9 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ไม่สามารถเปิดไฟล์ได้: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ไม่สามารถเปิดไฟล์ได้: $e')));
       }
     }
   }
@@ -113,6 +115,13 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy, HH:mm');
+    final headerIcon = widget.pinned ? Icons.push_pin : Icons.campaign_outlined;
+    final headerIconColor = widget.pinned
+        ? Colors.red.shade700
+        : Colors.blue.shade700;
+    final displayTitle = widget.pinned
+        ? '[ปักหมุด] ${widget.title}'
+        : widget.title;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -147,12 +156,12 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1),
+                                  color: headerIconColor.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(
-                                  Icons.campaign,
-                                  color: Colors.orange,
+                                child: Icon(
+                                  headerIcon,
+                                  color: headerIconColor,
                                   size: 28,
                                 ),
                               ),
@@ -162,7 +171,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      widget.title,
+                                      displayTitle,
                                       style: const TextStyle(
                                         fontSize: 22,
                                         fontWeight: FontWeight.bold,

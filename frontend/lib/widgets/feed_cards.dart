@@ -164,7 +164,9 @@ class _FeedCard extends StatelessWidget {
     // เพิ่มการดึงเวลาสาย
     final lateStr = item.extra['late_cutoff_time']?.toString();
     final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
-    final lateTxt = late != null ? DateFormat('HH:mm').format(late.toLocal()) : null;
+    final lateTxt = late != null
+        ? DateFormat('HH:mm').format(late.toLocal())
+        : null;
 
     final radius = item.extra['radius']?.toString();
     final lat = item.extra['anchor_lat']?.toString();
@@ -437,6 +439,7 @@ class _AnnouncementCard extends StatelessWidget {
                 title: title, // ส่งชื่อเรื่อง
                 body: body, // ส่งเนื้อหา
                 postedAt: postedAt, // ส่งเวลา
+                pinned: pinned,
                 attachments: attachments, // 👈 เพิ่มตัวนี้
               ),
             ),
