@@ -1,4 +1,4 @@
 class AppConfig {
-  static const String baseUrl = 'http://192.168.0.195:8000/api/v1';
-  static const String uploadsfileUrl = 'http://192.168.0.195:8000';
+  static const String baseUrl = 'http://172.20.10.3:8000/api/v1';
+  static const String uploadsfileUrl = 'http://172.20.10.3:8000';
 }

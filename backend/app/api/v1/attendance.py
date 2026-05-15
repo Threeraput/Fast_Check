@@ -59,7 +59,7 @@ from app.services.location_service import (
     log_student_location,
 )
 from app.services.face_recognition_service import get_face_embedding, compare_faces
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # ---------- NEW: ช่วยจัด EXIF orientation เพื่อลด false reject ----------
 from PIL import Image, ImageOps

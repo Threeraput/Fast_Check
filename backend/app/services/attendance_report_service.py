@@ -179,4 +179,4 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
         report.attendance_rate = 0.0
 
     db.commit()
-    return {"message": f"✅ Updated reports for {len(student_data)} students."}
+    return {"message": f"✅ Updated report for student {student_id}."}
