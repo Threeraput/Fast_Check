@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/attendance_service.dart';
+import 'package:frontend/widgets/attendance_status_badge.dart';
 import 'package:intl/intl.dart';
 import '../../models/attendance_report_detail.dart';
 import '../../services/attendance_report_service.dart';
@@ -113,38 +114,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'present':
-        return Colors.green;
-      case 'late':
-        return Colors.orange;
-      case 'absent':
-        return Colors.red;
-      case 'left_early':
-      case 'leftearly':
-        return Colors.purple;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _statusText(String status) {
-    switch (status.toLowerCase()) {
-      case 'present':
-        return 'เข้าเรียน';
-      case 'late':
-        return 'สาย';
-      case 'absent':
-        return 'ขาด';
-      case 'left_early':
-      case 'leftearly':
-        return 'กลับก่อน';
-      default:
-        return status;
     }
   }
 
@@ -284,8 +253,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                   children: dailyItems.map((d) {
-                    final sColor = _statusColor(d.status);
-
                     return InkWell(
                       onTap: () => _showOverrideSheet(d),
                       child: Container(
@@ -312,23 +279,9 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: sColor.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    _statusText(d.status),
-                                    style: TextStyle(
-                                      color: sColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
+                                AttendanceStatusBadge(
+                                  status: d.status,
+                                  isManualOverride: d.isManualOverride,
                                 ),
                               ],
                             ),

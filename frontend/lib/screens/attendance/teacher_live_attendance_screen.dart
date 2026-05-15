@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:frontend/services/live_attendance_ws_service.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:frontend/services/attendance_service.dart';
+import 'package:frontend/widgets/attendance_status_badge.dart';
 
 class TeacherLiveAttendanceScreen extends StatefulWidget {
   final String sessionId;
@@ -265,39 +266,6 @@ class _TeacherLiveAttendanceScreenState
     return v.map((e) => _asMap(e)).where((e) => e.isNotEmpty).toList();
   }
 
-  String _statusText(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(' ', '_');
-    switch (normalized) {
-      case 'present':
-        return 'เข้าเรียน';
-      case 'late':
-        return 'สาย';
-      case 'absent':
-        return 'ขาด';
-      case 'left_early':
-      case 'leftearly':
-        return 'กลับก่อน';
-      case 'unverified_face':
-        return 'เช็คชื่อแล้ว';
-      case 'manual_override':
-        return 'แก้ไขโดยอาจารย์';
-      default:
-        return raw.isEmpty ? 'ไม่ระบุ' : raw;
-    }
-  }
-
-  Color _statusColor(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(' ', '_');
-    switch (normalized) {
-      case 'present':
-        return Colors.green;
-      case 'late':
-        return Colors.orange;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('d MMM yyyy, HH:mm');
@@ -451,12 +419,12 @@ class _TeacherLiveAttendanceScreenState
                               height: 48,
                               child: imageUrl == null || imageUrl.isEmpty
                                   ? Container(
-                                      color: _statusColor(
+                                      color: AttendanceStatusBadge.getStatusColor(
                                         status,
                                       ).withValues(alpha: 0.12),
                                       child: Icon(
                                         Icons.person,
-                                        color: _statusColor(status),
+                                        color: AttendanceStatusBadge.getStatusColor(status),
                                       ),
                                     )
                                   : Image.network(
@@ -465,12 +433,12 @@ class _TeacherLiveAttendanceScreenState
                                       errorBuilder:
                                           (context, error, stackTrace) {
                                             return Container(
-                                              color: _statusColor(
+                                              color: AttendanceStatusBadge.getStatusColor(
                                                 status,
                                               ).withValues(alpha: 0.12),
                                               child: Icon(
                                                 Icons.person,
-                                                color: _statusColor(status),
+                                                color: AttendanceStatusBadge.getStatusColor(status),
                                               ),
                                             );
                                           },
@@ -485,12 +453,9 @@ class _TeacherLiveAttendanceScreenState
                                 ? 'ไม่พบเวลาเช็คชื่อ'
                                 : 'เวลา ${dateFmt.format(checkIn.toLocal())}',
                           ),
-                          trailing: Text(
-                            _statusText(status),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: _statusColor(status),
-                            ),
+                          trailing: AttendanceStatusBadge(
+                            status: status,
+                            isManualOverride: a['is_manual_override'] == true,
                           ),
                         ),
                       );

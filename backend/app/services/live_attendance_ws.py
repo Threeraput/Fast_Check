@@ -96,6 +96,7 @@ def _to_item(att: Attendance) -> dict[str, Any]:
         "status": status,
         "check_in_time": check_in_time.isoformat() if check_in_time else None,
         "face_image_path": att.face_image_path,
+        "is_manual_override": getattr(att, "is_manual_override", False),
     }
 
 

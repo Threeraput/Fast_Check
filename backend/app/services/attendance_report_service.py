@@ -123,6 +123,7 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
         status = AttendanceStatus.ABSENT.value
         check_in_time = None
         is_reverified = False
+        is_manual_override = False
         current_face_path = None
         current_reverify_time = None
         current_reverify_path = None
@@ -132,6 +133,7 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
         else:
             check_in_time = record.check_in_time
             is_reverified = record.is_reverified
+            is_manual_override = getattr(record, "is_manual_override", False)
             current_face_path = record.face_image_path
             current_reverify_time = getattr(record, "reverify_time", None)
             current_reverify_path = getattr(record, "reverify_image_path", None)
@@ -154,6 +156,7 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
                 status=report_status,
                 check_in_time=check_in_time,
                 is_reverified=is_reverified,
+                is_manual_override=is_manual_override,
                 session_start=session.start_time,
                 face_image_path=current_face_path,
                 reverify_time=current_reverify_time,

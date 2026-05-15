@@ -6,6 +6,7 @@ class AttendanceReportDetail {
   final String? checkInTime;
   final String? sessionStart;
   final bool isReverified;
+  final bool isManualOverride;
   //  เพิ่ม 3 ฟิลด์นี้เข้ามารับข้อมูล 2 รูป
   final String? faceImageUrl;
   final String? reverifyImageUrl;
@@ -18,6 +19,7 @@ class AttendanceReportDetail {
     this.checkInTime,
     this.sessionStart,
     required this.isReverified,
+    this.isManualOverride = false,
     this.faceImageUrl,
     this.reverifyImageUrl,
     this.reverifyTime,
@@ -31,6 +33,7 @@ class AttendanceReportDetail {
       checkInTime: json['check_in_time']?.toString(),
       sessionStart: json['session_start']?.toString(),
       isReverified: json['is_reverified'] ?? false,
+      isManualOverride: json['is_manual_override'] ?? false,
 
       //  แมปค่าจาก JSON ที่มาจาก Backend
       faceImageUrl: json['face_image_url']?.toString(),
