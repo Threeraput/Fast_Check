@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:frontend/services/live_attendance_ws_service.dart';
 import 'package:frontend/services/user_service.dart';
+import 'package:frontend/services/attendance_service.dart';
 
 class TeacherLiveAttendanceScreen extends StatefulWidget {
   final String sessionId;
@@ -175,6 +176,80 @@ class _TeacherLiveAttendanceScreenState
     if (v is num) return v.toInt();
     if (v is String) return int.tryParse(v) ?? 0;
     return 0;
+  }
+
+  void _showStatusOverrideSheet(Map<String, dynamic> attendee) {
+    final name = (attendee['student_name'] ?? 'Unknown Student').toString();
+    final attendanceId = (attendee['attendance_id'] ?? '').toString();
+
+    if (attendanceId.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'แก้ไขสถานะ: $name',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: const Text('มาเรียน (Present)'),
+              onTap: () => _updateStatus(attendanceId, 'Present'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time, color: Colors.orange),
+              title: const Text('สาย (Late)'),
+              onTap: () => _updateStatus(attendanceId, 'Late'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel, color: Colors.red),
+              title: const Text('ขาด (Absent)'),
+              onTap: () => _updateStatus(attendanceId, 'Absent'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateStatus(String attendanceId, String newStatus) async {
+    Navigator.pop(context);
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กำลังบันทึกการแก้ไข...'), duration: Duration(seconds: 1)),
+      );
+      
+      await AttendanceService.manualOverride(
+        attendanceId: attendanceId,
+        newStatus: newStatus,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('แก้ไขสถานะสำเร็จ'), backgroundColor: Colors.green),
+      );
+      
+      // อัปเดต UI ท้องถิ่น (ถึงแม้ WS จะส่งมาใหม่ แต่กันเหนียว)
+      setState(() {
+        final idx = _attendees.indexWhere((e) => e['attendance_id'].toString() == attendanceId);
+        if (idx != -1) {
+          _attendees[idx]['status'] = newStatus;
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   Map<String, dynamic> _asMap(dynamic v) {
@@ -368,6 +443,7 @@ class _TeacherLiveAttendanceScreenState
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
+                          onTap: () => _showStatusOverrideSheet(a),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: SizedBox(

@@ -20,7 +20,6 @@ class LiveAttendanceWSManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, session_key: str, websocket: WebSocket) -> None:
-        await websocket.accept()
         async with self._lock:
             self._rooms[session_key].add(websocket)
 

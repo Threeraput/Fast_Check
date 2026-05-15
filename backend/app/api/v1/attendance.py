@@ -35,6 +35,7 @@ from app.schemas.attendance_schema import (
     TeacherLocationUpdate,
     StudentLocationLogCreate,
     AttendanceManualOverride,
+    AttendanceManualCreate,
     ReverifyRequest,
     SilentLocationUpdate,
     SilentCheckResponse,
@@ -47,6 +48,7 @@ from app.services.attendance_service import (
     record_check_in,
     handle_reverification,
     manual_override_attendance,
+    create_manual_attendance,
     handle_silent_location_update,
 )
 from app.services.live_attendance_ws import (
@@ -163,46 +165,50 @@ def _can_watch_live_session(db: Session, session_id: UUID, user: User) -> bool:
 @router.websocket("/sessions/{session_id}/live")
 async def live_session_attendance(
     websocket: WebSocket,
-    session_id: UUID,
+    session_id: str, # เปลี่ยนจาก UUID เป็น str เพื่อป้องกัน 422 ก่อน accept
     db: Session = Depends(get_db),
 ):
-    user = _get_ws_user(websocket, db)
-    if not user:
-        await websocket.close(code=1008)
-        return
-
-    if not _can_watch_live_session(db, session_id, user):
-        await websocket.close(code=1008)
-        return
-
-    session_key = str(session_id)
-    await live_attendance_ws_manager.connect(session_key, websocket)
-
+    # 1. ยอมรับการเชื่อมต่อก่อน
+    await websocket.accept()
+    
     try:
-        payload = get_live_session_payload(db, session_id)
-        if payload is None:
-            await websocket.send_json(
-                {
-                    "event": "error",
-                    "message": "Session not found",
-                    "session_id": session_key,
-                }
-            )
-        else:
+        # 2. แปลง session_id เป็น UUID เอง
+        try:
+            actual_session_id = uuid.UUID(session_id)
+        except ValueError:
+            await websocket.send_json({"event": "error", "message": "Invalid session ID format"})
+            await websocket.close(code=1008)
+            return
+
+        # 3. ตรวจสอบสิทธิ์
+        user = _get_ws_user(websocket, db)
+        if not user or not _can_watch_live_session(db, actual_session_id, user):
+            await websocket.send_json({"event": "error", "message": "Unauthorized or session not found"})
+            await websocket.close(code=1008)
+            return
+
+        session_key = str(actual_session_id)
+        # 4. ลงทะเบียนเข้า Room
+        async with live_attendance_ws_manager._lock:
+            live_attendance_ws_manager._rooms[session_key].add(websocket)
+
+        # 5. ส่ง Snapshot แรก
+        payload = get_live_session_payload(db, actual_session_id)
+        if payload:
             await websocket.send_json({"event": "snapshot", **payload})
 
+        # 6. Loop รับข้อความ
         while True:
-            try:
-                msg = await websocket.receive_text()
-            except Exception:
-                break
-
+            msg = await websocket.receive_text()
             if msg.strip().lower() == "ping":
                 await websocket.send_json({"event": "pong"})
+                
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        logger.error(f"❌ WebSocket Error: {e}")
     finally:
-        await live_attendance_ws_manager.disconnect(session_key, websocket)
+        await live_attendance_ws_manager.disconnect(session_id, websocket)
 
 
 # ------------------------------------
@@ -468,6 +474,51 @@ async def override_attendance_status(
         raise HTTPException(
             status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
         )
+
+
+# ------------------------------------
+# 6) POST /attendance/manual-override
+# ------------------------------------
+@router.post("/manual-override", response_model=AttendanceResponse)
+async def manual_create_or_override(
+    data: AttendanceManualCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token),
+):
+    """
+    Endpoint ใหม่ที่รองรับทั้งกรณีมี Record แล้ว (Override) 
+    และยังไม่มี Record (Create) โดยใช้ session_id + student_id
+    """
+    is_admin = "admin" in token_roles
+    is_teacher = "teacher" in token_roles
+
+    if not (is_admin or is_teacher):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    # ตรวจสิทธิ์เจ้าของห้องเรียน (ถ้าเป็นครู)
+    if is_teacher and not is_admin:
+        session = db.query(AttendanceSession).filter_by(session_id=data.session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        cls = db.query(Class).filter_by(class_id=session.class_id).first()
+        if cls.teacher_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="You can only modify attendance for your own class.")
+
+    try:
+        record = create_manual_attendance(
+            db=db,
+            session_id=data.session_id,
+            student_id=data.student_id,
+            new_status=data.status,
+            recorded_by_user_id=current_user.user_id,
+        )
+        return record
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/sessions/active", response_model=List[SessionResponse])

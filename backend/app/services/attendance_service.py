@@ -330,6 +330,14 @@ def manual_override_attendance(
     try:
         db.commit()
         db.refresh(attendance)
+
+        # ✨ เพิ่ม: อัปเดตรายงานรายงานการเช็คชื่อแบบ Real-time ทันทีที่แก้ไข
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(attendance.class_id), str(attendance.student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report after manual override for student {attendance.student_id}: {report_err}")
+
         # รองรับทั้ง Pydantic V1 และ V2
         try:
             return AttendanceResponse.model_validate(attendance, from_attributes=True)
@@ -340,6 +348,67 @@ def manual_override_attendance(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save manual override: {e}",
+        )
+
+
+def create_manual_attendance(
+    db: Session,
+    session_id: uuid.UUID,
+    student_id: uuid.UUID,
+    new_status: AttendanceStatus,
+    recorded_by_user_id: uuid.UUID,
+) -> AttendanceResponse:
+    """
+    กรณีนักเรียนไม่มี Record ใน session นั้น (เช่น ขาดเรียน) 
+    ครูสามารถสร้าง Record ขึ้นมาใหม่เองได้เลย
+    """
+    session = db.query(AttendanceSession).filter_by(session_id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # เช็คว่ามีอยู่แล้วหรือยัง
+    attendance = (
+        db.query(Attendance)
+        .filter(Attendance.session_id == session_id, Attendance.student_id == student_id)
+        .first()
+    )
+
+    now = datetime.now(timezone.utc)
+
+    if attendance:
+        # ถ้ามีอยู่แล้วให้ใช้ Logic เดียวกับ Manual Override
+        return manual_override_attendance(db, attendance.attendance_id, new_status, recorded_by_user_id)
+    
+    # ถ้ายังไม่มีให้สร้างใหม่
+    attendance = Attendance(
+        class_id=session.class_id,
+        session_id=session_id,
+        student_id=student_id,
+        status=new_status,
+        is_manual_override=True,
+        recorded_by_user_id=recorded_by_user_id,
+        check_in_time=now,
+        last_verified_at=now,
+    )
+
+    try:
+        db.add(attendance)
+        db.commit()
+        db.refresh(attendance)
+
+        # ✨ อัปเดตรายงานทันที
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(attendance.class_id), str(student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report after manual create for student {student_id}: {report_err}")
+
+        return AttendanceResponse.model_validate(attendance, from_attributes=True)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create manual attendance: {e}"
         )
 
 

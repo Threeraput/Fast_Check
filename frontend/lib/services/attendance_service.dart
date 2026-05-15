@@ -353,29 +353,57 @@ class AttendanceService {
   // Admin/Teacher override (optional)
   // ==============================
 
+  /// แก้ไขสถานะการเข้าเรียน (Manual Override)
+  /// - ถ้ามี [attendanceId] จะใช้ endpoint เดิม (PATCH /attendance/override/{id})
+  /// - ถ้าไม่มี [attendanceId] จะใช้ [sessionId] + [studentId] (POST /attendance/manual-override)
   static Future<Attendance> manualOverride({
-    required String attendanceId,
-    required String newStatus, // "present" | "absent" | "late" | "suspected"
+    String? attendanceId,
+    String? sessionId,
+    String? studentId,
+    required String newStatus, // "Present" | "Absent" | "Late" | "LeftEarly"
   }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final url = Uri.parse('$API_BASE_URL/attendance/override/$attendanceId');
-    final res = await http
-        .patch(
-          url,
-          headers: {
-            HttpHeaders.authorizationHeader: 'Bearer $token',
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
-          body: jsonEncode({'status': newStatus}),
-        )
-        .timeout(_timeout);
+    http.Response res;
+    if (attendanceId != null && attendanceId.isNotEmpty) {
+      final url = Uri.parse('$API_BASE_URL/attendance/override/$attendanceId');
+      res = await http
+          .patch(
+            url,
+            headers: {
+              HttpHeaders.authorizationHeader: 'Bearer $token',
+              HttpHeaders.contentTypeHeader: 'application/json',
+            },
+            body: jsonEncode({'status': newStatus}),
+          )
+          .timeout(_timeout);
+    } else if (sessionId != null && studentId != null) {
+      final url = Uri.parse('$API_BASE_URL/attendance/manual-override');
+      res = await http
+          .post(
+            url,
+            headers: {
+              HttpHeaders.authorizationHeader: 'Bearer $token',
+              HttpHeaders.contentTypeHeader: 'application/json',
+            },
+            body: jsonEncode({
+              'session_id': sessionId,
+              'student_id': studentId,
+              'status': newStatus,
+            }),
+          )
+          .timeout(_timeout);
+    } else {
+      throw Exception('Missing identifiers for manual override');
+    }
 
-    if (res.statusCode == 200) {
+    if (res.statusCode == 200 || res.statusCode == 201) {
       return Attendance.fromJson(jsonDecode(res.body));
     } else {
-      throw Exception('Override failed [${res.statusCode}]: ${res.body}');
+      throw Exception(
+        'Override failed [${res.statusCode}]: ${_extractErrorMessage(res.body)}',
+      );
     }
   }
 
