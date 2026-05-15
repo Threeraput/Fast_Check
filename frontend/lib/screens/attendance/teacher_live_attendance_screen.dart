@@ -230,8 +230,7 @@ class _TeacherLiveAttendanceScreenState
       builder: (context) => AlertDialog(
         title: const Text('ยืนยันการแก้ไขสถานะ'),
         content: Text(
-          'คุณต้องการเปลี่ยนสถานะของ $studentName เป็น "$newStatus" ใช่หรือไม่?\n\n'
-          '⚠️ การเปลี่ยนแปลงนี้จะมีผลทันทีทั้งในหน้า Live Attendance และหน้ารายงานประวัติการเข้าเรียน'
+          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n',
         ),
         actions: [
           TextButton(
@@ -243,7 +242,10 @@ class _TeacherLiveAttendanceScreenState
               Navigator.pop(context);
               _updateStatus(attendanceId, newStatus);
             },
-            child: const Text('ยืนยัน'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
