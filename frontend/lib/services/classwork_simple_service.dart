@@ -46,6 +46,33 @@ class ClassworkSimpleService {
     }
   }
 
+  static Exception _createAssignmentErrorFrom(http.Response res) {
+    try {
+      final m = json.decode(res.body);
+      final raw = (m['detail'] ?? m['message'] ?? res.body).toString();
+      final lowered = raw.toLowerCase();
+      if (lowered.contains('uq_cw_assign_class_title') ||
+          lowered.contains('duplicate key') ||
+          lowered.contains('unique constraint') ||
+          (lowered.contains('title') &&
+              (lowered.contains('already exists') ||
+                  lowered.contains('duplicate')))) {
+        return Exception('สร้างชื่องานซ้ำไม่ได้');
+      }
+      return Exception(raw);
+    } catch (_) {
+      final raw = res.body.toLowerCase();
+      if (raw.contains('uq_cw_assign_class_title') ||
+          raw.contains('duplicate key') ||
+          raw.contains('unique constraint') ||
+          (raw.contains('title') &&
+              (raw.contains('already exists') || raw.contains('duplicate')))) {
+        return Exception('สร้างชื่องานซ้ำไม่ได้');
+      }
+      return Exception(res.body);
+    }
+  }
+
   // ============ STUDENT (raw) ============
   static Future<List<dynamic>> getStudentAssignments(String classId) async {
     final url = Uri.parse('$_base/student/$classId/assignments');
@@ -109,7 +136,7 @@ class ClassworkSimpleService {
     if (res.statusCode == 201 || res.statusCode == 200) {
       return json.decode(res.body) as Map<String, dynamic>;
     }
-    throw _errorFrom(res);
+    throw _createAssignmentErrorFrom(res);
   }
 
   static Future<AssignmentAttachment> uploadAssignmentAttachment({
@@ -308,7 +335,7 @@ class ClassworkSimpleService {
     if (res.statusCode == 201 || res.statusCode == 200) {
       return ClassworkAssignment.fromJson(json.decode(res.body));
     }
-    throw _errorFrom(res);
+    throw _createAssignmentErrorFrom(res);
   }
 
   static Future<List<ClassworkAssignment>>

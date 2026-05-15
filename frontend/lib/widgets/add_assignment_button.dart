@@ -82,6 +82,10 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
   DateTime? _dueDate;
   bool _submitting = false;
 
+  String _formatErrorMessage(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
   @override
   void dispose() {
     _title.dispose();
@@ -206,7 +210,7 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _submitting = false);
-      _warn('สร้างงานไม่สำเร็จ: $e');
+      _warn(_formatErrorMessage(e));
     }
   }
 
