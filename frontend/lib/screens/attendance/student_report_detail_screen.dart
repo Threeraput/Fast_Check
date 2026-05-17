@@ -99,7 +99,7 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('ยืนยันการแก้ไขสถานะ'),
         content: Text(
-          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n'
+          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n',
         ),
         actions: [
           TextButton(
@@ -111,21 +111,22 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
               Navigator.pop(context);
               _updateStatus(detail, newStatus);
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.blue,
-            ),
-            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _updateStatus(AttendanceReportDetail detail, String newStatus) async {
+  Future<void> _updateStatus(
+    AttendanceReportDetail detail,
+    String newStatus,
+  ) async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กำลังบันทึกการแก้ไข...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('กำลังบันทึกการแก้ไข...')));
 
       await AttendanceService.manualOverride(
         sessionId: detail.sessionId,
@@ -134,10 +135,13 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('แก้ไขสำเร็จ'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('แก้ไขสำเร็จ'),
+          backgroundColor: Colors.green,
+        ),
       );
-      
-      _loadData(); 
+
+      _loadData();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -247,8 +251,12 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
           dateKeys.sort((a, b) {
             final aItems = groupedDetails[a] ?? [];
             final bItems = groupedDetails[b] ?? [];
-            final aTop = aItems.isNotEmpty ? _sortDateTime(aItems.first) : DateTime.fromMillisecondsSinceEpoch(0);
-            final bTop = bItems.isNotEmpty ? _sortDateTime(bItems.first) : DateTime.fromMillisecondsSinceEpoch(0);
+            final aTop = aItems.isNotEmpty
+                ? _sortDateTime(aItems.first)
+                : DateTime.fromMillisecondsSinceEpoch(0);
+            final bTop = bItems.isNotEmpty
+                ? _sortDateTime(bItems.first)
+                : DateTime.fromMillisecondsSinceEpoch(0);
             return bTop.compareTo(aTop);
           });
 
@@ -320,7 +328,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 GestureDetector(
                                   onTap: () {
                                     if (d.faceImageUrl != null) {
-                                      final validUrl = UserService.absoluteAvatarUrl(d.faceImageUrl);
+                                      final validUrl =
+                                          UserService.absoluteAvatarUrl(
+                                            d.faceImageUrl,
+                                          );
                                       if (validUrl != null) {
                                         _showImageDialog(validUrl);
                                       }
@@ -335,21 +346,37 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                     ),
                                     child: d.faceImageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                             child: Image.network(
-                                              UserService.absoluteAvatarUrl(d.faceImageUrl) ?? '',
+                                              UserService.absoluteAvatarUrl(
+                                                    d.faceImageUrl,
+                                                  ) ??
+                                                  '',
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  const Icon(Icons.person, color: Colors.grey),
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Icon(
+                                                    Icons.person,
+                                                    color: Colors.grey,
+                                                  ),
                                             ),
                                           )
-                                        : const Icon(Icons.person, color: Colors.grey),
+                                        : const Icon(
+                                            Icons.person,
+                                            color: Colors.grey,
+                                          ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'เช็คชื่อ',
@@ -370,7 +397,8 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 ),
                               ],
                             ),
-                            if (d.reverifyImageUrl != null || d.isReverified) ...[
+                            if (d.reverifyImageUrl != null ||
+                                d.isReverified) ...[
                               const SizedBox(height: 12),
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,7 +406,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                   GestureDetector(
                                     onTap: () {
                                       if (d.reverifyImageUrl != null) {
-                                        final validUrl = UserService.absoluteAvatarUrl(d.reverifyImageUrl);
+                                        final validUrl =
+                                            UserService.absoluteAvatarUrl(
+                                              d.reverifyImageUrl,
+                                            );
                                         if (validUrl != null) {
                                           _showImageDialog(validUrl);
                                         }
@@ -393,30 +424,38 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                       ),
                                       child: d.reverifyImageUrl != null
                                           ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                               child: Image.network(
-                                                UserService.absoluteAvatarUrl(d.reverifyImageUrl) ?? '',
+                                                UserService.absoluteAvatarUrl(
+                                                      d.reverifyImageUrl,
+                                                    ) ??
+                                                    '',
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) =>
-                                                    const Icon(Icons.verified, color: Colors.blue),
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => const Icon(
+                                                      Icons.verified,
+                                                      color: Colors.blue,
+                                                    ),
                                               ),
                                             )
-                                          : const Icon(Icons.verified, color: Colors.blue),
+                                          : const Icon(
+                                              Icons.verified,
+                                              color: Colors.blue,
+                                            ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'ตรวจสอบซ้ำ',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.blue,
-                                            fontSize: 13,
-                                          ),
-                                        ),
+                                        // Removed 'ตรวจสอบซ้ำ' label as requested
                                         Text(
                                           'เวลา: ${_formatTime(d.reverifyTime)} น.',
                                           style: TextStyle(

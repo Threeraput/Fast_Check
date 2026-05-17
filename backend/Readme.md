@@ -1,5 +1,12 @@
 */
 (.venv)
+
+************************************************************
+This software includes code from face_recognition
+Copyright (c) 2021 Adam Geitgey
+Licensed under the MIT License
+************************************************************
+
 คำสั่งในการเข้า 
 Activate Virtual Environment
 To use the virtual environment, you have to activate it with this command:

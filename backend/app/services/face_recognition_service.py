@@ -14,7 +14,6 @@ def get_face_embedding(image_path: str) -> bytes:
     try:
         # โหลดไฟล์รูปภาพจาก path
         image = face_recognition.load_image_file(image_path)
-
         # ตรวจจับตำแหน่งใบหน้า
         face_locations = face_recognition.face_locations(image)
         if len(face_locations) == 0:

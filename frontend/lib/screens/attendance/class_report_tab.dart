@@ -132,7 +132,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.check_circle_outline, color: Colors.green),
+                leading: const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.green,
+                ),
                 title: const Text('รายงานการเข้าเรียนรายวัน'),
                 subtitle: const Text('สรุปการเช็คชื่อของนักเรียนทุกคน'),
                 onTap: () {
@@ -141,7 +144,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.assignment_outlined, color: Colors.blue),
+                leading: const Icon(
+                  Icons.assignment_outlined,
+                  color: Colors.blue,
+                ),
                 title: const Text('สถิติการส่งงานของคลาส'),
                 subtitle: const Text('สรุปคะแนนและสถานะการส่งงานทุกชิ้น'),
                 onTap: () {
@@ -544,10 +550,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
               _buildDetailRow('สาย', '${report.lateSessions} ครั้ง'),
               _buildDetailRow('ขาด', '${report.absentSessions} ครั้ง'),
               _buildDetailRow('กลับก่อน', '${report.leftEarlySessions} ครั้ง'),
-              _buildDetailRow(
-                'ตรวจสอบซ้ำ',
-                '${report.reverifiedSessions} ครั้ง',
-              ),
+              // Removed 'ตรวจสอบซ้ำ' row as requested
               _buildDetailRow(
                 'อัตราเข้าเรียน',
                 '${report.attendanceRate.toStringAsFixed(2)}%',

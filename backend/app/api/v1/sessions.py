@@ -57,6 +57,7 @@ async def open_attendance_session(
     # จองคิวงานอัตโนมัติ: สุ่ม silent check หลัง end_time
     # ------------------------------------------------------------
     start_time = new_session.start_time
+    late_time = new_session.late_cutoff_time
     end_time = new_session.end_time
     session_duration_seconds = max((end_time - start_time).total_seconds(), 0.0)
     session_duration_minutes = session_duration_seconds / 60.0
@@ -116,6 +117,7 @@ async def open_attendance_session(
     print("[⌛SILENT CHECK SCHEDULED]")
     print(f"Session ID              : {new_session.session_id}")
     print(f"Start Time (UTC)        : {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Late Time (UTC)         : {late_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"End Time (UTC)          : {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Session Duration        : {session_duration_minutes:.2f} minutes")
     print(f"Random Offset After End : {random_offset_minutes} minutes")

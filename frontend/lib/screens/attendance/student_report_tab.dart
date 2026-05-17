@@ -671,11 +671,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                 '${report.leftEarlySessions} ครั้ง',
                 Colors.purple,
               ),
-              _buildDetailRow(
-                'ตรวจสอบซ้ำ',
-                '${report.reverifiedSessions} ครั้ง',
-                Colors.blue,
-              ),
+              // Removed 'ตรวจสอบซ้ำ' row as requested
               const Divider(height: 24),
               _buildDetailRow(
                 'อัตราเข้าเรียน',
