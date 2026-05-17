@@ -20,7 +20,6 @@ class LiveAttendanceWSManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, session_key: str, websocket: WebSocket) -> None:
-        await websocket.accept()
         async with self._lock:
             self._rooms[session_key].add(websocket)
 
@@ -97,6 +96,7 @@ def _to_item(att: Attendance) -> dict[str, Any]:
         "status": status,
         "check_in_time": check_in_time.isoformat() if check_in_time else None,
         "face_image_path": att.face_image_path,
+        "is_manual_override": getattr(att, "is_manual_override", False),
     }
 
 

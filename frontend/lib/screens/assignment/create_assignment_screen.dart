@@ -23,6 +23,10 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
 
   bool _submitting = false;
 
+  String _formatErrorMessage(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_dueDate == null) {
@@ -71,7 +75,7 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      ).showSnackBar(SnackBar(content: Text(_formatErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

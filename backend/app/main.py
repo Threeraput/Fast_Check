@@ -28,7 +28,13 @@ from app.core.scheduler import start_scheduler, shutdown_scheduler
 from app.core.firebase import init_firebase
 
 
-MEDIA_ROOT = Path("media")
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+UPLOADS_ROOT = BACKEND_ROOT / "uploads"
+WORKPDF_ROOT = BACKEND_ROOT / "workpdf"
+MEDIA_ROOT = BACKEND_ROOT / "media"
+
+UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
+WORKPDF_ROOT.mkdir(parents=True, exist_ok=True)
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 
@@ -134,8 +140,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-app.mount("/workpdf", StaticFiles(directory="workpdf"), name="workpdf")
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_ROOT)), name="uploads")
+app.mount("/workpdf", StaticFiles(directory=str(WORKPDF_ROOT)), name="workpdf")
 app.mount("/media", StaticFiles(directory=str(MEDIA_ROOT)), name="media")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")

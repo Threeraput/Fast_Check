@@ -111,6 +111,7 @@ class FeedService {
               'pinned': a['pinned'],
               'visible': a['visible'],
               'author_name': a['author_name'],
+              'attachments': a['attachments'], // 👈 เพิ่มบรรทัดนี้
             },
           ),
         );

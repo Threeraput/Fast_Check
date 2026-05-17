@@ -52,11 +52,13 @@ class AttendanceResponse(BaseModel):
     """Response สำหรับการบันทึกการเข้าเรียนสำเร็จ"""
 
     attendance_id: UUID
+    session_id: UUID
     class_id: UUID
     student_id: UUID
     check_in_time: datetime
     status: AttendanceStatus
     is_reverified: bool
+    is_manual_override: bool = False
     last_verified_at: Optional[datetime] = None
 
     class Config:
@@ -85,6 +87,13 @@ class AttendanceManualOverride(BaseModel):
 
     # เพิ่ม is_manual_override ใน Schema
     is_manual_override: bool = True
+
+
+class AttendanceManualCreate(BaseModel):
+    """ใช้สำหรับสร้าง Record ใหม่ด้วยมือ (กรณีนักเรียนไม่ได้เช็คชื่อเอง)"""
+    session_id: UUID
+    student_id: UUID
+    status: AttendanceStatus
 
 
 class ReverifyRequest(BaseModel):

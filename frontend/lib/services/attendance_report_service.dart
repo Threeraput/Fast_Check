@@ -95,11 +95,16 @@ class AttendanceReportService {
   }
 
   /// นักเรียนดูรายงานรายวันของตัวเอง
-  static Future<List<AttendanceReportDetail>> getMyDailyReports() async {
+  static Future<List<AttendanceReportDetail>> getMyDailyReports({
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final url = Uri.parse('$baseUrl/attendance/reports/details/my');
+    // 👈 เพิ่ม Query Params
+    final url = Uri.parse('$baseUrl/attendance/reports/details/my').replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
+    );
     try {
       final res = await _get(url, token);
       // หลังบ้านจะ 404 ถ้ายังไม่มี detail → คืนลิสต์ว่าง
@@ -222,12 +227,17 @@ class AttendanceReportService {
 
   /// ครูดูรายงานรายวันของนักเรียน "เจาะจงรายบุคคล" (เพื่อดูรูปเช็คชื่อ)
   static Future<List<AttendanceReportDetail>> getStudentDailyReports(
-    String studentId,
-  ) async {
+    String studentId, {
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
+    
+    // 👈 เพิ่ม Query Params
     final url = Uri.parse(
       '$baseUrl/attendance/reports/details/student/$studentId',
+    ).replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
     );
     try {
       final res = await _get(url, token);
@@ -242,7 +252,7 @@ class AttendanceReportService {
     }
   }
 
- // ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง - Clean Code)
+  /// ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง)
   static Future<void> exportDetailedReport(String classId, String token) async {
     try {
       final url = Uri.parse('${AppConfig.baseUrl}/attendance/reports/details/class/$classId/export/detailed');
@@ -255,32 +265,25 @@ class AttendanceReportService {
       );
 
       if (response.statusCode == 200) {
-        // 1. หาพื้นที่ว่างในเครื่อง
         final dir = await getTemporaryDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        
-        // 2. เซฟไฟล์เป็น .xlsx ให้ตรงกับที่ Backend ส่งมา
         final filePath = '${dir.path}/detailed_report_$timestamp.xlsx'; 
         
-        // 3. เขียนไฟล์ลงเครื่อง
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
 
-        // 4. สั่งเปิดไฟล์ด้วย OpenFilex
         final result = await OpenFilex.open(filePath);
-        
-        // 5. ดักจับ Error กรณีต่างๆ เพื่อแจ้งเตือนเป็นภาษาไทย
         if (result.type == ResultType.noAppToOpen) {
           throw Exception("ไม่มีแอปสำหรับเปิดไฟล์ Excel กรุณาติดตั้ง Google Sheets หรือ Microsoft Excel");
         } else if (result.type != ResultType.done) {
           throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
         }
-        
+      } else if (response.statusCode == 404) {
+        throw Exception("ยังไม่มีรายงานการเช็คชื่อในระบบ");
       } else {
         throw Exception("ดาวน์โหลดล้มเหลว (รหัสข้อผิดพลาด: ${response.statusCode})");
       }
     } catch (e) {
-      // โยน Error ออกไปให้หน้าจอ UI จัดการแสดง SnackBar สีแดง
       throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }

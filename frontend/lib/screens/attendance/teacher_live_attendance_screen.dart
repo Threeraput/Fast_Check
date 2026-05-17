@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 import 'package:frontend/services/live_attendance_ws_service.dart';
 import 'package:frontend/services/user_service.dart';
+import 'package:frontend/services/attendance_service.dart';
+import 'package:frontend/widgets/attendance_status_badge.dart';
 
 class TeacherLiveAttendanceScreen extends StatefulWidget {
   final String sessionId;
@@ -153,10 +155,20 @@ class _TeacherLiveAttendanceScreenState
     }
 
     if (type == 'error') {
+      final msg = (event['message'] ?? 'Unknown error').toString();
       setState(() {
         _connecting = false;
-        _error = (event['message'] ?? 'Unknown error').toString();
+        _error = msg;
       });
+
+      if (msg == 'Session not found') {
+        // ถ้าไม่เจอ session ให้เด้งกลับ หรือบอกให้ชัดเจน
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ไม่พบข้อมูลการเช็คชื่อนี้ในระบบ')),
+          );
+        }
+      }
     }
   }
 
@@ -165,6 +177,108 @@ class _TeacherLiveAttendanceScreenState
     if (v is num) return v.toInt();
     if (v is String) return int.tryParse(v) ?? 0;
     return 0;
+  }
+
+  void _showStatusOverrideSheet(Map<String, dynamic> attendee) {
+    final name = (attendee['student_name'] ?? 'Unknown Student').toString();
+    final attendanceId = (attendee['attendance_id'] ?? '').toString();
+
+    if (attendanceId.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'แก้ไขสถานะ: $name',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: const Text('มาเรียน (Present)'),
+              onTap: () => _confirmUpdateStatus(attendanceId, 'Present', name),
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time, color: Colors.orange),
+              title: const Text('สาย (Late)'),
+              onTap: () => _confirmUpdateStatus(attendanceId, 'Late', name),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel, color: Colors.red),
+              title: const Text('ขาด (Absent)'),
+              onTap: () => _confirmUpdateStatus(attendanceId, 'Absent', name),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmUpdateStatus(String attendanceId, String newStatus, String studentName) {
+    Navigator.pop(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการแก้ไขสถานะ'),
+        content: Text(
+          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateStatus(attendanceId, newStatus);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateStatus(String attendanceId, String newStatus) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กำลังบันทึกการแก้ไข...'), duration: Duration(seconds: 1)),
+      );
+      
+      await AttendanceService.manualOverride(
+        attendanceId: attendanceId,
+        newStatus: newStatus,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('แก้ไขสถานะสำเร็จ'), backgroundColor: Colors.green),
+      );
+      
+      // อัปเดต UI ท้องถิ่น (ถึงแม้ WS จะส่งมาใหม่ แต่กันเหนียว)
+      setState(() {
+        final idx = _attendees.indexWhere((e) => e['attendance_id'].toString() == attendanceId);
+        if (idx != -1) {
+          _attendees[idx]['status'] = newStatus;
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   Map<String, dynamic> _asMap(dynamic v) {
@@ -178,39 +292,6 @@ class _TeacherLiveAttendanceScreenState
   List<Map<String, dynamic>> _asList(dynamic v) {
     if (v is! List) return const [];
     return v.map((e) => _asMap(e)).where((e) => e.isNotEmpty).toList();
-  }
-
-  String _statusText(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(' ', '_');
-    switch (normalized) {
-      case 'present':
-        return 'เข้าเรียน';
-      case 'late':
-        return 'สาย';
-      case 'absent':
-        return 'ขาด';
-      case 'left_early':
-      case 'leftearly':
-        return 'กลับก่อน';
-      case 'unverified_face':
-        return 'เช็คชื่อแล้ว';
-      case 'manual_override':
-        return 'แก้ไขโดยอาจารย์';
-      default:
-        return raw.isEmpty ? 'ไม่ระบุ' : raw;
-    }
-  }
-
-  Color _statusColor(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(' ', '_');
-    switch (normalized) {
-      case 'present':
-        return Colors.green;
-      case 'late':
-        return Colors.orange;
-      default:
-        return Colors.blueGrey;
-    }
   }
 
   @override
@@ -358,6 +439,7 @@ class _TeacherLiveAttendanceScreenState
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
+                          onTap: () => _showStatusOverrideSheet(a),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: SizedBox(
@@ -365,12 +447,12 @@ class _TeacherLiveAttendanceScreenState
                               height: 48,
                               child: imageUrl == null || imageUrl.isEmpty
                                   ? Container(
-                                      color: _statusColor(
+                                      color: AttendanceStatusBadge.getStatusColor(
                                         status,
                                       ).withValues(alpha: 0.12),
                                       child: Icon(
                                         Icons.person,
-                                        color: _statusColor(status),
+                                        color: AttendanceStatusBadge.getStatusColor(status),
                                       ),
                                     )
                                   : Image.network(
@@ -379,12 +461,12 @@ class _TeacherLiveAttendanceScreenState
                                       errorBuilder:
                                           (context, error, stackTrace) {
                                             return Container(
-                                              color: _statusColor(
+                                              color: AttendanceStatusBadge.getStatusColor(
                                                 status,
                                               ).withValues(alpha: 0.12),
                                               child: Icon(
                                                 Icons.person,
-                                                color: _statusColor(status),
+                                                color: AttendanceStatusBadge.getStatusColor(status),
                                               ),
                                             );
                                           },
@@ -399,12 +481,9 @@ class _TeacherLiveAttendanceScreenState
                                 ? 'ไม่พบเวลาเช็คชื่อ'
                                 : 'เวลา ${dateFmt.format(checkIn.toLocal())}',
                           ),
-                          trailing: Text(
-                            _statusText(status),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: _statusColor(status),
-                            ),
+                          trailing: AttendanceStatusBadge(
+                            status: status,
+                            isManualOverride: a['is_manual_override'] == true,
                           ),
                         ),
                       );

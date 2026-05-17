@@ -626,7 +626,7 @@ class _PeopleTabState extends State<_PeopleTab> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('ยกเลิก'),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.black)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),

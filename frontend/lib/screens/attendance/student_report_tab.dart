@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/attendance_report.dart';
 import 'package:frontend/models/attendance_report_detail.dart';
 import 'package:frontend/services/attendance_report_service.dart';
+import 'package:frontend/widgets/attendance_status_badge.dart';
 import 'package:intl/intl.dart';
 
 // เพิ่ม: ใช้บริการคลาสเพื่อแปลง classId -> className
@@ -70,7 +71,9 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
     try {
       final reports = await AttendanceReportService.getMyReports();
-      final dailyReports = await AttendanceReportService.getMyDailyReports();
+      final dailyReports = await AttendanceReportService.getMyDailyReports(
+        classId: widget.classId,
+      );
 
       // โหลดรายชื่อคลาสที่นักเรียนอยู่ เพื่อ map classId -> className
       try {
@@ -473,32 +476,6 @@ class _StudentReportTabState extends State<StudentReportTab> {
     AttendanceReportDetail detail, {
     bool showDate = true,
   }) {
-    Color statusColor;
-    String statusText;
-
-    switch (detail.status.toLowerCase()) {
-      case 'present':
-        statusColor = Colors.green;
-        statusText = 'เข้าเรียน';
-        break;
-      case 'late':
-        statusColor = Colors.orange;
-        statusText = 'สาย';
-        break;
-      case 'absent':
-        statusColor = Colors.red;
-        statusText = 'ขาด';
-        break;
-      case 'left_early':
-      case 'leftearly':
-        statusColor = Colors.purple;
-        statusText = 'กลับก่อน';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusText = detail.status;
-    }
-
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -523,12 +500,9 @@ class _StudentReportTabState extends State<StudentReportTab> {
                     'เช็คชื่อ',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
-                Text(
-                  statusText,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.bold,
-                  ),
+                AttendanceStatusBadge(
+                  status: detail.status,
+                  isManualOverride: detail.isManualOverride,
                 ),
               ],
             ),

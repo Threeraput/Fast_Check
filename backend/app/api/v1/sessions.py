@@ -138,7 +138,6 @@ async def list_active_sessions(
     current_user: User = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
-    from datetime import timedelta
 
     # เช็คว่าเป็นอาจารย์หรือแอดมินไหม
     is_privileged = any(r.name in ["admin", "teacher"] for r in current_user.roles)

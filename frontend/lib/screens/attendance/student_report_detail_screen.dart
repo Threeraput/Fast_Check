@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/services/user_service.dart';
+import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/services/attendance_service.dart';
+import 'package:frontend/widgets/attendance_status_badge.dart';
 import 'package:intl/intl.dart';
 import '../../models/attendance_report_detail.dart';
 import '../../services/attendance_report_service.dart';
 
 class StudentReportDetailScreen extends StatefulWidget {
   final String studentId;
+  final String? classId;
 
-  const StudentReportDetailScreen({super.key, required this.studentId});
+  const StudentReportDetailScreen({
+    super.key,
+    required this.studentId,
+    this.classId,
+  });
 
   @override
   State<StudentReportDetailScreen> createState() =>
@@ -16,44 +24,124 @@ class StudentReportDetailScreen extends StatefulWidget {
 
 class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
   late Future<List<AttendanceReportDetail>> _futureDetails;
+  bool _isTeacher = false;
 
   @override
   void initState() {
     super.initState();
-    _futureDetails = AttendanceReportService.getStudentDailyReports(
-      widget.studentId,
-    );
+    _loadData();
+    _checkRole();
   }
 
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'present':
-        return Colors.green;
-      case 'late':
-        return Colors.orange;
-      case 'absent':
-        return Colors.red;
-      case 'left_early':
-      case 'leftearly':
-        return Colors.purple;
-      default:
-        return Colors.grey;
+  void _loadData() {
+    setState(() {
+      _futureDetails = AttendanceReportService.getStudentDailyReports(
+        widget.studentId,
+        classId: widget.classId,
+      );
+    });
+  }
+
+  Future<void> _checkRole() async {
+    final roles = await AuthService.getTokenRoles();
+    if (mounted) {
+      setState(() {
+        _isTeacher = roles.contains('teacher') || roles.contains('admin');
+      });
     }
   }
 
-  String _statusText(String status) {
-    switch (status.toLowerCase()) {
-      case 'present':
-        return 'เข้าเรียน';
-      case 'late':
-        return 'สาย';
-      case 'absent':
-        return 'ขาด';
-      case 'left_early':
-      case 'leftearly':
-        return 'กลับก่อน';
-      default:
-        return status;
+  void _showOverrideSheet(AttendanceReportDetail detail) {
+    if (!_isTeacher) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'แก้ไขสถานะการเข้าเรียน',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: const Text('มาเรียน (Present)'),
+              onTap: () => _confirmUpdateStatus(detail, 'Present'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time, color: Colors.orange),
+              title: const Text('สาย (Late)'),
+              onTap: () => _confirmUpdateStatus(detail, 'Late'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel, color: Colors.red),
+              title: const Text('ขาด (Absent)'),
+              onTap: () => _confirmUpdateStatus(detail, 'Absent'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmUpdateStatus(AttendanceReportDetail detail, String newStatus) {
+    Navigator.pop(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการแก้ไขสถานะ'),
+        content: Text(
+          'คุณต้องการเปลี่ยนสถานะการเข้าเรียนเป็น "$newStatus" ใช่หรือไม่?\n\n'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateStatus(detail, newStatus);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateStatus(AttendanceReportDetail detail, String newStatus) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กำลังบันทึกการแก้ไข...')),
+      );
+
+      await AttendanceService.manualOverride(
+        sessionId: detail.sessionId,
+        studentId: widget.studentId,
+        newStatus: newStatus,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('แก้ไขสำเร็จ'), backgroundColor: Colors.green),
+      );
+      
+      _loadData(); 
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -61,32 +149,29 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     if (dateTimeStr == null || dateTimeStr.isEmpty) return "-";
     try {
       final dt = DateTime.parse(dateTimeStr).toLocal();
-      return DateFormat('HH:mm').format(dt); // โชว์แค่เวลา (ชั่วโมง:นาที)
+      return DateFormat('HH:mm').format(dt);
     } catch (_) {
       return dateTimeStr;
     }
   }
 
-  // 1. ฟังก์ชันจัดกลุ่ม: ดึงมาเฉพาะ "วัน เดือน ปี"
   String _formatDateOnly(String? dateTimeStr) {
     if (dateTimeStr == null || dateTimeStr.isEmpty) return "ไม่ระบุวันที่";
     try {
       final dt = DateTime.parse(dateTimeStr).toLocal();
-      // จะได้รูปแบบเช่น: 27 Mar 2026 หรือ 27/03/2026
       return DateFormat('dd MMM yyyy').format(dt);
     } catch (_) {
       return "ไม่ระบุวันที่";
     }
   }
 
-  // 2. ฟังก์ชันจัดกลุ่มข้อมูลแยกตาม "วันที่"
   Map<String, List<AttendanceReportDetail>> _groupByDate(
     List<AttendanceReportDetail> details,
   ) {
     final map = <String, List<AttendanceReportDetail>>{};
     for (var d in details) {
       final dateStr = d.sessionStart ?? d.checkInTime;
-      final key = _formatDateOnly(dateStr); // ใช้ฟังก์ชันดึงเฉพาะวันที่เป็น Key
+      final key = _formatDateOnly(dateStr);
 
       if (!map.containsKey(key)) {
         map[key] = [];
@@ -94,7 +179,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
       map[key]!.add(d);
     }
 
-    // เรียงรายการในแต่ละวันให้ล่าสุดอยู่บนสุด
     for (final entry in map.entries) {
       entry.value.sort((a, b) {
         final at = _sortDateTime(a);
@@ -157,22 +241,14 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
             return const Center(child: Text('ยังไม่มีข้อมูลรายวัน'));
           }
 
-          // นำข้อมูลมาจัดกลุ่มตาม "วันที่"
           final groupedDetails = _groupByDate(snapshot.data!);
           final dateKeys = groupedDetails.keys.toList();
 
-          // เรียงวันที่ให้ล่าสุดอยู่บนสุด
           dateKeys.sort((a, b) {
-            final aItems =
-                groupedDetails[a] ?? const <AttendanceReportDetail>[];
-            final bItems =
-                groupedDetails[b] ?? const <AttendanceReportDetail>[];
-            final aTop = aItems.isNotEmpty
-                ? _sortDateTime(aItems.first)
-                : DateTime.fromMillisecondsSinceEpoch(0);
-            final bTop = bItems.isNotEmpty
-                ? _sortDateTime(bItems.first)
-                : DateTime.fromMillisecondsSinceEpoch(0);
+            final aItems = groupedDetails[a] ?? [];
+            final bItems = groupedDetails[b] ?? [];
+            final aTop = aItems.isNotEmpty ? _sortDateTime(aItems.first) : DateTime.fromMillisecondsSinceEpoch(0);
+            final bTop = bItems.isNotEmpty ? _sortDateTime(bItems.first) : DateTime.fromMillisecondsSinceEpoch(0);
             return bTop.compareTo(aTop);
           });
 
@@ -183,7 +259,6 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
               final dateKey = dateKeys[index];
               final dailyItems = groupedDetails[dateKey]!;
 
-              // การ์ดแบบพับได้ (แยกตามวันที่)
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
@@ -192,10 +267,10 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: ExpansionTile(
-                  initiallyExpanded: index == 0, // กางของวันล่าสุดไว้เสมอ
+                  initiallyExpanded: index == 0,
                   backgroundColor: Colors.blue.shade50.withValues(alpha: 0.2),
                   title: Text(
-                    'วันที่: $dateKey', // หัวข้อคือวันที่ เช่น วันที่: 27 Mar 2026
+                    'วันที่: $dateKey',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -205,147 +280,47 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                     '${dailyItems.length} คาบเรียน',
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
-
-                  // ข้อมูลของแต่ละคาบในวันนั้น
                   children: dailyItems.map((d) {
-                    final sColor = _statusColor(d.status);
-
-                    return Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      padding: const EdgeInsets.all(12.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // --- สถานะของคาบเรียน ---
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'ผลการเช็คชื่อ:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: sColor.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  _statusText(d.status),
+                    return InkWell(
+                      onTap: () => _showOverrideSheet(d),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'ผลการเช็คชื่อ:',
                                   style: TextStyle(
-                                    color: sColor,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                                    fontSize: 14,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 16),
-
-                          // --- รูป 1: เช็คชื่อ ---
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GestureDetector(
-                                // ✅ 1. แก้ไขตอนกดขยายรูปเช็คชื่อ
-                                onTap: () {
-                                  if (d.faceImageUrl != null) {
-                                    final validUrl =
-                                        UserService.absoluteAvatarUrl(
-                                          d.faceImageUrl,
-                                        );
-                                    if (validUrl != null) {
-                                      _showImageDialog(validUrl);
-                                    }
-                                  }
-                                },
-                                child: Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: d.faceImageUrl != null
-                                      ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          // ✅ 2. แก้ไขตอนแสดงรูปเช็คชื่อ
-                                          child: Image.network(
-                                            UserService.absoluteAvatarUrl(
-                                                  d.faceImageUrl,
-                                                ) ??
-                                                '',
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    const Icon(
-                                                      Icons.person,
-                                                      color: Colors.grey,
-                                                    ),
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.person,
-                                          color: Colors.grey,
-                                        ),
+                                AttendanceStatusBadge(
+                                  status: d.status,
+                                  isManualOverride: d.isManualOverride,
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'เช็คชื่อ',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    Text(
-                                      'เวลา: ${_formatTime(d.checkInTime)} น.',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // --- รูป 2: สุ่มตรวจ (ถ้ามี) ---
-                          if (d.reverifyImageUrl != null || d.isReverified) ...[
-                            const SizedBox(height: 12),
+                              ],
+                            ),
+                            const Divider(height: 16),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 GestureDetector(
-                                  // ✅ 3. แก้ไขตอนกดขยายรูปสุ่มตรวจ
                                   onTap: () {
-                                    if (d.reverifyImageUrl != null) {
-                                      final validUrl =
-                                          UserService.absoluteAvatarUrl(
-                                            d.reverifyImageUrl,
-                                          );
+                                    if (d.faceImageUrl != null) {
+                                      final validUrl = UserService.absoluteAvatarUrl(d.faceImageUrl);
                                       if (validUrl != null) {
                                         _showImageDialog(validUrl);
                                       }
@@ -355,54 +330,36 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: Colors.blue[50],
+                                      color: Colors.grey[200],
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: d.reverifyImageUrl != null
+                                    child: d.faceImageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            // ✅ 4. แก้ไขตอนแสดงรูปสุ่มตรวจ
+                                            borderRadius: BorderRadius.circular(8),
                                             child: Image.network(
-                                              UserService.absoluteAvatarUrl(
-                                                    d.reverifyImageUrl,
-                                                  ) ??
-                                                  '',
+                                              UserService.absoluteAvatarUrl(d.faceImageUrl) ?? '',
                                               fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => const Icon(
-                                                    Icons.verified,
-                                                    color: Colors.blue,
-                                                  ),
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  const Icon(Icons.person, color: Colors.grey),
                                             ),
                                           )
-                                        : const Icon(
-                                            Icons.verified,
-                                            color: Colors.blue,
-                                          ),
+                                        : const Icon(Icons.person, color: Colors.grey),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'ตรวจสอบซ้ำ',
+                                        'เช็คชื่อ',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.blue,
                                           fontSize: 13,
                                         ),
                                       ),
                                       Text(
-                                        'เวลา: ${_formatTime(d.reverifyTime)} น.',
+                                        'เวลา: ${_formatTime(d.checkInTime)} น.',
                                         style: TextStyle(
                                           color: Colors.grey[600],
                                           fontSize: 12,
@@ -413,8 +370,68 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 ),
                               ],
                             ),
+                            if (d.reverifyImageUrl != null || d.isReverified) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (d.reverifyImageUrl != null) {
+                                        final validUrl = UserService.absoluteAvatarUrl(d.reverifyImageUrl);
+                                        if (validUrl != null) {
+                                          _showImageDialog(validUrl);
+                                        }
+                                      }
+                                    },
+                                    child: Container(
+                                      width: 50,
+                                      height: 50,
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: d.reverifyImageUrl != null
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                UserService.absoluteAvatarUrl(d.reverifyImageUrl) ?? '',
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const Icon(Icons.verified, color: Colors.blue),
+                                              ),
+                                            )
+                                          : const Icon(Icons.verified, color: Colors.blue),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'ตรวจสอบซ้ำ',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        Text(
+                                          'เวลา: ${_formatTime(d.reverifyTime)} น.',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     );
                   }).toList(),

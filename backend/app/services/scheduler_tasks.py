@@ -132,6 +132,11 @@ def finalize_attendance_job(session_id: uuid.UUID):
         )
 
         for record in records:
+            # ✨ เพิ่ม: ถ้าอาจารย์ปรับ Manual ไว้แล้ว ไม่ต้องให้ Silent Check ไปแก้ทับ
+            if getattr(record, "is_manual_override", False):
+                print(f"⏭️ [SKIP_MANUAL] นักเรียน {record.student_id} ถูกปรับสถานะโดยอาจารย์แล้ว ข้ามการตรวจ Silent Check")
+                continue
+
             evidence = _latest_silent_evidence(db, session_id, record.student_id)
             if evidence is None:
                 print(
