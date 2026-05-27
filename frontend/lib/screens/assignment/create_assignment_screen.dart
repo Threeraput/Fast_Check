@@ -312,8 +312,10 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
                               onPressed: _submitting
                                   ? null
                                   : _pickAttachmentFiles,
-                              icon: const Icon(Icons.attach_file),
-                              label: const Text('เพิ่มไฟล์'),
+                              icon: const Icon(Icons.attach_file, color: Colors.green),
+                              label: const Text('เพิ่มไฟล์', style: TextStyle(
+                                color: Colors.black54,
+                              ),),
                             ),
                           ],
                         ),

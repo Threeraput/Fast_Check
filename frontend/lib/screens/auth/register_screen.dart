@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../models/users.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -87,6 +88,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    // 🌟 1. เคลียร์ Error ทั้งหมดทิ้งก่อนเริ่มตรวจใหม่
+    // ป้องกันปัญหากรอบแดงค้างจากรอบที่แล้ว
+    setState(() {
+      _usernameError = null;
+      _passwordError = null;
+      _firstNameError = null;
+      _lastNameError = null;
+      _emailError = null;
+      _message = null;
+    });
+
     bool isValid = true;
     String password = _passwordController.text;
 
@@ -99,7 +111,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _passwordError = 'Enter your password');
       isValid = false;
     } else if (!_isPasswordSecure(password)) {
-      setState(() => _passwordError = 'Password does not meet all requirements.');
+      setState(
+        () => _passwordError = 'Password does not meet all requirements.',
+      );
       isValid = false;
     }
 
@@ -114,6 +128,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_emailController.text.isEmpty) {
       setState(() => _emailError = 'Enter your Email');
       isValid = false;
+    } else {
+      // 🌟 ดักเช็คฟอร์แมตอีเมลฝั่งหน้าบ้านด้วยเลย
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(_emailController.text)) {
+        setState(() => _emailError = 'Format of email is invalid');
+        isValid = false;
+      }
     }
 
     if (_selectedRole == null) {
@@ -123,11 +144,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       isValid = false;
     }
 
-    if (!isValid) return;
+    if (!isValid) return; // ถ้าหน้าบ้านผิดให้อยู่หน้านี้ต่อ
 
     setState(() {
       _isLoading = true;
-      _message = null;
     });
 
     final userData = {
@@ -141,6 +161,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       User newUser = await AuthService.register(userData);
+      
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -151,14 +173,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.of(
         context,
       ).pushReplacementNamed('/verify-otp', arguments: newUser.email);
+      
+    } on ValidationError catch (e) {
+      // 🚨 2. ดัก Error 422 จาก FastAPI ตรงนี้!
+      if (!mounted) return;
+      setState(() {
+        // นำข้อความ Error ที่ถูกโยนมาจาก Pydantic (หลังบ้าน) ไปใส่ตามช่องต่างๆ
+        if (e.errors.containsKey('username')) _usernameError = e.errors['username'];
+        if (e.errors.containsKey('password')) _passwordError = e.errors['password'];
+        if (e.errors.containsKey('first_name')) _firstNameError = e.errors['first_name'];
+        if (e.errors.containsKey('last_name')) _lastNameError = e.errors['last_name'];
+        if (e.errors.containsKey('email')) {
+          String rawMsg = e.errors['email']!;
+          // ดักจับคำว่า "valid email" ที่ Pydantic ชอบพ่นออกมา
+          if (rawMsg.contains('valid email') || rawMsg.contains('value is not a valid')) {
+            _emailError = 'รูปแบบอีเมลไม่ถูกต้อง'; // เปลี่ยนเป็นคำสั้นๆ ที่เราต้องการ
+          } else {
+            _emailError = rawMsg; // ถ้าเป็น Error อื่นก็ให้โชว์ตามปกติ
+          }
+        }
+        
+        // ถ้า API พ่น Error 422 อื่นๆ ที่ไม่ได้ระบุช่อง ก็สามารถจับมาโชว์ใน _message รวมได้
+        if (_usernameError == null && _passwordError == null && _emailError == null && _firstNameError == null && _lastNameError == null) {
+           _message = 'กรุณาตรวจสอบข้อมูลให้ถูกต้อง';
+        }
+      });
+      
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -209,6 +260,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           children: [
             TextFormField(
               controller: _usernameController,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               decoration: InputDecoration(
                 labelText: 'Username',
                 errorText: _usernameError,
@@ -224,6 +278,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               decoration: InputDecoration(
                 labelText: 'Password',
                 errorText: _passwordError,
@@ -286,6 +343,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _firstNameController,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               decoration: InputDecoration(
                 labelText: 'First Name',
                 errorText: _firstNameError,
@@ -301,6 +361,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _lastNameController,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               decoration: InputDecoration(
                 labelText: 'Last Name',
                 errorText: _lastNameError,
@@ -316,6 +379,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _emailController,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               decoration: InputDecoration(
                 labelText: 'Email',
                 errorText: _emailError,

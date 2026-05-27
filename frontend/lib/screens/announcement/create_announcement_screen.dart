@@ -283,8 +283,10 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     ),
                   OutlinedButton.icon(
                     onPressed: _pickFiles,
-                    icon: const Icon(Icons.attach_file),
-                    label: const Text('แนบไฟล์ (PDF/เอกสาร/รูปภาพ)'),
+                    icon: const Icon(Icons.attach_file, color: Colors.green),
+                    label: const Text('แนบไฟล์ (PDF/เอกสาร/รูปภาพ)', style: TextStyle(
+                      color: Colors.black54
+                    ),),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(

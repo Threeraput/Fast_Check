@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -273,6 +274,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               // 🔹 กรอกรหัสผ่านใหม่
               TextFormField(
                 controller: _newPasswordController,
+                inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
                 decoration: InputDecoration(
                   labelText: 'New Password',
                   errorText: _passwordError,
@@ -334,6 +338,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               // 🔹 ยืนยันรหัสผ่านใหม่
               TextField(
                 controller: _confirmPasswordController,
+                inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
                 decoration: InputDecoration(
                   labelText: 'Confirm New Password',
                   prefixIcon: const Icon(

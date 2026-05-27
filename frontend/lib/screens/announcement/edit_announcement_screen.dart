@@ -86,9 +86,15 @@ class _EditAnnouncementScreenState extends State<EditAnnouncementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('ยกเลิก'),
+            child: const Text('ยกเลิก', style: TextStyle(
+              color: Colors.grey,
+            ),),
           ),
           TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.redAccent.withOpacity(0.1),
+              foregroundColor: Colors.redAccent,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('ลบ', style: TextStyle(color: Colors.red)),
           ),
@@ -203,8 +209,10 @@ class _EditAnnouncementScreenState extends State<EditAnnouncementScreen> {
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: _pickFiles,
-                    icon: const Icon(Icons.add_link),
-                    label: const Text('เลือกไฟล์เพิ่ม'),
+                    icon: const Icon(Icons.add_link, color: Colors.green),
+                    label: const Text('เลือกไฟล์เพิ่ม', style: TextStyle(
+                      color: Colors.black54,
+                    ),),
                   ),
                   if (_newAttachments.isNotEmpty)
                     ..._newAttachments.asMap().entries.map((entry) => Card(

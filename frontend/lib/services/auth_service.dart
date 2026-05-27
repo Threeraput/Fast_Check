@@ -9,6 +9,11 @@ import 'package:frontend/config.dart';
 // ตรวจสอบ BASE_URL ของคุณให้ตรงกับ Backend
 const String API_BASE_URL = AppConfig.baseUrl;
 
+class ValidationError implements Exception {
+  final Map<String, String> errors;
+  ValidationError(this.errors);
+}
+
 class AuthService {
   // ... (โค้ด login, register, getAccessToken, getCurrentUserFromLocal, logout เดิม) ...
 
@@ -53,10 +58,29 @@ class AuthService {
 
       if (response.statusCode == 201) {
         return User.fromJson(json.decode(response.body));
+      }
+      // แทรกการดักจับ 422 Unprocessable Entity
+      else if (response.statusCode == 422) {
+        final error = json.decode(response.body);
+        final details = error['detail'] as List; // ดึง array 'detail' ออกมา
+
+        Map<String, String> fieldErrors = {};
+        for (var err in details) {
+          // loc.last จะได้ชื่อ field ที่ error เช่น 'email', 'password'
+          final field = err['loc'].last.toString();
+          final msg = err['msg'].toString();
+          fieldErrors[field] = msg;
+        }
+
+        // โยน ValidationError พิเศษนี้ออกไปให้หน้า UI รับ
+        throw ValidationError(fieldErrors);
       } else {
         final error = json.decode(response.body);
         throw Exception(error['detail'] ?? 'Failed to register');
       }
+    } on ValidationError {
+      // เจอ ValidationError ให้โยนผ่านไปเลย (rethrow)
+      rethrow;
     } catch (e) {
       throw Exception('Registration failed: $e');
     }

@@ -305,9 +305,15 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
+            child: const Text('ยกเลิก', style: TextStyle(
+              color: Colors.grey,
+            ),),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('ลบ'),
           ),
