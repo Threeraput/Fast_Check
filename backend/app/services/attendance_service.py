@@ -477,6 +477,7 @@ def handle_silent_location_update(
     ]
     if attendance.status not in valid_statuses:
         reason = f"Student status is {attendance.status}, ignoring check"
+        logged_ignored = False
         try:
             log_student_location(
                 db=db,
@@ -494,8 +495,19 @@ def handle_silent_location_update(
                 verification_result="ignored",
                 verification_reason=reason,
             )
+            logged_ignored = True
         except Exception as e:
             logger.error(f"Silent Check-in: Failed to log ignored status for {student_id}: {e}")
+
+        if logged_ignored:
+            try:
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(
+                    f"Silent Check-in: Failed to commit ignored status log for {student_id}: {e}"
+                )
+
         return {
             "status": "ignored",
             "reason": reason,
@@ -510,6 +522,7 @@ def handle_silent_location_update(
     # บันทึกพิกัดเก็บไว้เป็นหลักฐาน (Log)
     # ไม่ว่าจะอยู่ในระยะหรือนอกระยะ เราก็จะเก็บหมดเพื่อกางแผนที่ดูได้
     # ---------------------------------------------------------
+    logged_silent_location = False
     try:
         log_student_location(
             db=db,
@@ -529,9 +542,10 @@ def handle_silent_location_update(
                 "distance within radius" if in_range else "distance exceeds radius"
             ),
         )
+        logged_silent_location = True
         print(
             f"📍 [SILENT CHECK LOGGED] student={student_id} session={session_id} "
-            f"distance={distance_m:.2f}m radius={radius:.2f}m result={'in_range' if in_range else 'out_of_range'}"
+            f"distance={distance_m:.3f}m radius={radius:.3f}m result={'in_range' if in_range else 'out_of_range'}"
         )
     except Exception as e:
         # ถ้าบันทึก Log พัง (เช่น DB มีปัญหาชั่วคราว) ให้แค่ปริ้นท์ Error แต่ปล่อยให้ระบบเช็คระยะทำงานต่อ
@@ -562,6 +576,18 @@ def handle_silent_location_update(
                 status_code=500, detail="Database error during silent update"
             )
     else:
+        if logged_silent_location:
+            try:
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(
+                    f"Silent Check-in: Failed to commit out-of-range log for {student_id}: {e}"
+                )
+                raise HTTPException(
+                    status_code=500, detail="Database error during silent update"
+                )
+
         return {
             "status": "ignored",
             "reason": "Student is out of range",

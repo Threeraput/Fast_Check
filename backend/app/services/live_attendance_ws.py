@@ -12,6 +12,7 @@ from app.models.association import class_students
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
 from app.models.class_model import Class
+from app.models.student_location import StudentLocation
 
 
 class LiveAttendanceWSManager:
@@ -85,18 +86,31 @@ def _student_name(att: Attendance) -> str:
     return "Unknown Student"
 
 
-def _to_item(att: Attendance) -> dict[str, Any]:
+def _to_item(
+    att: Attendance,
+    silent_evidence_student_ids: set[str] | None = None,
+) -> dict[str, Any]:
     status = _status_text(att.status)
+    status_norm = status.strip().lower().replace(" ", "_")
     check_in_time = att.check_in_time
+    student_id = str(att.student_id)
+
+    has_silent_evidence = (
+        student_id in silent_evidence_student_ids
+        if silent_evidence_student_ids is not None
+        else False
+    )
+    no_gps_round2 = status_norm in {"left_early", "leftearly"} and not has_silent_evidence
 
     return {
         "attendance_id": str(att.attendance_id),
-        "student_id": str(att.student_id),
+        "student_id": student_id,
         "student_name": _student_name(att),
         "status": status,
         "check_in_time": check_in_time.isoformat() if check_in_time else None,
         "face_image_path": att.face_image_path,
         "is_manual_override": getattr(att, "is_manual_override", False),
+        "no_gps_round2": no_gps_round2,
     }
 
 
@@ -130,6 +144,19 @@ def get_live_session_payload(db: Session, session_id: uuid.UUID | str) -> dict[s
         .order_by(Attendance.check_in_time.desc())
         .all()
     )
+
+    silent_evidence_student_ids = {
+        str(student_id)
+        for (student_id,) in (
+            db.query(StudentLocation.student_id)
+            .filter(
+                StudentLocation.session_id == session_id,
+                StudentLocation.is_silent_check.is_(True),
+            )
+            .distinct()
+            .all()
+        )
+    }
 
     present_count = 0
     late_count = 0
@@ -166,6 +193,6 @@ def get_live_session_payload(db: Session, session_id: uuid.UUID | str) -> dict[s
             "unverified": unverified_count,
             "waiting": waiting_count,
         },
-        "attendees": [_to_item(r) for r in records],
+        "attendees": [_to_item(r, silent_evidence_student_ids) for r in records],
         "server_time": datetime.now(timezone.utc).isoformat(),
     }

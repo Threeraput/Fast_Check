@@ -18,6 +18,7 @@ class AttendanceReportDetailResponse(BaseModel):
     reverify_image_url: Optional[str] = None
     reverify_time: Optional[datetime] = None
     session_start: Optional[datetime] = None
+    no_gps_round2: bool = False
 
     @field_validator("face_image_url", "reverify_image_url", mode="before")
     @classmethod

@@ -321,6 +321,20 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
                                 ),
                               ],
                             ),
+                            if (d.noGpsRound2) ...[
+                              const SizedBox(height: 4),
+                              const Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  'No GPS รอบ 2',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                             const Divider(height: 16),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,

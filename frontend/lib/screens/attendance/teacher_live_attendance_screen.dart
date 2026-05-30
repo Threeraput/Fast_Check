@@ -198,7 +198,10 @@ class _TeacherLiveAttendanceScreenState
               padding: const EdgeInsets.all(16),
               child: Text(
                 'แก้ไขสถานะ: $name',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             ListTile(
@@ -223,7 +226,11 @@ class _TeacherLiveAttendanceScreenState
     );
   }
 
-  void _confirmUpdateStatus(String attendanceId, String newStatus, String studentName) {
+  void _confirmUpdateStatus(
+    String attendanceId,
+    String newStatus,
+    String studentName,
+  ) {
     Navigator.pop(context);
     showDialog(
       context: context,
@@ -242,10 +249,8 @@ class _TeacherLiveAttendanceScreenState
               Navigator.pop(context);
               _updateStatus(attendanceId, newStatus);
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.blue,
-            ),
-            child: const Text('ยืนยัน' , style: TextStyle(color: Colors.white)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -255,28 +260,39 @@ class _TeacherLiveAttendanceScreenState
   Future<void> _updateStatus(String attendanceId, String newStatus) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กำลังบันทึกการแก้ไข...'), duration: Duration(seconds: 1)),
+        const SnackBar(
+          content: Text('กำลังบันทึกการแก้ไข...'),
+          duration: Duration(seconds: 1),
+        ),
       );
-      
+
       await AttendanceService.manualOverride(
         attendanceId: attendanceId,
         newStatus: newStatus,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('แก้ไขสถานะสำเร็จ'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('แก้ไขสถานะสำเร็จ'),
+          backgroundColor: Colors.green,
+        ),
       );
-      
+
       // อัปเดต UI ท้องถิ่น (ถึงแม้ WS จะส่งมาใหม่ แต่กันเหนียว)
       setState(() {
-        final idx = _attendees.indexWhere((e) => e['attendance_id'].toString() == attendanceId);
+        final idx = _attendees.indexWhere(
+          (e) => e['attendance_id'].toString() == attendanceId,
+        );
         if (idx != -1) {
           _attendees[idx]['status'] = newStatus;
         }
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -433,6 +449,7 @@ class _TeacherLiveAttendanceScreenState
                         (a['check_in_time'] ?? '').toString(),
                       );
                       final status = (a['status'] ?? '').toString();
+                      final noGpsRound2 = a['no_gps_round2'] == true;
                       final imageUrl = UserService.absoluteAvatarUrl(
                         a['face_image_path']?.toString(),
                       );
@@ -447,29 +464,36 @@ class _TeacherLiveAttendanceScreenState
                               height: 48,
                               child: imageUrl == null || imageUrl.isEmpty
                                   ? Container(
-                                      color: AttendanceStatusBadge.getStatusColor(
-                                        status,
-                                      ).withValues(alpha: 0.12),
+                                      color:
+                                          AttendanceStatusBadge.getStatusColor(
+                                            status,
+                                          ).withValues(alpha: 0.12),
                                       child: Icon(
                                         Icons.person,
-                                        color: AttendanceStatusBadge.getStatusColor(status),
+                                        color:
+                                            AttendanceStatusBadge.getStatusColor(
+                                              status,
+                                            ),
                                       ),
                                     )
                                   : Image.network(
                                       imageUrl,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                            return Container(
-                                              color: AttendanceStatusBadge.getStatusColor(
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color:
+                                              AttendanceStatusBadge.getStatusColor(
                                                 status,
                                               ).withValues(alpha: 0.12),
-                                              child: Icon(
-                                                Icons.person,
-                                                color: AttendanceStatusBadge.getStatusColor(status),
-                                              ),
-                                            );
-                                          },
+                                          child: Icon(
+                                            Icons.person,
+                                            color:
+                                                AttendanceStatusBadge.getStatusColor(
+                                                  status,
+                                                ),
+                                          ),
+                                        );
+                                      },
                                     ),
                             ),
                           ),
@@ -481,9 +505,27 @@ class _TeacherLiveAttendanceScreenState
                                 ? 'ไม่พบเวลาเช็คชื่อ'
                                 : 'เวลา ${dateFmt.format(checkIn.toLocal())}',
                           ),
-                          trailing: AttendanceStatusBadge(
-                            status: status,
-                            isManualOverride: a['is_manual_override'] == true,
+                          trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              AttendanceStatusBadge(
+                                status: status,
+                                isManualOverride:
+                                    a['is_manual_override'] == true,
+                              ),
+                              if (noGpsRound2) ...[
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'No GPS รอบ 2',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       );

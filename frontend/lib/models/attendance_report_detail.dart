@@ -11,6 +11,7 @@ class AttendanceReportDetail {
   final String? faceImageUrl;
   final String? reverifyImageUrl;
   final String? reverifyTime;
+  final bool noGpsRound2;
 
   AttendanceReportDetail({
     required this.reportId,
@@ -23,6 +24,7 @@ class AttendanceReportDetail {
     this.faceImageUrl,
     this.reverifyImageUrl,
     this.reverifyTime,
+    this.noGpsRound2 = false,
   });
 
   factory AttendanceReportDetail.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class AttendanceReportDetail {
       faceImageUrl: json['face_image_url']?.toString(),
       reverifyImageUrl: json['reverify_image_url']?.toString(),
       reverifyTime: json['reverify_time']?.toString(),
+      noGpsRound2: json['no_gps_round2'] == true,
     );
   }
 }

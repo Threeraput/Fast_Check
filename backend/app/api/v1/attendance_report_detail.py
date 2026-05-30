@@ -22,6 +22,51 @@ from sqlalchemy import func # เพิ่ม func สำหรับ subquery
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
 
+def _decorate_report_rows(db: Session, rows: list[AttendanceReportDetail]) -> None:
+    if not rows:
+        return
+
+    student_ids = {
+        getattr(getattr(r, "report", None), "student_id", None)
+        for r in rows
+    }
+    session_ids = {r.session_id for r in rows if getattr(r, "session_id", None) is not None}
+
+    student_ids = {s for s in student_ids if s is not None}
+    session_ids = {s for s in session_ids if s is not None}
+
+    silent_pairs: set[tuple[UUID, UUID]] = set()
+    if student_ids and session_ids:
+        silent_pairs = {
+            (student_id, session_id)
+            for student_id, session_id in (
+                db.query(StudentLocation.student_id, StudentLocation.session_id)
+                .filter(
+                    StudentLocation.is_silent_check.is_(True),
+                    StudentLocation.student_id.in_(student_ids),
+                    StudentLocation.session_id.in_(session_ids),
+                )
+                .distinct()
+                .all()
+            )
+        }
+
+    for r in rows:
+        r.face_image_url = r.face_image_path
+        r.reverify_image_url = r.reverify_image_path
+
+        status_norm = str(r.status or "").strip().lower().replace(" ", "_")
+        is_left_early = status_norm in {"left_early", "leftearly"}
+
+        student_id = getattr(getattr(r, "report", None), "student_id", None)
+        has_silent_evidence = (
+            student_id is not None
+            and r.session_id is not None
+            and (student_id, r.session_id) in silent_pairs
+        )
+        r.no_gps_round2 = bool(is_left_early and not has_silent_evidence)
+
+
 # ---------------------------------------------------------
 # นักเรียนดูรายงานรายวันของตัวเอง
 # ---------------------------------------------------------
@@ -37,7 +82,11 @@ def get_my_daily_reports(
     if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
-    query = db.query(AttendanceReportDetail).join(AttendanceReportDetail.report)
+    query = (
+        db.query(AttendanceReportDetail)
+        .options(joinedload(AttendanceReportDetail.report))
+        .join(AttendanceReportDetail.report)
+    )
     
     # กรอง student_id เสมอ
     filters = [AttendanceReportDetail.report.has(student_id=me.user_id)]
@@ -55,9 +104,7 @@ def get_my_daily_reports(
     if not results:
         return [] # คืนค่าลิสต์ว่างแทนที่จะ Error เพื่อให้ UI ทำงานต่อได้
 
-    for r in results:
-        r.face_image_url = r.face_image_path
-        r.reverify_image_url = r.reverify_image_path
+    _decorate_report_rows(db, results)
 
     return results
 
@@ -85,9 +132,7 @@ def get_class_daily_reports(
     if not results:
         return []
 
-    for r in results:
-        r.face_image_url = r.face_image_path
-        r.reverify_image_url = r.reverify_image_path
+    _decorate_report_rows(db, results)
 
     return results
 
@@ -107,7 +152,11 @@ def get_student_daily_reports(
 ):
     """ให้อาจารย์ดูประวัติการเช็คชื่อราย session ของนักเรียนคนใดคนหนึ่ง"""
 
-    query = db.query(AttendanceReportDetail).join(AttendanceReportDetail.report)
+    query = (
+        db.query(AttendanceReportDetail)
+        .options(joinedload(AttendanceReportDetail.report))
+        .join(AttendanceReportDetail.report)
+    )
     
     filters = [AttendanceReportDetail.report.has(student_id=student_id)]
     
@@ -124,9 +173,7 @@ def get_student_daily_reports(
     if not results:
         return []
 
-    for r in results:
-        r.face_image_url = r.face_image_path
-        r.reverify_image_url = r.reverify_image_path
+    _decorate_report_rows(db, results)
 
     return results
 
