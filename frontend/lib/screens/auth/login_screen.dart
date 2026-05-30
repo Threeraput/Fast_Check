@@ -1,5 +1,6 @@
 // lib/screens/login_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
@@ -36,8 +37,18 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (token != null) {
-        // อัปเดต FCM token หลัง login สำเร็จ
-        FCMService.sendTokenAfterLogin();
+        // รอผูก FCM token กับบัญชีที่ล็อกอินสำเร็จเพื่อลด race ตอน silent-check
+        try {
+          await FCMService.sendTokenAfterLogin().timeout(
+            const Duration(seconds: 2),
+          );
+        } on TimeoutException {
+          // ไม่ให้ค้างหน้า login หากเครือข่ายช้า แต่ยังไปต่อได้
+          debugPrint('FCM token sync timeout after login');
+        } catch (e) {
+          // login ไม่ควรล้มเพราะ sync token พลาด
+          debugPrint('FCM token sync failed after login: $e');
+        }
 
         final user = await AuthService.getCurrentUserFromLocal();
 
