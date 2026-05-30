@@ -13,8 +13,8 @@ SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 # เปิด echo และ echo_pool เพื่อ debug
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    echo=True,  # ← แสดง SQL ที่ execute
-    echo_pool=True,  # ← แสดงเหตุการณ์ connection pool
+    echo=False,  # ← แสดง SQL ที่ execute
+    echo_pool=False,  # ← แสดงเหตุการณ์ connection pool
     pool_pre_ping=True,  # ← กัน connection ค้าง/ตาย
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

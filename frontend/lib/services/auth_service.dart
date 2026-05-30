@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -102,6 +103,27 @@ class AuthService {
 
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    final accessToken = prefs.getString('accessToken');
+
+    // พยายามล้าง FCM token ฝั่ง backend ก่อนเสมอ เพื่อไม่ให้บัญชีเดิมยังผูกกับอุปกรณ์นี้
+    if (accessToken != null && accessToken.isNotEmpty) {
+      try {
+        final url = Uri.parse('$API_BASE_URL/users/fcm-token');
+        await http
+            .put(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $accessToken',
+              },
+              body: jsonEncode({'fcm_token': ''}),
+            )
+            .timeout(const Duration(seconds: 2));
+      } catch (_) {
+        // ไม่ block การ logout แม้เรียก API เคลียร์ token ไม่สำเร็จ
+      }
+    }
+
     await prefs.remove('accessToken');
     await prefs.remove('currentUser');
   }
