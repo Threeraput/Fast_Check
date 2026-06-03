@@ -1,6 +1,3 @@
-// lib/models/user.dart
-import 'package:meta/meta.dart';
-
 import 'package:meta/meta.dart';
 
 @immutable
@@ -16,6 +13,7 @@ class User {
 
   final String? studentId;
   final String? teacherId;
+  final bool? isApproved;
   final bool isActive;
 
   final DateTime createdAt;
@@ -38,6 +36,7 @@ class User {
     this.email,
     this.studentId,
     this.teacherId,
+    this.isApproved,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -74,6 +73,10 @@ class User {
       email: json['email']?.toString(),
       studentId: json['student_id']?.toString(),
       teacherId: json['teacher_id']?.toString(),
+      isApproved: json['is_approved'] is bool
+          ? json['is_approved'] as bool
+          : (json['is_approved'] == true ||
+                json['is_approved']?.toString() == 'true'),
       isActive: isActive,
       createdAt: _dt(json['created_at']) ?? DateTime.now(),
       updatedAt: _dt(json['updated_at']) ?? DateTime.now(),
@@ -83,8 +86,8 @@ class User {
       // แม็ปค่า avatar_url -> avatarUrl (แก้ตัวอักษรผิดพลาดเดิม)
       avatarUrl: json['avatar_url']?.toString(),
 
-      deletedAt: json['deleted_at'] != null 
-          ? DateTime.parse(json['deleted_at']) 
+      deletedAt: json['deleted_at'] != null
+          ? DateTime.parse(json['deleted_at'])
           : null,
     );
   }
@@ -98,6 +101,7 @@ class User {
       'email': email, // read-only ฝั่ง UI อย่าส่งไปอัปเดต
       'student_id': studentId,
       'teacher_id': teacherId,
+      'is_approved': isApproved,
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -159,6 +163,7 @@ class User {
     String? email, // แม้แก้ไม่ได้ที่ backend แต่ให้ copy ในฝั่ง UI ได้
     String? studentId,
     String? teacherId,
+    bool? isApproved,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -175,6 +180,7 @@ class User {
       email: email ?? this.email,
       studentId: studentId ?? this.studentId,
       teacherId: teacherId ?? this.teacherId,
+      isApproved: isApproved ?? this.isApproved,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

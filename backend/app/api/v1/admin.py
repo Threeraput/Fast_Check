@@ -514,6 +514,7 @@ def admin_create_class(
         code=new_class.code,
         student_count=0,
         created_at=new_class.created_at or now,
+        is_archived=bool(getattr(new_class, "is_archived", False)),
         teacher=UserResponse(
             user_id=teacher.user_id,
             username=teacher.username,

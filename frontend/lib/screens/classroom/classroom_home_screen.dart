@@ -181,16 +181,28 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   // ADMIN: โหลดคลาสทั้งหมดในระบบ
   // =========================
   Future<List<_AdminClassItem>> _fetchAllClassesForAdmin() async {
-    final fetchLimit = _searchQuery.trim().isEmpty ? 5 : 200;
-    // เพิ่ม q: _searchQuery ตรงนี้
-    final page = await AdminService.listClasses(
-      q: _searchQuery,
-      isArchived: false, // เฉพาะคลาสที่ยังไม่เก็บ
-      limit: fetchLimit,
-      offset: 0,
-    );
-    final items = (page['items'] as List<dynamic>? ?? []);
-    return items.map((e) {
+    const fetchLimit = 200;
+    final allItems = <dynamic>[];
+    var offset = 0;
+
+    while (true) {
+      final page = await AdminService.listClasses(
+        q: _searchQuery,
+        isArchived: false,
+        limit: fetchLimit,
+        offset: offset,
+      );
+
+      final items = (page['items'] as List<dynamic>? ?? []);
+      allItems.addAll(items);
+
+      if (items.length < fetchLimit) {
+        break;
+      }
+      offset += fetchLimit;
+    }
+
+    return allItems.map((e) {
       final m = e as Map<String, dynamic>;
       final teacher = (m['teacher'] as Map<String, dynamic>?) ?? {};
       return _AdminClassItem(
@@ -209,72 +221,275 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
   }
 
   // =========================
-  // ADMIN: เพิ่มคลาสใหม่ (ชื่อ + teacher_id)
+  // ADMIN: เพิ่มคลาสใหม่ (ชื่อ + เลือกอาจารย์จากระบบ)
   // =========================
   Future<void> _adminCreateClass() async {
+    List<User> teachers = [];
+
+    try {
+      final teacherPage = await AdminService.listUsers(
+        role: 'teacher',
+        limit: 200,
+        offset: 0,
+      );
+      teachers =
+          teacherPage.items
+              .where((u) => u.userId.trim().isNotEmpty && u.isApproved == true)
+              .toList()
+            ..sort(
+              (a, b) => a.displayName.toLowerCase().compareTo(
+                b.displayName.toLowerCase(),
+              ),
+            );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('โหลดรายชื่ออาจารย์ไม่สำเร็จ: $e')),
+      );
+      return;
+    }
+
+    if (teachers.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ยังไม่มีอาจารย์ที่อนุมัติแล้วในระบบให้เลือก'),
+        ),
+      );
+      return;
+    }
+
+    String? selectedTeacherId = teachers.first.userId;
     final nameCtrl = TextEditingController();
-    final teacherIdCtrl = TextEditingController();
+
+    Future<void> openTeacherPicker(
+      void Function(void Function()) setDialogState,
+    ) async {
+      String query = '';
+
+      await showDialog<void>(
+        context: context,
+        builder: (pickerCtx) {
+          return StatefulBuilder(
+            builder: (pickerContext, setPickerState) {
+              final filtered = teachers.where((t) {
+                final q = query.trim().toLowerCase();
+                if (q.isEmpty) return true;
+                final text =
+                    '${t.displayName} ${t.teacherId ?? ''} ${t.email ?? ''}'
+                        .toLowerCase();
+                return text.contains(q);
+              }).toList();
+
+              return AlertDialog(
+                title: const Text('เลือกอาจารย์ที่อนุมัติแล้ว'),
+                content: SizedBox(
+                  width: 460,
+                  height: 420,
+                  child: Column(
+                    children: [
+                      TextField(
+                        onChanged: (v) {
+                          setPickerState(() {
+                            query = v;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          hintText: 'ค้นหา',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text('ไม่พบอาจารย์'))
+                            : ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, index) {
+                                  final t = filtered[index];
+                                  final selected =
+                                      t.userId == selectedTeacherId;
+                                  return ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    title: Text(
+                                      t.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      t.teacherId ?? t.email ?? t.userId,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: selected
+                                        ? const Icon(
+                                            Icons.check_circle,
+                                            color: Colors.blueAccent,
+                                          )
+                                        : null,
+                                    onTap: () {
+                                      setDialogState(() {
+                                        selectedTeacherId = t.userId;
+                                      });
+                                      Navigator.pop(pickerCtx);
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(pickerCtx),
+                    child: const Text('ปิด'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
+
+    User selectedTeacher() {
+      return teachers.firstWhere(
+        (t) => t.userId == selectedTeacherId,
+        orElse: () => teachers.first,
+      );
+    }
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('เพิ่มคลาส (แอดมิน)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'ชื่อคลาส',
-                prefixIcon: Icon(Icons.class_),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('เพิ่มคลาส (แอดมิน)'),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ชื่อคลาส',
+                      prefixIcon: Icon(Icons.class_),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'อาจารย์ผู้สอน (อนุมัติแล้ว)',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => openTeacherPicker(setDialogState),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_outline),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  selectedTeacher().displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  selectedTeacher().teacherId ??
+                                      selectedTeacher().email ??
+                                      selectedTeacher().userId,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: teacherIdCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Teacher ID (UUID)',
-                prefixIcon: Icon(Icons.person_outline),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  style: TextStyle(color: Colors.grey),
+                  'ยกเลิก',
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(style: TextStyle(color: Colors.grey), 'ยกเลิก'),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                ),
+                icon: const Icon(Icons.add),
+                onPressed: () => Navigator.pop(ctx, true),
+                label: const Text('เพิ่ม'),
+              ),
+            ],
           ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
-            icon: const Icon(Icons.add),
-            onPressed: () => Navigator.pop(ctx, true),
-            label: const Text('เพิ่ม'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      final name = nameCtrl.text.trim();
-      final teacherId = teacherIdCtrl.text.trim();
-      if (name.isEmpty || teacherId.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรอกชื่อคลาสและ Teacher ID ให้ครบ')),
         );
-        return;
+      },
+    );
+
+    try {
+      if (ok == true) {
+        final name = nameCtrl.text.trim();
+        final teacherId = (selectedTeacherId ?? '').trim();
+        if (name.isEmpty || teacherId.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('กรอกชื่อคลาสและเลือกอาจารย์ให้ครบ')),
+          );
+          return;
+        }
+        try {
+          await AdminService.createClass(name: name, teacherId: teacherId);
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('เพิ่มคลาสสำเร็จ')));
+          _refresh();
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('เพิ่มคลาสไม่สำเร็จ: $e')));
+        }
       }
-      try {
-        await AdminService.createClass(name: name, teacherId: teacherId);
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('เพิ่มคลาสสำเร็จ')));
-        _refresh();
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('เพิ่มคลาสไม่สำเร็จ: $e')));
-      }
+    } finally {
+      nameCtrl.dispose();
     }
   }
 
