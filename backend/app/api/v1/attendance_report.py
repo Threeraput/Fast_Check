@@ -8,7 +8,10 @@ from app.models.user import User
 from app.models.attendance_report import AttendanceReport
 from app.models.association import class_students # เพิ่มการนำเข้าตารางสมาชิกคลาส
 from app.schemas.attendance_report_schema import AttendanceReportResponse
-from app.services.attendance_report_service import generate_reports_for_class
+from app.services.attendance_report_service import (
+    ensure_reports_for_class_up_to_date,
+    generate_reports_for_class,
+)
 
 router = APIRouter(prefix="/attendance/reports", tags=["Attendance Reports"])
 
@@ -65,7 +68,7 @@ def get_my_report(
         .all()
     )
     for (cid,) in my_classes:
-        generate_reports_for_class(db, str(cid))
+        ensure_reports_for_class_up_to_date(db, str(cid))
 
     # แล้วค่อยดึงรายงานล่าสุด
     rows = (
@@ -100,7 +103,7 @@ def generate_class_reports(class_id: UUID, db: Session = Depends(get_db)):
 )
 def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     # อัปเดตรายงานก่อนทุกครั้งเพื่อตรงกับสถานะล่าสุด
-    generate_reports_for_class(db, str(class_id))
+    ensure_reports_for_class_up_to_date(db, str(class_id))
 
     # ดึงรายงานล่าสุด
     rows = (
@@ -124,7 +127,7 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     dependencies=[Depends(role_required(["teacher"]))],
 )
 def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
-    generate_reports_for_class(db, str(class_id))
+    ensure_reports_for_class_up_to_date(db, str(class_id))
 
     rows = (
         db.query(AttendanceReport)
@@ -162,7 +165,7 @@ def get_student_report(student_id: UUID, db: Session = Depends(get_db)):
         .all()
     )
     for (cid,) in student_classes:
-        generate_reports_for_class(db, str(cid))
+        ensure_reports_for_class_up_to_date(db, str(cid))
 
     rows = (
         db.query(AttendanceReport)

@@ -18,7 +18,7 @@ from app.models.attendance_session import AttendanceSession
 from app.models.association import class_students # นำเข้าตารางสมาชิกคลาส
 from app.models.student_location import StudentLocation # นำเข้าตารางพิกัด
 from sqlalchemy import func # เพิ่ม func สำหรับ subquery
-from app.services.attendance_report_service import generate_reports_for_class
+from app.services.attendance_report_service import ensure_reports_for_class_up_to_date
 
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
@@ -95,7 +95,7 @@ def get_my_daily_reports(
         ]
 
     for cid in target_classes:
-        generate_reports_for_class(db, str(cid))
+        ensure_reports_for_class_up_to_date(db, str(cid))
 
     query = (
         db.query(AttendanceReportDetail)
@@ -136,7 +136,7 @@ def get_class_daily_reports(
     class_id: UUID, db: Session = Depends(get_db)
 ):
     """ให้ครู/แอดมินดูรายงานรายวันของคลาส"""
-    generate_reports_for_class(db, str(class_id))
+    ensure_reports_for_class_up_to_date(db, str(class_id))
 
     results = (
         db.query(AttendanceReportDetail)
@@ -181,7 +181,7 @@ def get_student_daily_reports(
         ]
 
     for cid in target_classes:
-        generate_reports_for_class(db, str(cid))
+        ensure_reports_for_class_up_to_date(db, str(cid))
 
     query = (
         db.query(AttendanceReportDetail)

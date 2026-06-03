@@ -1,6 +1,6 @@
 # app/services/attendance_report_service.py
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from datetime import datetime, timezone
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
@@ -55,6 +55,62 @@ def generate_reports_for_class(db: Session, class_id: str):
 
     db.commit()
     return {"message": f"✅ Updated reports for {len(student_data)} students."}
+
+
+def ensure_reports_for_class_up_to_date(db: Session, class_id: str):
+    """
+    รีเฟรชรายงานเฉพาะเมื่อข้อมูลล้าสมัย เพื่อลดเวลาโหลดหน้า report
+    """
+    now = datetime.now(timezone.utc)
+
+    student_count = (
+        db.query(class_students.c.student_id)
+        .filter(class_students.c.class_id == class_id)
+        .count()
+    )
+    if student_count == 0:
+        return {"updated": False, "message": "No students in class"}
+
+    report_count = (
+        db.query(AttendanceReport.report_id)
+        .join(
+            class_students,
+            (class_students.c.student_id == AttendanceReport.student_id)
+            & (class_students.c.class_id == class_id),
+        )
+        .filter(AttendanceReport.class_id == class_id)
+        .count()
+    )
+
+    latest_generated_at = (
+        db.query(func.max(AttendanceReport.generated_at))
+        .filter(AttendanceReport.class_id == class_id)
+        .scalar()
+    )
+
+    if report_count < student_count or latest_generated_at is None:
+        result = generate_reports_for_class(db, class_id)
+        return {"updated": True, "message": result.get("message", "updated")}
+
+    has_new_completed_session = (
+        db.query(AttendanceSession.session_id)
+        .filter(
+            AttendanceSession.class_id == class_id,
+            or_(
+                AttendanceSession.is_active.is_(False),
+                AttendanceSession.end_time <= now,
+            ),
+            AttendanceSession.end_time > latest_generated_at,
+        )
+        .first()
+        is not None
+    )
+
+    if has_new_completed_session:
+        result = generate_reports_for_class(db, class_id)
+        return {"updated": True, "message": result.get("message", "updated")}
+
+    return {"updated": False, "message": "Reports are up to date"}
 
 
 def sync_student_report_for_session(db: Session, class_id: str, student_id: str):
@@ -119,15 +175,21 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
         AttendanceReportDetail.report_id == report.report_id
     ).delete()
 
-    for session in effective_sessions:
-        record = (
+    session_ids = [s.session_id for s in effective_sessions]
+    attendance_map = {}
+    if session_ids:
+        attendance_rows = (
             db.query(Attendance)
             .filter(
-                Attendance.session_id == session.session_id,
+                Attendance.session_id.in_(session_ids),
                 Attendance.student_id == student_id,
             )
-            .first()
+            .all()
         )
+        attendance_map = {r.session_id: r for r in attendance_rows}
+
+    for session in effective_sessions:
+        record = attendance_map.get(session.session_id)
 
         status = AttendanceStatus.ABSENT.value
         check_in_time = None
@@ -189,5 +251,3 @@ def _calculate_and_save_student_report(db, class_id, student_id, joined_at, sess
         report.attendance_rate = round(((attended + late) / total_effective) * 100, 2)
     else:
         report.attendance_rate = 0.0
-
-    db.commit()
