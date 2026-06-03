@@ -1,6 +1,6 @@
 # app/services/attendance_report_service.py
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import or_
 from datetime import datetime, timezone
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
@@ -35,12 +35,15 @@ def generate_reports_for_class(db: Session, class_id: str):
     if not student_data:
         return {"message": f"❌ No students found in class {class_id}"}
 
-    # 2. ดึง sessions ที่เกิดขึ้นแล้ว
+    # 2. ดึงเฉพาะ sessions ที่จบแล้ว (ไม่เอาคาบที่ยัง active มาตัดสินเป็นขาด)
     all_past_sessions = (
         db.query(AttendanceSession)
         .filter(
             AttendanceSession.class_id == class_id, 
-            AttendanceSession.start_time <= now # เอาคาบที่เริ่มแล้วมาคิดได้เลย ไม่ต้องรอจบ
+            or_(
+                AttendanceSession.is_active.is_(False),
+                AttendanceSession.end_time <= now,
+            ),
         )
         .order_by(AttendanceSession.start_time.asc())
         .all()
@@ -72,7 +75,13 @@ def sync_student_report_for_session(db: Session, class_id: str, student_id: str)
 
     all_past_sessions = (
         db.query(AttendanceSession)
-        .filter(AttendanceSession.class_id == class_id, AttendanceSession.start_time <= now)
+        .filter(
+            AttendanceSession.class_id == class_id,
+            or_(
+                AttendanceSession.is_active.is_(False),
+                AttendanceSession.end_time <= now,
+            ),
+        )
         .order_by(AttendanceSession.start_time.asc())
         .all()
     )

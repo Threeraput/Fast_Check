@@ -58,7 +58,16 @@ def get_my_report(
             detail="Only students can view their attendance details"
         )
 
-    # 1. ลองดึงรายงานที่มีอยู่ก่อน
+    # อัปเดตรายงานของทุกคลาสที่นักเรียนสังกัดอยู่ก่อนอ่านผล
+    my_classes = (
+        db.query(class_students.c.class_id)
+        .filter(class_students.c.student_id == me.user_id)
+        .all()
+    )
+    for (cid,) in my_classes:
+        generate_reports_for_class(db, str(cid))
+
+    # แล้วค่อยดึงรายงานล่าสุด
     rows = (
         db.query(AttendanceReport)
         .options(
@@ -70,28 +79,6 @@ def get_my_report(
         )
         .all()
     )
-    
-    # 2. [Lazy Init] ถ้ายังไม่เคยมีรายงานเลย ให้สั่งสร้างสำหรับทุกคลาสที่นักเรียนคนนี้สังกัดอยู่
-    if not rows:
-        # ดึง class_id ทั้งหมดที่นักเรียนคนนี้ลงทะเบียนไว้
-        from app.models.association import class_students
-        my_classes = db.query(class_students.c.class_id).filter(class_students.c.student_id == me.user_id).all()
-        
-        for (cid,) in my_classes:
-            generate_reports_for_class(db, str(cid))
-            
-        # ดึงใหม่อีกครั้งหลังจากสร้างแล้ว
-        rows = (
-            db.query(AttendanceReport)
-            .options(
-                joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
-            )
-            .filter(
-                AttendanceReport.student_id == me.user_id,
-                AttendanceReport.class_id.isnot(None),
-            )
-            .all()
-        )
 
     return [_to_schema(r) for r in rows]
 
@@ -112,7 +99,10 @@ def generate_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     dependencies=[Depends(role_required(["teacher"]))],
 )
 def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
-    # 1. ลองดึงรายงานที่มีอยู่ก่อน
+    # อัปเดตรายงานก่อนทุกครั้งเพื่อตรงกับสถานะล่าสุด
+    generate_reports_for_class(db, str(class_id))
+
+    # ดึงรายงานล่าสุด
     rows = (
         db.query(AttendanceReport)
         .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
@@ -124,25 +114,6 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
         )
         .all()
     )
-    
-    # 2. [Lazy Init] ถ้ายังไม่มีรายงานเลย หรือจำนวนคนไม่ตรงกับสมาชิกในคลาส ให้สั่ง Generate ใหม่
-    # เช็คจำนวนนักเรียนปัจจุบันในคลาส
-    student_count = db.query(class_students).filter(class_students.c.class_id == class_id).count()
-    
-    if not rows or len(rows) < student_count:
-        generate_reports_for_class(db, str(class_id))
-        # ดึงใหม่อีกครั้ง
-        rows = (
-            db.query(AttendanceReport)
-            .join(class_students, (class_students.c.student_id == AttendanceReport.student_id) & (class_students.c.class_id == class_id))
-            .options(
-                joinedload(AttendanceReport.classroom), joinedload(AttendanceReport.student)
-            )
-            .filter(
-                AttendanceReport.class_id == class_id, AttendanceReport.class_id.isnot(None)
-            )
-            .all()
-        )
 
     return [_to_schema(r) for r in rows]
 
@@ -153,6 +124,8 @@ def get_class_reports(class_id: UUID, db: Session = Depends(get_db)):
     dependencies=[Depends(role_required(["teacher"]))],
 )
 def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
+    generate_reports_for_class(db, str(class_id))
+
     rows = (
         db.query(AttendanceReport)
         # ✨ เพิ่ม: Join สมาชิกปัจจุบันเพื่อกรองเอาเฉพาะคนที่ยังอยู่ในคลาส
@@ -183,6 +156,14 @@ def get_class_summary(class_id: UUID, db: Session = Depends(get_db)):
     dependencies=[Depends(role_required(["teacher"]))],
 )
 def get_student_report(student_id: UUID, db: Session = Depends(get_db)):
+    student_classes = (
+        db.query(class_students.c.class_id)
+        .filter(class_students.c.student_id == student_id)
+        .all()
+    )
+    for (cid,) in student_classes:
+        generate_reports_for_class(db, str(cid))
+
     rows = (
         db.query(AttendanceReport)
         #  เพิ่ม joinedload student

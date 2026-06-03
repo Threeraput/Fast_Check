@@ -182,40 +182,6 @@ class _StudentReportTabState extends State<StudentReportTab> {
       );
     }
 
-    if (_myReports.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.description_outlined,
-                size: 64,
-                color: Colors.grey,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'ยังไม่มีรายงานการเข้าเรียน',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'รอครูสร้างรายงานให้ก่อนนะ',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _loadMyReports,
-                icon: const Icon(Icons.refresh),
-                label: const Text('รีเฟรช'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return RefreshIndicator(
       onRefresh: _loadMyReports,
       child: ListView(
@@ -230,7 +196,10 @@ class _StudentReportTabState extends State<StudentReportTab> {
           const SizedBox(height: 16),
 
           // การ์ดสรุปแต่ละวิชา (แสดงชื่อคลาสแทน classId)
-          ..._myReports.map((report) => _buildReportCard(report)),
+          if (_myReports.isEmpty)
+            _buildDefaultReportCard()
+          else
+            ..._myReports.map((report) => _buildReportCard(report)),
 
           const SizedBox(height: 24),
 
@@ -351,22 +320,33 @@ class _StudentReportTabState extends State<StudentReportTab> {
               Center(
                 child: Column(
                   children: [
-                    Text(
-                      '${rate.toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+                    if (_isNoCheckInReport(report))
+                      Text(
+                        'ยังไม่เคยเช็คชื่อ',
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    else ...[
+                      Text(
+                        _attendanceRateText(report),
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _getAttendanceLabel(rate),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: color,
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        _getAttendanceLabel(report),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -444,6 +424,114 @@ class _StudentReportTabState extends State<StudentReportTab> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultReportCard() {
+    final className = _className(widget.classId);
+    final accentColor = _getAttendanceColor(60);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.school, color: accentColor, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'วิชา: $className',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                'ยังไม่เคยเช็คชื่อ',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(
+                  icon: Icons.event_available,
+                  label: 'เข้าเรียน',
+                  value: '0',
+                  color: Colors.green,
+                ),
+                _buildStatItem(
+                  icon: Icons.schedule,
+                  label: 'สาย',
+                  value: '0',
+                  color: Colors.orange,
+                ),
+                _buildStatItem(
+                  icon: Icons.event_busy,
+                  label: 'ขาด',
+                  value: '0',
+                  color: Colors.red,
+                ),
+                _buildStatItem(
+                  icon: Icons.exit_to_app,
+                  label: 'กลับก่อน',
+                  value: '0',
+                  color: Colors.purple,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: accentColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ทั้งหมด 0 ครั้ง',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: accentColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -596,10 +684,23 @@ class _StudentReportTabState extends State<StudentReportTab> {
     return Colors.red;
   }
 
-  String _getAttendanceLabel(double rate) {
+  bool _isNoCheckInReport(AttendanceReport report) {
+    return report.attendedSessions == 0 &&
+        report.lateSessions == 0 &&
+        report.leftEarlySessions == 0;
+  }
+
+  String _getAttendanceLabel(AttendanceReport report) {
+    final rate = report.attendanceRate;
+    if (_isNoCheckInReport(report)) return 'ยังไม่เคยเช็คชื่อ';
     if (rate >= 80) return 'ดีมาก';
     if (rate >= 60) return 'พอใช้';
     return 'ควรปรับปรุง';
+  }
+
+  String _attendanceRateText(AttendanceReport report) {
+    if (_isNoCheckInReport(report)) return '';
+    return '${report.attendanceRate.toStringAsFixed(1)}%';
   }
 
   String _formatDate(String date) {
@@ -651,33 +752,37 @@ class _StudentReportTabState extends State<StudentReportTab> {
               // เปลี่ยนเป็นชื่อคลาสแทน classId
               _buildDetailRow('วิชา', className),
               _buildDetailRow('ทั้งหมด', '${report.totalSessions} ครั้ง'),
-              _buildDetailRow(
-                'เข้าเรียน',
-                '${report.attendedSessions} ครั้ง',
-                Colors.green,
-              ),
-              _buildDetailRow(
-                'สาย',
-                '${report.lateSessions} ครั้ง',
-                Colors.orange,
-              ),
-              _buildDetailRow(
-                'ขาด',
-                '${report.absentSessions} ครั้ง',
-                Colors.red,
-              ),
-              _buildDetailRow(
-                'กลับก่อน',
-                '${report.leftEarlySessions} ครั้ง',
-                Colors.purple,
-              ),
-              // Removed 'ตรวจสอบซ้ำ' row as requested
-              const Divider(height: 24),
-              _buildDetailRow(
-                'อัตราเข้าเรียน',
-                '${report.attendanceRate.toStringAsFixed(2)}%',
-                _getAttendanceColor(report.attendanceRate),
-              ),
+              if (_isNoCheckInReport(report))
+                _buildDetailRow('สถานะ', 'ยังไม่เคยเช็คชื่อ'),
+              if (!_isNoCheckInReport(report)) ...[
+                _buildDetailRow(
+                  'เข้าเรียน',
+                  '${report.attendedSessions} ครั้ง',
+                  Colors.green,
+                ),
+                _buildDetailRow(
+                  'สาย',
+                  '${report.lateSessions} ครั้ง',
+                  Colors.orange,
+                ),
+                _buildDetailRow(
+                  'ขาด',
+                  '${report.absentSessions} ครั้ง',
+                  Colors.red,
+                ),
+                _buildDetailRow(
+                  'กลับก่อน',
+                  '${report.leftEarlySessions} ครั้ง',
+                  Colors.purple,
+                ),
+                // Removed 'ตรวจสอบซ้ำ' row as requested
+                const Divider(height: 24),
+                _buildDetailRow(
+                  'อัตราเข้าเรียน',
+                  _attendanceRateText(report),
+                  _getAttendanceColor(report.attendanceRate),
+                ),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

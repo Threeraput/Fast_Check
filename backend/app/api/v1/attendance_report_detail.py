@@ -18,6 +18,7 @@ from app.models.attendance_session import AttendanceSession
 from app.models.association import class_students # นำเข้าตารางสมาชิกคลาส
 from app.models.student_location import StudentLocation # นำเข้าตารางพิกัด
 from sqlalchemy import func # เพิ่ม func สำหรับ subquery
+from app.services.attendance_report_service import generate_reports_for_class
 
 router = APIRouter(prefix="/attendance/reports/details", tags=["Attendance Details"])
 
@@ -82,6 +83,20 @@ def get_my_daily_reports(
     if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can view this")
 
+    target_classes = []
+    if class_id:
+        target_classes = [class_id]
+    else:
+        target_classes = [
+            cid
+            for (cid,) in db.query(class_students.c.class_id)
+            .filter(class_students.c.student_id == me.user_id)
+            .all()
+        ]
+
+    for cid in target_classes:
+        generate_reports_for_class(db, str(cid))
+
     query = (
         db.query(AttendanceReportDetail)
         .options(joinedload(AttendanceReportDetail.report))
@@ -121,6 +136,8 @@ def get_class_daily_reports(
     class_id: UUID, db: Session = Depends(get_db)
 ):
     """ให้ครู/แอดมินดูรายงานรายวันของคลาส"""
+    generate_reports_for_class(db, str(class_id))
+
     results = (
         db.query(AttendanceReportDetail)
         .options(joinedload(AttendanceReportDetail.report))
@@ -151,6 +168,20 @@ def get_student_daily_reports(
     db: Session = Depends(get_db)
 ):
     """ให้อาจารย์ดูประวัติการเช็คชื่อราย session ของนักเรียนคนใดคนหนึ่ง"""
+
+    target_classes = []
+    if class_id:
+        target_classes = [class_id]
+    else:
+        target_classes = [
+            cid
+            for (cid,) in db.query(class_students.c.class_id)
+            .filter(class_students.c.student_id == student_id)
+            .all()
+        ]
+
+    for cid in target_classes:
+        generate_reports_for_class(db, str(cid))
 
     query = (
         db.query(AttendanceReportDetail)
