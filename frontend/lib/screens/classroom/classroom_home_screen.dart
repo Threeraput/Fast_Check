@@ -739,6 +739,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         : null;
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: Text(_isAdmin ? 'All Classes (Admin)' : 'Classroom'),
         actions: [

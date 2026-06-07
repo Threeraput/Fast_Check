@@ -1,6 +1,7 @@
 // lib/screens/student_checkin_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/widgets/mock_location_dialog.dart';
 import '../../utils/location_helper.dart';
 import '../../services/attendance_service.dart';
 
@@ -27,10 +28,12 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
   Future<void> _bootstrap() async {
     final sessions = await AttendanceService.getActiveSessions();
     final matched = sessions.firstWhere((m) {
-      final cid = (m['class_id']?.toString()) ??
+      final cid =
+          (m['class_id']?.toString()) ??
           (m['classId']?.toString()) ??
           ((m['class'] is Map)
-              ? (m['class']['id']?.toString() ?? m['class']['class_id']?.toString())
+              ? (m['class']['id']?.toString() ??
+                    m['class']['class_id']?.toString())
               : null);
       return cid == widget.classId;
     }, orElse: () => {});
@@ -46,10 +49,13 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       final msg = e.message.toLowerCase();
       final code = e.statusCode;
 
-      if (code == 403 || msg.contains('location check failed') || msg.contains('อยู่นอก')) {
+      if (code == 403 ||
+          msg.contains('location check failed') ||
+          msg.contains('อยู่นอก')) {
         return 'คุณอยู่นอกพื้นที่ที่อาจารย์กำหนดไว้สำหรับการเช็คชื่อ';
       }
-      if (code == 400 && (msg.contains('no face') || msg.contains('not found'))) {
+      if (code == 400 &&
+          (msg.contains('no face') || msg.contains('not found'))) {
         return 'ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นใบหน้าชัดเจน';
       }
       if (code == 400 && msg.contains('exactly one face')) {
@@ -66,11 +72,13 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       }
       return e.message;
     }
-    
+
     final errStr = e.toString().toLowerCase();
-    if (errStr.contains('timeout')) return 'การเชื่อมต่อล่าช้าเกินไป กรุณาตรวจสอบอินเทอร์เน็ต';
-    if (errStr.contains('permission denied')) return 'กรุณาอนุญาตให้แอปเข้าถึงตำแหน่ง (GPS) เพื่อเช็คชื่อ';
-    
+    if (errStr.contains('timeout'))
+      return 'การเชื่อมต่อล่าช้าเกินไป กรุณาตรวจสอบอินเทอร์เน็ต';
+    if (errStr.contains('permission denied'))
+      return 'กรุณาอนุญาตให้แอปเข้าถึงตำแหน่ง (GPS) เพื่อเช็คชื่อ';
+
     return e.toString().replaceFirst('Exception: ', '');
   }
 
@@ -150,6 +158,13 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      if (LocationHelper.isMockLocationError(e)) {
+        await showMockLocationDialog(
+          context,
+          title: 'ตรวจพบ Mock GPS',
+        );
+        return;
+      }
       final msg = _friendlyCheckinError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
@@ -165,7 +180,10 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         icon: const Icon(Icons.location_off, size: 64, color: Colors.red),
-        title: const Text('อยู่นอกพื้นที่เช็คชื่อ', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'อยู่นอกพื้นที่เช็คชื่อ',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -197,7 +215,10 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('เช็คชื่อเข้าเรียน', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'เช็คชื่อเข้าเรียน',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         elevation: 0,
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
@@ -215,7 +236,10 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                 children: [
                   const Icon(Icons.error_outline, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
-                  Text('เกิดข้อผิดพลาด: ${_friendlyCheckinError(snap.error)}', textAlign: TextAlign.center),
+                  Text(
+                    'เกิดข้อผิดพลาด: ${_friendlyCheckinError(snap.error)}',
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             );
@@ -246,7 +270,9 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 4,
                     ),
                     onPressed: _busy ? null : _checkIn,
@@ -254,12 +280,18 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
                           )
                         : const Icon(Icons.check_circle_outline, size: 24),
                     label: Text(
                       _busy ? _statusText : 'เริ่มการเช็คชื่อ',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -271,7 +303,12 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
     );
   }
 
-  Widget _buildInfoCard(IconData icon, String title, String subtitle, Color color) {
+  Widget _buildInfoCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    Color color,
+  ) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -281,11 +318,17 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Icon(icon, color: color),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        ),
       ),
     );
   }
@@ -305,7 +348,11 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
           const Expanded(
             child: Text(
               'ห้ามมีบุคคลอื่นอยู่ในเฟรมขณะสแกนหน้า เพื่อความถูกต้องของระบบ',
-              style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

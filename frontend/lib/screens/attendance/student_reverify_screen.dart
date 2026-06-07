@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import '../../utils/image_utils.dart';
 import '../../utils/location_helper.dart';
 import '../../services/attendance_service.dart';
+import '../../widgets/mock_location_dialog.dart';
 
 class StudentReverifyScreen extends StatefulWidget {
   final String sessionId; // ต้องส่ง session ที่กำลังเปิดอยู่ของคลาสนี้
@@ -73,6 +74,13 @@ class _StudentReverifyScreenState extends State<StudentReverifyScreen> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+      if (LocationHelper.isMockLocationError(e)) {
+        await showMockLocationDialog(
+          context,
+          title: 'ตรวจพบ Mock GPS ',
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
@@ -84,7 +92,8 @@ class _StudentReverifyScreenState extends State<StudentReverifyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ยืนยันตัวตนซ้ำ (กลางคาบ)'),
+      appBar: AppBar(
+        title: const Text('ยืนยันตัวตนซ้ำ (กลางคาบ)'),
         backgroundColor: Colors.transparent, // โปร่งใส
         elevation: 0, // ตัดเงาออก
         foregroundColor: Colors.white, // เปลี่ยนสีไอคอนเป็นดำ
@@ -93,9 +102,9 @@ class _StudentReverifyScreenState extends State<StudentReverifyScreen> {
         future: _init,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(
-              color: Colors.blue,
-            ));
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.blue),
+            );
           }
           if (snap.hasError) {
             return Center(child: Text(snap.error.toString()));

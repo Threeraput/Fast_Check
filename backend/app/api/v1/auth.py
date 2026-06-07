@@ -126,7 +126,7 @@ async def login_for_access_token(
     if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password",
+            detail="Incorrect email or username",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

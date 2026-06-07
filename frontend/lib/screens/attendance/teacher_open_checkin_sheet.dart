@@ -6,6 +6,7 @@ import 'package:frontend/services/sessions_service.dart';
 import 'package:numberpicker/numberpicker.dart';
 import '../../utils/location_helper.dart';
 import 'package:frontend/services/attendance_service.dart';
+import '../../widgets/mock_location_dialog.dart';
 
 class TeacherOpenCheckinSheet extends StatefulWidget {
   final String classId;
@@ -99,6 +100,13 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
       Navigator.of(context).pop(created);
     } catch (e) {
       if (!mounted) return;
+      if (LocationHelper.isMockLocationError(e)) {
+        await showMockLocationDialog(
+          context,
+          title: 'ตรวจพบ Mock GPS ',
+        );
+        return;
+      }
       // ignore: avoid_print
       print('🧩 [TeacherOpenCheckinSheet] error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -323,7 +331,8 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
               controller: _radiusCtl,
               keyboardType: TextInputType.number,
               inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly, // อนุญาตเฉพาะตัวเลขเท่านั้น
+                FilteringTextInputFormatter
+                    .digitsOnly, // อนุญาตเฉพาะตัวเลขเท่านั้น
               ],
               decoration: const InputDecoration(
                 labelText: 'รัศมี (เมตร)',
@@ -331,7 +340,8 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
                 helperText: 'เช่น 100 เมตร (ขั้นต่ำ 1 เมตร)',
                 suffixText: 'เมตร',
               ),
-              validator: (v) => _requiredInt(v, min: 1, max: 2000), // เปลี่ยนขั้นต่ำเป็น 1
+              validator: (v) =>
+                  _requiredInt(v, min: 1, max: 2000), // เปลี่ยนขั้นต่ำเป็น 1
             ),
 
             const SizedBox(height: 16),
