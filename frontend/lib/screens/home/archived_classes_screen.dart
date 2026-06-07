@@ -103,8 +103,8 @@ class _ArchivedClassesScreenState extends State<ArchivedClassesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ชั้นเรียนที่เก็บ'),
-        backgroundColor: Colors.blueGrey, // ให้สีดูแตกต่างจากหน้าหลัก
+        title: const Text('ชั้นเรียนที่เก็บ',style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color.fromARGB(255, 5, 156, 232), // ให้สีดูแตกต่างจากหน้าหลัก
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())

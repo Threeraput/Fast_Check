@@ -383,7 +383,7 @@ class _HeaderRow extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: iconColor.withAlpha(35),
+          backgroundColor: iconColor.withValues(alpha: 30),
           child: Icon(icon, size: 18, color: iconColor),
         ),
         const SizedBox(width: 8),
