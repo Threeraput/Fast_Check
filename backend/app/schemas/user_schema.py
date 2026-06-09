@@ -79,6 +79,7 @@ class UserResponse(UserBase):
     avatar_url: Optional[str] = None
     student_id: Optional[str] = Field(None, max_length=20)
     teacher_id: Optional[str] = Field(None, max_length=20)
+    deleted_at: Optional[datetime] = None
 
 
 # ---------------------------
@@ -97,3 +98,10 @@ class TokenData(BaseModel):
 
     user_id: UUID
     roles: List[str] = Field(default_factory=list)
+
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: str
+
+class SwitchRoleRequest(BaseModel):
+    target_role: str = Field(..., description="Role ที่ต้องการสลับ ('student' หรือ 'teacher')")

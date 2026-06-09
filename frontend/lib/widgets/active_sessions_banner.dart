@@ -7,7 +7,7 @@ import 'package:frontend/services/attendance_service.dart';
 import 'package:frontend/screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/utils/location_helper.dart';
 import 'package:frontend/services/sessions_service.dart';
-
+import 'package:frontend/widgets/mock_location_dialog.dart';
 
 class ActiveSessionsBanner extends StatefulWidget {
   final String classId; // filter เฉพาะคลาสนี้
@@ -42,7 +42,7 @@ class _ActiveSessionsBannerState extends State<ActiveSessionsBanner> {
   }
 
   Future<List<Map<String, dynamic>>> _load({bool force = false}) async {
-   final all = await AttendanceService.getActiveSessions(force: force);
+    final all = await AttendanceService.getActiveSessions(force: force);
     String? _classIdOf(Map<String, dynamic> s) {
       final v1 = s['class_id'];
       if (v1 is String && v1.isNotEmpty) return v1;
@@ -67,9 +67,7 @@ class _ActiveSessionsBannerState extends State<ActiveSessionsBanner> {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator(
-              color: Colors.blue,
-            )),
+            child: Center(child: CircularProgressIndicator(color: Colors.blue)),
           );
         }
         if (snap.hasError) {
@@ -135,13 +133,17 @@ class _SessionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('HH:mm');
-    final sessionId = (data['session_id'] ?? data['id'] ?? data['sessionId'])?.toString();
-
+    final sessionId = (data['session_id'] ?? data['id'] ?? data['sessionId'])
+        ?.toString();
 
     final endStr =
         data['expires_at']?.toString() ?? data['end_time']?.toString();
     final end = endStr != null ? DateTime.tryParse(endStr) : null;
     final endTxt = end != null ? df.format(end.toLocal()) : '-';
+
+    final lateStr = data['late_cutoff_time']?.toString();
+    final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
+    final lateTxt = late != null ? df.format(late.toLocal()) : '-';
 
     final radius = data['radius_meters']?.toString();
     final lat = data['anchor_lat']?.toString();
@@ -163,23 +165,27 @@ class _SessionRow extends StatelessWidget {
         subtitle: Text(
           [
             if (end != null) 'หมดอายุ: $endTxt',
+            if (late != null) 'สายหลัง: $lateTxt',
             if (radius != null) 'รัศมี $radius m',
             if (lat != null && lon != null) 'Anchor: $lat, $lon',
-            'Reverify: ${reverifyEnabled ? "ON" : "OFF"}',
           ].join(' · '),
         ),
-      trailing: isTeacherView
+        trailing: isTeacherView
             ? Wrap(
                 spacing: 8,
                 children: [
                   OutlinedButton(
                     // ✅ เอา notExpired ออก ถ้าอยากให้กดได้ตลอด (เหลือแค่เช็คว่ามี sessionId)
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: reverifyEnabled ? Colors.green : Colors.red, // สีพื้นตามสถานะ
-                    foregroundColor: Colors.white, // สีตัวอักษร
-                    side: BorderSide(
-                    color: reverifyEnabled ? Colors.green : Colors.red, // สีขอบ
-                    width: 1.5,
+                      backgroundColor: reverifyEnabled
+                          ? Colors.green
+                          : Colors.red, // สีพื้นตามสถานะ
+                      foregroundColor: Colors.white, // สีตัวอักษร
+                      side: BorderSide(
+                        color: reverifyEnabled
+                            ? Colors.green
+                            : Colors.red, // สีขอบ
+                        width: 1.5,
                       ),
                     ),
                     onPressed: (sessionId != null)
@@ -196,12 +202,10 @@ class _SessionRow extends StatelessWidget {
                                   SnackBar(
                                     content: Text(
                                       enabled
-                                        
                                           ? 'เปิด reverify แล้ว'
                                           : 'ปิด reverify แล้ว',
-                                      
                                     ),
-                                  //  behavior: SnackBarBehavior.floating, // ทำให้มันลอยสวยขึ้น (optional)
+                                    //  behavior: SnackBarBehavior.floating, // ทำให้มันลอยสวยขึ้น (optional)
                                   ),
                                 );
                               }
@@ -302,6 +306,15 @@ class _SessionRow extends StatelessWidget {
                                       onChanged();
                                     } catch (e) {
                                       if (context.mounted) {
+                                        if (LocationHelper.isMockLocationError(
+                                          e,
+                                        )) {
+                                          await showMockLocationDialog(
+                                            context,
+                                            title: 'ตรวจพบ Mock GPS ',
+                                          );
+                                          return;
+                                        }
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(

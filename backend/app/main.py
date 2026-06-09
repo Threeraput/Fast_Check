@@ -1,5 +1,5 @@
 # backend/app/main.py
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,22 +24,34 @@ from app.api.v1 import attendance_report
 from app.api.v1 import attendance_report_detail
 from pathlib import Path
 from app.core.config import settings
+from app.core.scheduler import start_scheduler, shutdown_scheduler
+from app.core.firebase import init_firebase
 
 
-MEDIA_ROOT = Path("media")
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+UPLOADS_ROOT = BACKEND_ROOT / "uploads"
+WORKPDF_ROOT = BACKEND_ROOT / "workpdf"
+MEDIA_ROOT = BACKEND_ROOT / "media"
+
+UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
+WORKPDF_ROOT.mkdir(parents=True, exist_ok=True)
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 Starting up application...")
     db_session = next(get_db())
     try:
         Base.metadata.create_all(bind=engine)
         initialize_roles_permissions(db_session)
     finally:
         db_session.close()
+        init_firebase()
+        start_scheduler()
     yield
-
+    print("🛑 Shutting down application...")
+    shutdown_scheduler()
 
 app = FastAPI(
     title="Face Attendance API", version="1.0.0", lifespan=lifespan, debug=True
@@ -83,6 +95,19 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     )
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "http_error",
+            "detail": exc.detail,
+            "path": str(request.url),
+        },
+        headers=exc.headers,
+    )
+
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -115,8 +140,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-app.mount("/workpdf", StaticFiles(directory="workpdf"), name="workpdf")
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_ROOT)), name="uploads")
+app.mount("/workpdf", StaticFiles(directory=str(WORKPDF_ROOT)), name="workpdf")
 app.mount("/media", StaticFiles(directory=str(MEDIA_ROOT)), name="media")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")

@@ -72,19 +72,33 @@ def check_class_teacher(
 
 
 def create_classroom(
-    db: Session, name: str, teacher_id: uuid.UUID, start_time=None, end_time=None
+    db: Session,
+    name: str,
+    teacher_id: uuid.UUID,
+    description: Optional[str] = None,
+    start_time=None,
+    end_time=None,
 ) -> ClassModel:
     """
     สร้างห้องเรียนใหม่ (generate code อัตโนมัติ) พร้อมจัดการเคส UNIQUE ชน
     - ถ้า code ชน UNIQUE → retry อัตโนมัติ
     - ถ้า name ชน (แล้วแต่ constraint ของคุณ) → แจ้ง 400
     """
+    # 🚨 เพิ่มโค้ด 4 บรรทัดนี้ เพื่อวิ่งไปถาม DB ว่ามีชื่อนี้หรือยัง
+    existing_class = db.query(ClassModel).filter(ClassModel.name == name).first()
+    if existing_class:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ชื่อห้องเรียนนี้มีอยู่แล้ว กรุณาตั้งชื่อใหม่"
+        )
+    
     for attempt in range(3):  # ลองซัก 3 ครั้งกรณี code ชนบน DB
         unique_code = generate_unique_code(db)
 
         new_class = ClassModel(
             name=name,
             code=unique_code,
+            description=description,
             teacher_id=teacher_id,
             start_time=start_time,
             end_time=end_time,

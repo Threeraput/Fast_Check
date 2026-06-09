@@ -42,6 +42,11 @@ class Attendance(Base):
     face_image_path = Column(String, nullable=True)
     reverify_time = Column(DateTime(timezone=True), nullable=True)
     reverify_image_path = Column(String, nullable=True)
+    # เก็บเวลาล่าสุดที่เครื่องแอบส่งพิกัดมา และ "อยู่ในระยะ"
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    is_manual_override = Column(Boolean, default=False, nullable=False)
+
     # --- เพิ่ม FK ชี้ไปยัง Session ---
     session_id = Column(UUID(as_uuid=True), ForeignKey("attendance_sessions.session_id", ondelete="CASCADE"), nullable=False)
     # Relationships

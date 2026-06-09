@@ -9,6 +9,7 @@ class User {
   final String username;
   final String? firstName;
   final String? lastName;
+  final DateTime? deletedAt;
 
   /// email แก้ไขไม่ได้ – ใช้แสดงผลเท่านั้น
   final String? email;
@@ -44,6 +45,7 @@ class User {
     required this.roles,
     this.fullName,
     this.avatarUrl,
+    this.deletedAt,
   });
 
   /// แปลง String/Null -> DateTime?
@@ -78,8 +80,12 @@ class User {
       lastLoginAt: _dt(json['last_login_at']),
       roles: roles,
       fullName: json['full_name']?.toString(),
-      // ✅ แม็ปค่า avatar_url -> avatarUrl (แก้ตัวอักษรผิดพลาดเดิม)
+      // แม็ปค่า avatar_url -> avatarUrl (แก้ตัวอักษรผิดพลาดเดิม)
       avatarUrl: json['avatar_url']?.toString(),
+
+      deletedAt: json['deleted_at'] != null 
+          ? DateTime.parse(json['deleted_at']) 
+          : null,
     );
   }
 

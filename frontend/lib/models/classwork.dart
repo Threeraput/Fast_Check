@@ -40,7 +40,10 @@ class ClassworkSubmission {
   final String submissionId;
   final String assignmentId;
   final String studentId;
-  
+  final String username;
+  final String firstName;
+  final String lastName;
+
   final String? contentUrl; // เช่น "workpdf/<uuid>.pdf"
   final DateTime? submittedAt;
 
@@ -55,6 +58,9 @@ class ClassworkSubmission {
     required this.submissionId,
     required this.assignmentId,
     required this.studentId,
+    required this.username,
+    required this.firstName,
+    required this.lastName,
     required this.contentUrl,
     required this.submittedAt,
     required this.submissionStatus,
@@ -74,6 +80,9 @@ class ClassworkSubmission {
       submissionId: j['submission_id']?.toString() ?? '',
       assignmentId: j['assignment_id']?.toString() ?? '',
       studentId: j['student_id']?.toString() ?? '',
+      username: j['username']?.toString() ?? '',
+      firstName: j['first_name']?.toString() ?? '',
+      lastName: j['last_name']?.toString() ?? '',
       contentUrl: j['content_url']?.toString(),
       submittedAt: _parseDt(j['submitted_at']),
       submissionStatus: latenessFromString(j['submission_status']?.toString()),
@@ -94,6 +103,9 @@ class ClassworkSubmission {
     'submission_id': submissionId,
     'assignment_id': assignmentId,
     'student_id': studentId,
+    'username': username,
+    'first_name': firstName,
+    'last_name': lastName,
     'content_url': contentUrl,
     'submitted_at': submittedAt?.toUtc().toIso8601String(),
     'submission_status': latenessToString(submissionStatus),
@@ -116,6 +128,7 @@ class ClassworkAssignment {
 
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isAcceptingSubmissions; // เพิ่มตัวแปรนี้
 
   ClassworkAssignment({
     required this.assignmentId,
@@ -126,9 +139,19 @@ class ClassworkAssignment {
     required this.dueDate,
     required this.createdAt,
     required this.updatedAt,
+    required this.isAcceptingSubmissions,
   });
 
   factory ClassworkAssignment.fromJson(Map<String, dynamic> j) {
+    print(
+      '📦 DEBUG MODEL parsing: ${j['title']} -> created_at: ${j['created_at']} -> due_date: ${j['due_date']}',
+    );
+    final dueDate =
+        DateTime.tryParse(j['due_date']?.toString() ?? '')?.toLocal() ??
+        DateTime.now();
+    final createdDate = DateTime.tryParse(
+      j['created_at']?.toString() ?? '',
+    )?.toLocal();
     return ClassworkAssignment(
       assignmentId: j['assignment_id']?.toString() ?? '',
       classId: j['class_id']?.toString() ?? '',
@@ -137,15 +160,12 @@ class ClassworkAssignment {
       maxScore: (j['max_score'] is num)
           ? (j['max_score'] as num).toInt()
           : (j['max_score'] as int? ?? 100),
-      dueDate:
-          DateTime.tryParse(j['due_date']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
-      createdAt:
-          DateTime.tryParse(j['created_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
+      dueDate: dueDate,
+      createdAt: createdDate ?? dueDate,
       updatedAt:
           DateTime.tryParse(j['updated_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now(),
+          dueDate,
+      isAcceptingSubmissions: j['is_accepting_submissions'] ?? true,
     );
   }
 
@@ -158,7 +178,47 @@ class ClassworkAssignment {
     'due_date': dueDate.toUtc().toIso8601String(),
     'created_at': createdAt.toUtc().toIso8601String(),
     'updated_at': updatedAt.toUtc().toIso8601String(),
+    'is_accepting_submissions': isAcceptingSubmissions,
   };
+}
+
+class AssignmentAttachment {
+  final String attachmentId;
+  final String assignmentId;
+  final String uploadedBy;
+  final String fileName;
+  final String storagePath;
+  final String mimeType;
+  final int sizeBytes;
+  final DateTime createdAt;
+
+  AssignmentAttachment({
+    required this.attachmentId,
+    required this.assignmentId,
+    required this.uploadedBy,
+    required this.fileName,
+    required this.storagePath,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.createdAt,
+  });
+
+  factory AssignmentAttachment.fromJson(Map<String, dynamic> j) {
+    return AssignmentAttachment(
+      attachmentId: j['attachment_id']?.toString() ?? '',
+      assignmentId: j['assignment_id']?.toString() ?? '',
+      uploadedBy: j['uploaded_by']?.toString() ?? '',
+      fileName: j['file_name']?.toString() ?? 'attachment',
+      storagePath: j['storage_path']?.toString() ?? '',
+      mimeType: j['mime_type']?.toString() ?? 'application/octet-stream',
+      sizeBytes: (j['size_bytes'] is num)
+          ? (j['size_bytes'] as num).toInt()
+          : int.tryParse('${j['size_bytes']}') ?? 0,
+      createdAt:
+          DateTime.tryParse(j['created_at']?.toString() ?? '')?.toLocal() ??
+          DateTime.now(),
+    );
+  }
 }
 
 /// มุมมองฝั่งนักเรียน: งาน + สถานะของฉัน (my_submission) + computed_status

@@ -7,6 +7,7 @@ class AssignmentComment {
   final String content;
   final DateTime createdAt;
   final String commenterName; // ชื่อคนพิมพ์คอมเมนต์
+  final String? avatarUrl;
 
   AssignmentComment({
     required this.commentId,
@@ -15,13 +16,17 @@ class AssignmentComment {
     required this.content,
     required this.createdAt,
     required this.commenterName,
+    required this.avatarUrl,
   });
 
   factory AssignmentComment.fromJson(Map<String, dynamic> json) {
     // ดึงชื่อมาจาก object "user" ที่เราแนบมาด้วยจากฝั่ง Python
     final user = json['user'];
-    final firstName = user != null ? (user['first_name'] ?? 'ไม่ระบุ') : 'ไม่ระบุ';
+    final firstName = user != null
+        ? (user['first_name'] ?? 'ไม่ระบุ')
+        : 'ไม่ระบุ';
     final lastName = user != null ? (user['last_name'] ?? '') : '';
+    final avatarUrl = user != null ? user['avatar_url']?.toString() : null;
 
     return AssignmentComment(
       commentId: json['comment_id'] ?? '',
@@ -29,10 +34,11 @@ class AssignmentComment {
       userId: json['user_id'] ?? '',
       content: json['content'] ?? '',
       // แปลงเวลาที่ได้จากหลังบ้านให้เป็นเวลาท้องถิ่น (Local Time) ของเครื่อง
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']).toLocal() 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at']).toLocal()
           : DateTime.now(),
       commenterName: '$firstName $lastName'.trim(),
+      avatarUrl: avatarUrl,
     );
   }
 }
@@ -47,6 +53,7 @@ class AnnouncementComment {
   final String content;
   final DateTime createdAt;
   final String commenterName;
+  final String? avatarUrl;
 
   AnnouncementComment({
     required this.commentId,
@@ -55,22 +62,27 @@ class AnnouncementComment {
     required this.content,
     required this.createdAt,
     required this.commenterName,
+    required this.avatarUrl,
   });
 
   factory AnnouncementComment.fromJson(Map<String, dynamic> json) {
     final user = json['user'];
-    final firstName = user != null ? (user['first_name'] ?? 'ไม่ระบุ') : 'ไม่ระบุ';
+    final firstName = user != null
+        ? (user['first_name'] ?? 'ไม่ระบุ')
+        : 'ไม่ระบุ';
     final lastName = user != null ? (user['last_name'] ?? '') : '';
+    final avatarUrl = user != null ? user['avatar_url']?.toString() : null;
 
     return AnnouncementComment(
       commentId: json['comment_id'] ?? '',
       announcementId: json['announcement_id'] ?? '',
       userId: json['user_id'] ?? '',
       content: json['content'] ?? '',
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']).toLocal() 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at']).toLocal()
           : DateTime.now(),
       commenterName: '$firstName $lastName'.trim(),
+      avatarUrl: avatarUrl,
     );
   }
 }

@@ -12,7 +12,7 @@ import 'package:frontend/widgets/feed_cards.dart';
 import 'package:frontend/models/feed_item.dart';
 import 'package:intl/intl.dart';
 
-// ✅ ใช้สำหรับ URL รูปโปรไฟล์
+// ใช้สำหรับ URL รูปโปรไฟล์
 import 'package:frontend/services/user_service.dart';
 
 class ClassDetailsScreen extends StatefulWidget {
@@ -27,10 +27,13 @@ class ClassDetailsScreen extends StatefulWidget {
 
 class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   final GlobalKey<_StreamTabState> _streamKey = GlobalKey<_StreamTabState>();
+  final GlobalKey<_ClassworkTabState> _classworkKey =
+      GlobalKey<_ClassworkTabState>();
   int _currentIndex = 0;
   bool _loading = true;
   bool _error = false;
   bool _isTeacher = false;
+  bool _isSwapped = false; // 1. เพิ่มตัวแปรเช็คร่างจำแลง
 
   Classroom? _classroom;
   User? _me;
@@ -43,20 +46,29 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
 
   Future<void> _bootstrap() async {
     try {
+      // 2. อ่าน Role ปัจจุบันจาก Token โดยตรง ชัวร์ที่สุด!
+      final currentRoles = await AuthService.getTokenRoles();
+      final isSwapped = await AuthService.isCurrentlySwapped();
+
       final me = await AuthService.getCurrentUserFromLocal();
+      // เช็คจาก currentRoles ที่เพิ่งแกะสดๆ ร้อนๆ แทน
       final isTeacher =
-          me?.roles.contains('teacher') == true ||
-          me?.roles.contains('admin') == true;
+          currentRoles.contains('teacher') || currentRoles.contains('admin');
 
       Classroom? cls;
       if (isTeacher) {
-        // ครูใช้รายละเอียดคลาส (ควรรวม teacher + students พร้อม avatar_url)
+        // ครูใช้รายละเอียดคลาส
         cls = await ClassService.getClassroomDetails(widget.classId);
+      } else {
+        // 3. นักเรียนก็ต้องโหลดข้อมูลคลาสเหมือนกันนะ!
+        // (เปลี่ยนชื่อฟังก์ชัน API ตามที่คุณเขียนไว้หลังบ้านครับ)
+        cls = await ClassService.getStudentClassroomDetails(widget.classId);
       }
 
       setState(() {
         _me = me;
         _isTeacher = isTeacher;
+        _isSwapped = isSwapped; // เก็บไว้ใช้โชว์ปุ่มแดงด้านบน
         _classroom = cls;
         _loading = false;
       });
@@ -88,9 +100,40 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
     }
   }
 
+  Widget _buildSwappedBanner() {
+    return Container(
+      width: double.infinity,
+      color: Colors.red.shade600,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            '⚠️ คุณอยู่ในโหมดนักเรียน',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.red.shade700,
+            ),
+            onPressed: () async {
+              final success = await AuthService.switchRole('teacher');
+              if (success && context.mounted) {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+            child: const Text('กลับสู่โหมดอาจารย์'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _classroom?.name ?? widget.className ?? 'Classroom';
+    final description = _classroom?.description;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: _loading
@@ -101,7 +144,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
             )
           : _error
           ? const Center(child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'))
-          : _buildBody(),
+          : Column(children: [Expanded(child: _buildBody())]),
       floatingActionButton: _currentIndex == 1 && _isTeacher
           ? FloatingActionButton.extended(
               backgroundColor: Colors.blueAccent,
@@ -116,7 +159,14 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
                   '/create-assignment',
                   arguments: widget.classId,
                 );
-                if (ok == true) setState(() {}); // รีเฟรชหลังเพิ่มงาน
+                if (ok == true) {
+                  await _classworkKey.currentState?._refresh();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('สร้างงานสำเร็จ')),
+                    );
+                  }
+                }
               },
             )
           : null,
@@ -140,7 +190,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),
-            label: 'Report', // ✅ หน้ารายงานใหม่
+            label: 'Report',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people_outline),
@@ -162,12 +212,16 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           onCreateAnnouncement: _openCreateAnnouncement,
         );
       case 1:
-        return _ClassworkTab(classId: widget.classId, isTeacher: _isTeacher);
+        return _ClassworkTab(
+          key: _classworkKey,
+          classId: widget.classId,
+          isTeacher: _isTeacher,
+        );
       case 2:
         //  แท็บรายงานจริง
         return ClassReportTab(classId: widget.classId);
       case 3:
-        return _PeopleTab(classroom: _classroom);
+        return _PeopleTab(classroom: _classroom, onRefresh: _bootstrap);
       default:
         return const SizedBox.shrink();
     }
@@ -208,14 +262,35 @@ class _StreamTabState extends State<_StreamTab> {
 
   Future<void> _refresh({bool force = false}) async {
     setState(() {
-      _futureFeed = FeedService.getClassFeed(widget.classId).then((list) {
-        _lastFeed = list;
-        return list;
-      });
+      _futureFeed = FeedService.getClassFeed(widget.classId, force: force).then(
+        (list) {
+          _lastFeed = list;
+          return list;
+        },
+      );
     });
   }
 
   void refreshFeed() => _refresh(force: true);
+
+  /// ซิงค์ข้อมูลแบบเงียบ (ไม่ trigger setState) - อัปเดต _lastFeed เท่านั้น
+  void _syncFeedSilently() {
+    FeedService.getClassFeed(widget.classId, force: true)
+        .then((list) {
+          if (!mounted) return;
+          _lastFeed = list;
+        })
+        .catchError((_) {
+          // ซิงค์ล้มเหลว ไม่ต้องทำอะไร
+        });
+  }
+
+  void refreshFeedEventually({Duration delay = const Duration(seconds: 2)}) {
+    Future.delayed(delay, () {
+      if (!mounted) return;
+      _syncFeedSilently(); // ใช้ sync เงียบแทน _refresh
+    });
+  }
 
   void insertOptimisticSession(Map<String, dynamic> s) {
     final id = s['session_id']?.toString() ?? s['id']?.toString() ?? '';
@@ -263,36 +338,76 @@ class _StreamTabState extends State<_StreamTab> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      c.name ?? '—',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.name ?? '—',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          style: TextStyle(color: Colors.white),
+                          'Code: ${c.code ?? '-'}',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          style: const TextStyle(color: Colors.white70),
+                          'Teacher: ${c.teacher?.username ?? c.teacher?.email ?? '-'}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.info_outline, color: Colors.white),
+                      tooltip: 'คำอธิบายคลาส',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: const Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.blueAccent,
+                                ),
+                                SizedBox(width: 8),
+                                Text('คำอธิบายคลาส'),
+                              ],
+                            ),
+                            content: Text(
+                              (c.description != null &&
+                                      c.description!.isNotEmpty)
+                                  ? c.description!
+                                  : 'ยังไม่มีคำอธิบายสำหรับคลาสนี้',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('ปิด'),
+                              ),
+                            ],
                           ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      style: TextStyle(
-                        color: Colors.white
-                      ),
-                      'Code: ${c.code ?? '-'}'),
-                    const SizedBox(height: 4),
-                    Text(
-                      style: const TextStyle(color: Colors.white70),
-                      'Teacher: ${c.teacher?.username ?? c.teacher?.email ?? '-'}',
-                    ),
-                    if ((c.description ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(c.description!),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           if (widget.isTeacher) ...[
@@ -324,12 +439,11 @@ class _StreamTabState extends State<_StreamTab> {
                 if (!mounted) return;
 
                 if (created != null) {
-                  await Future.delayed(const Duration(seconds: 4));
                   insertOptimisticSession(created);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
                   );
-                  await _refresh(force: true);
+                  refreshFeedEventually();
                 }
               },
               icon: const Icon(Icons.play_circle_outline),
@@ -379,7 +493,11 @@ class _StreamTabState extends State<_StreamTab> {
 class _ClassworkTab extends StatefulWidget {
   final String classId;
   final bool isTeacher;
-  const _ClassworkTab({required this.classId, required this.isTeacher});
+  const _ClassworkTab({
+    super.key,
+    required this.classId,
+    required this.isTeacher,
+  });
 
   @override
   State<_ClassworkTab> createState() => _ClassworkTabState();
@@ -468,10 +586,16 @@ class _ReportTab extends StatelessWidget {
 }
 
 /// 🔹 PEOPLE TAB (Teacher)
-class _PeopleTab extends StatelessWidget {
+class _PeopleTab extends StatefulWidget {
   final Classroom? classroom;
-  const _PeopleTab({required this.classroom});
+  final VoidCallback? onRefresh;
+  const _PeopleTab({required this.classroom, this.onRefresh});
 
+  @override
+  State<_PeopleTab> createState() => _PeopleTabState();
+}
+
+class _PeopleTabState extends State<_PeopleTab> {
   CircleAvatar _avatarFor(User u, {double radius = 20}) {
     final url = UserService.absoluteAvatarUrl(u.avatarUrl);
     if (url != null && url.isNotEmpty) {
@@ -491,9 +615,53 @@ class _PeopleTab extends StatelessWidget {
 
   String _display(User u) => u.displayName;
 
+  Future<void> _removeStudent(User student) async {
+    if (widget.classroom?.classId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบนักเรียน'),
+        content: Text('ต้องการลบ ${student.displayName} ออกจากคลาสนี้หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.black)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('ลบ', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ClassService.removeStudent(
+        widget.classroom!.classId!,
+        student.userId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบ ${student.displayName} สำเร็จ')),
+        );
+        // รีเฟรชข้อมูลคลาสโดยเรียก parent ให้ reload
+        widget.onRefresh?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ลบนักเรียนไม่สำเร็จ: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final c = classroom;
+    final c = widget.classroom;
     if (c == null) {
       return const Center(child: Text('ไม่มีข้อมูลสมาชิกในคลาส'));
     }
@@ -527,6 +695,11 @@ class _PeopleTab extends StatelessWidget {
             leading: _avatarFor(s),
             title: Text(_display(s)),
             subtitle: Text(s.email ?? ''),
+            trailing: IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.red),
+              tooltip: 'ลบนักเรียน',
+              onPressed: () => _removeStudent(s),
+            ),
           ),
         ),
       ],

@@ -34,7 +34,8 @@ class _AddAssignmentButtonState extends State<AddAssignmentButton> {
                 height: 20,
                 child: CircularProgressIndicator(
                   color: Colors.blue,
-                  strokeWidth: 2),
+                  strokeWidth: 2,
+                ),
               )
             : const Icon(Icons.assignment_ind_outlined),
         onPressed: _busy ? null : _openCreateDialog,
@@ -81,6 +82,10 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
   final _maxScore = TextEditingController(text: '100');
   DateTime? _dueDate;
   bool _submitting = false;
+
+  String _formatErrorMessage(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
+  }
 
   @override
   void dispose() {
@@ -142,7 +147,8 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
                   height: 20,
                   child: CircularProgressIndicator(
                     color: Colors.blue,
-                    strokeWidth: 2),
+                    strokeWidth: 2,
+                  ),
                 )
               : const Text('สร้างงาน'),
         ),
@@ -206,7 +212,7 @@ class _CreateAssignmentDialogState extends State<_CreateAssignmentDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _submitting = false);
-      _warn('สร้างงานไม่สำเร็จ: $e');
+      _warn(_formatErrorMessage(e));
     }
   }
 

@@ -12,6 +12,7 @@ class AttendanceReportDetailResponse(BaseModel):
     check_in_time: Optional[datetime] = None
     status: str
     is_reverified: bool
+    is_manual_override: bool = False
     created_at: Optional[datetime] = None
     face_image_url: Optional[str] = None
     reverify_image_url: Optional[str] = None

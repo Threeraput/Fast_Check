@@ -13,7 +13,7 @@ class Classroom {
   final String? updatedAt; // << NEW
   final User? teacher;
   final List<User> students;
-  final bool isArchived; // 👈 1. เพิ่มตัวแปรนี้
+  final bool isArchived; 
 
   Classroom({
     this.classId,
@@ -27,7 +27,7 @@ class Classroom {
     this.updatedAt,
     this.teacher,
     this.students = const [],
-    required this.isArchived, // 👈 2. เพิ่มเข้า Constructor
+    required this.isArchived,
   });
 
   factory Classroom.fromJson(Map<String, dynamic> json) {

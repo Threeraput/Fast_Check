@@ -19,6 +19,17 @@ class AnnouncementUpdate(BaseModel):
     visible: Optional[bool] = None
     expires_at: Optional[datetime] = None
 
+class AnnouncementAttachmentResponse(BaseModel):
+    attachment_id: UUID
+    file_name: str
+    storage_path: str
+    mime_type: str
+    size_bytes: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class AnnouncementResponse(BaseModel):
     announcement_id: UUID
     class_id: UUID
@@ -30,6 +41,7 @@ class AnnouncementResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     expires_at: Optional[datetime]
+    attachments: list[AnnouncementAttachmentResponse] = []
 
     class Config:
         from_attributes = True
@@ -47,6 +59,7 @@ class AnnouncementCommentUserMini(BaseModel):
     user_id: UUID
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True

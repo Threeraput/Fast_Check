@@ -5,9 +5,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from app.models.announcement import Announcement, AnnouncementComment
+from app.models.announcement_attachment import AnnouncementAttachment
 from app.models.class_model import Class as ClassModel
-from fastapi import HTTPException as ApiException
+from fastapi import HTTPException, UploadFile, status
 from app.services.simple_classwork_service import _ensure_teacher_of_class
+from app.utils.announcement_storage import save_announcement_file, delete_announcement_file
+
+def get_announcement(db: Session, announcement_id: UUID) -> Optional[Announcement]:
+    return db.query(Announcement).filter(Announcement.announcement_id == announcement_id).first()
 
 def create_announcement(
     db: Session,
@@ -37,6 +42,37 @@ def create_announcement(
     db.refresh(ann)
     return ann
 
+async def create_announcement_attachment(
+    db: Session,
+    *,
+    announcement_id: UUID,
+    uploaded_by: UUID,
+    file: UploadFile,
+) -> AnnouncementAttachment:
+    """อัปโหลดและผูกไฟล์แนบเข้ากับประกาศ"""
+    ann = db.query(Announcement).filter(Announcement.announcement_id == announcement_id).first()
+    if not ann:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    
+    # ตรวจสอบว่าเป็นเจ้าของประกาศ (ครู)
+    _ = _ensure_teacher_of_class(db, teacher_id=uploaded_by, class_id=ann.class_id)
+
+    storage_path, mime_type, size_bytes = await save_announcement_file(file)
+
+    attachment = AnnouncementAttachment(
+        announcement_id=announcement_id,
+        uploaded_by=uploaded_by,
+        file_name=file.filename or "attachment",
+        storage_path=storage_path,
+        mime_type=mime_type,
+        size_bytes=size_bytes,
+    )
+
+    db.add(attachment)
+    db.commit()
+    db.refresh(attachment)
+    return attachment
+
 def list_announcements_for_class(
     db: Session,
     *,
@@ -46,6 +82,7 @@ def list_announcements_for_class(
     q = db.query(Announcement).filter(Announcement.class_id == class_id)
     if not include_hidden:
         q = q.filter(Announcement.visible == True)  # noqa: E712
+    
     # เรียง: ปักหมุดก่อน แล้วค่อยล่าสุด
     q = q.order_by(Announcement.pinned.desc(), Announcement.created_at.desc())
     return q.all()
@@ -94,6 +131,27 @@ def delete_announcement(
         return
     _ = _ensure_teacher_of_class(db, teacher_id=teacher_id, class_id=ann.class_id)
     db.delete(ann)
+    db.commit()
+
+def delete_announcement_attachment(
+    db: Session,
+    *,
+    teacher_id: UUID,
+    attachment_id: UUID,
+) -> None:
+    """ลบไฟล์แนบของประกาศ"""
+    att = db.query(AnnouncementAttachment).filter(AnnouncementAttachment.attachment_id == attachment_id).first()
+    if not att:
+        return
+    
+    # ตรวจสอบว่าเป็นเจ้าของประกาศ (ครู)
+    ann = att.announcement
+    _ = _ensure_teacher_of_class(db, teacher_id=teacher_id, class_id=ann.class_id)
+
+    # ลบไฟล์ใน storage
+    delete_announcement_file(att.storage_path)
+
+    db.delete(att)
     db.commit()
 
 # ==========================================

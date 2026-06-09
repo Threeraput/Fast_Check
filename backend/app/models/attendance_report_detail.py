@@ -14,6 +14,7 @@ class AttendanceReportDetail(Base):
     check_in_time = Column(DateTime(timezone=True), nullable=True)
     status = Column(Enum("Present", "Late", "Absent", "LeftEarly", name="reportstatus"), nullable=False)
     is_reverified = Column(Boolean, default=False, nullable=False)
+    is_manual_override = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     report = relationship("AttendanceReport", backref="details")
     face_image_path = Column(String, nullable=True)

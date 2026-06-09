@@ -31,8 +31,23 @@ class AssignmentResponse(BaseModel):
     title: str
     max_score: int
     due_date: datetime
+    is_accepting_submissions: bool
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AssignmentAttachmentResponse(BaseModel):
+    attachment_id: UUID
+    assignment_id: UUID
+    uploaded_by: UUID
+    file_name: str
+    storage_path: str
+    mime_type: str
+    size_bytes: int
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -63,6 +78,9 @@ class SubmissionResponse(BaseModel):
     submission_id: UUID
     assignment_id: UUID
     student_id: UUID
+    username: str = ""
+    first_name: str = ""
+    last_name: str = ""
     content_url: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness   # On_Time / Late / Not_Submitted
@@ -97,6 +115,7 @@ class AssignmentWithMySubmission(BaseModel):
     title: str
     max_score: int
     due_date: datetime
+    is_accepting_submissions: bool
 
     # สถานะคำนวณของฉัน ณ ตอนเรียก (ถ้ายังไม่เคยส่ง = Not_Submitted)
     computed_status: SubmissionLateness
@@ -144,7 +163,7 @@ class CommentUserMini(BaseModel):
     user_id: UUID
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    # profile_picture_url: Optional[str] = None  # ถ้าใน User model ของคุณมีรูปโปรไฟล์ เอาคอมเมนต์บรรทัดนี้ออกได้ครับ
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -163,3 +182,7 @@ class CommentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ToggleSubmissionRequest(BaseModel):
+    """ใช้รับค่าตอนอาจารย์กดเปิด/ปิดสวิตช์รับงาน"""
+    is_accepting: bool

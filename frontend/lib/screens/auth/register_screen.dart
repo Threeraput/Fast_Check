@@ -22,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _selectedRole;
   String? _message;
   bool _isLoading = false;
+  bool _isPasswordVisible = false; // 👈 เพิ่มสถานะการมองเห็นรหัสผ่าน
 
   final List<String> _roles = ['student', 'teacher'];
 
@@ -32,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _lastNameError;
   String? _emailError;
 
-  // ✅ สถานะตรวจสอบรหัสผ่าน
+  // สถานะตรวจสอบรหัสผ่าน
   bool hasUppercase = false;
   bool hasLowercase = false;
   bool hasNumber = false;
@@ -65,7 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  /// ✅ ตรวจสอบแต่ละเงื่อนไขของรหัสผ่าน
+  /// ตรวจสอบแต่ละเงื่อนไขของรหัสผ่าน
   void _checkPasswordStatus(String password) {
     setState(() {
       hasUppercase = password.contains(RegExp(r'[A-Z]'));
@@ -76,7 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  /// ✅ ตรวจสอบรหัสผ่านว่าผ่านทุกข้อหรือไม่
+  /// ตรวจสอบรหัสผ่านว่าผ่านทุกข้อหรือไม่
   bool _isPasswordSecure(String password) {
     return hasUppercase &&
         hasLowercase &&
@@ -161,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  /// ✅ Widget แสดง checklist เงื่อนไขรหัสผ่าน
+  /// Widget แสดง checklist เงื่อนไขรหัสผ่าน
   Widget _buildPasswordChecklist() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,15 +231,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Icons.lock_outline,
                   color: Colors.blueAccent,
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.blueAccent,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              obscureText: true,
+              obscureText: !_isPasswordVisible,
             ),
             const SizedBox(height: 8),
 
-            // ✅ ข้อความเตือนสั้น ๆ
+            // ข้อความเตือนสั้น ๆ
             if (_showPasswordChecklist)
               GestureDetector(
                 onTap: () {
@@ -257,7 +271,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         fontStyle: FontStyle.italic,
                       ),
                     ),
-                    // ✅ Checklist ขยายออกเมื่อกด
+                    // Checklist ขยายออกเมื่อกด
                     AnimatedCrossFade(
                       firstChild: const SizedBox.shrink(), // ย่อ
                       secondChild: _buildPasswordChecklist(), // ขยาย

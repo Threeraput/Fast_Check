@@ -5,10 +5,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 import uuid
-from typing import Optional
+from typing import Any, Optional
 from app.core.config import settings
 from app.database import get_db
 from app.schemas.user_schema import (
+    SwitchRoleRequest,
     UserCreate,
     UserResponse,
     Token,
@@ -26,6 +27,7 @@ from app.core.security import get_password_hash, verify_password, create_access_
 # นำเข้า Service ใหม่สำหรับ OTP และ Email
 from app.services.otp_service import create_otp, verify_otp, get_user_by_email_or_username_for_otp
 from app.services.email_service import send_email
+from app.api.v1.users import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -124,9 +126,17 @@ async def login_for_access_token(
     if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password",
+            detail="Incorrect email or username",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 🚨 --- ปรับปรุงใหม่: ดักจับ User ที่ถูกย้ายลงถังขยะ ---
+    if getattr(user, "deleted_at", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deleted. Please contact the administrator."
+        )
+    # --------------------------------------------------
 
     if not user.is_active:
         raise HTTPException(
@@ -166,6 +176,7 @@ async def login_for_access_token(
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
+        deleted_at=user.deleted_at, # <--- แถม: ส่งค่า deleted_at กลับไปด้วย (ซึ่งตรงนี้จะเป็น None เสมอ เพราะถ้าไม่ None จะโดนเตะออกไปตั้งแต่ข้างบนแล้ว)
         roles = user_roles
     )
 
@@ -238,3 +249,62 @@ async def reset_password_with_otp(reset_request: PasswordResetRequest, db: Sessi
     db.refresh(user)
 
     return {"message": "Password has been reset successfully."}
+
+@router.post("/switch-role", summary="สลับบทบาทระหว่าง อาจารย์-นักเรียน")
+def switch_role_endpoint(
+    request: SwitchRoleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    
+    target = request.target_role.lower()
+    
+    if target not in ["student", "teacher"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="เป้าหมายบทบาทไม่ถูกต้อง (ต้องเป็น 'student' หรือ 'teacher' เท่านั้น)"
+        )
+
+    # 1. ตรวจสอบสิทธิ์ "ตัวจริง" จาก Database
+    # ป้องกันคนที่เป็นนักเรียนจริงๆ แอบยิง API นี้เพื่อขอเป็นอาจารย์
+    # (โค้ดตรงนี้อิงจากโครงสร้างตารางที่คุณส่งมานะครับ)
+
+    # หาว่า user คนนี้มี Role เป็น "teacher" จริงๆ หรือเปล่า?
+    is_real_teacher = db.query(Role).join(
+        user_roles, user_roles.c.role_id == Role.id
+    ).filter(
+        user_roles.c.user_id == current_user.user_id,
+        Role.name == "teacher"
+    ).first()
+
+    if not is_real_teacher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์ใช้งานฟังก์ชันนี้ (เฉพาะอาจารย์เท่านั้น)"
+        )
+
+    # 2. เตรียมข้อมูล (Payload) สำหรับสร้าง Token ใบใหม่
+    token_data = {
+        "user_id": str(current_user.user_id), 
+        "username": current_user.username,
+        # เราสามารถเก็บข้อมูลอื่นๆ ที่จำเป็นในนี้ได้เหมือนตอน Login ปกติเลยครับ
+    }
+
+    if target == "student":
+        # 🔄 ขอสลับเป็นร่างนักเรียน
+        token_data["roles"] = ["student"]
+        token_data["is_swapped"] = True
+    else:
+        # ขอสลับกลับเป็นร่างอาจารย์
+        # (ดึง Role ดั้งเดิมทั้งหมดของเขากลับมา หรือใส่แค่ teacher ก็ได้)
+        token_data["roles"] = ["teacher"] 
+        token_data["is_swapped"] = False
+
+    # 3. ออกตั๋วใบใหม่
+    new_access_token = create_access_token(data=token_data)
+
+    return {
+        "access_token": new_access_token,
+        "token_type": "bearer",
+        "message": f"สลับบทบาทเป็น {target} สำเร็จแล้ว"
+    }

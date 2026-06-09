@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
+import 'package:frontend/screens/announcement/edit_announcement_screen.dart';
 import 'package:intl/intl.dart';
 import '../models/feed_item.dart';
 import '../screens/attendance/student_checkin_screen.dart';
-import 'package:frontend/services/sessions_service.dart';
 import 'package:frontend/services/attendance_service.dart';
-import 'package:frontend/utils/location_helper.dart';
 import 'package:frontend/services/announcement_service.dart';
+import 'package:frontend/screens/attendance/teacher_live_attendance_screen.dart';
 
 // ✅ การ์ด assignment
 import 'package:frontend/widgets/assignment_card.dart';
@@ -107,7 +107,7 @@ class _FeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extra = Map<String, dynamic>.from(item.extra ?? {});
+    final extra = Map<String, dynamic>.from(item.extra);
 
     final kind = (extra['kind']?.toString().toLowerCase() ?? '');
 
@@ -132,7 +132,7 @@ class _FeedCard extends StatelessWidget {
       // ✅ สามารถขยายในอนาคต เช่น case 'announcement', 'quiz' ได้
       case 'announcement':
         // 🔹 strip prefix "ann:" ออก ถ้ามี
-        final rawId = item.id ?? '';
+        final rawId = item.id;
         final annId = rawId.startsWith('ann:') ? rawId.split(':').last : rawId;
 
         return _AnnouncementCard(
@@ -143,6 +143,7 @@ class _FeedCard extends StatelessWidget {
           author: (extra['author_name'] ?? '') as String,
           expiresAt: item.expiresAt,
           announcementId: annId, //  ส่ง UUID แบบเพียว ๆ
+          attachments: extra['attachments'] as List?, // 👈 เพิ่มบรรทัดนี้
           isTeacher: isTeacher,
           onChanged: onChanged,
         );
@@ -160,16 +161,18 @@ class _FeedCard extends StatelessWidget {
         ? 'หมดอายุ: ${dfTime.format(item.expiresAt!.toLocal())}'
         : 'กำลังเปิดอยู่';
 
+    // เพิ่มการดึงเวลาสาย
+    final lateStr = item.extra['late_cutoff_time']?.toString();
+    final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
+    final lateTxt = late != null
+        ? DateFormat('HH:mm').format(late.toLocal())
+        : null;
+
     final radius = item.extra['radius']?.toString();
     final lat = item.extra['anchor_lat']?.toString();
     final lon = item.extra['anchor_lon']?.toString();
 
     final sessionId = item.extra['session_id']?.toString();
-    final reverifyEnabled = item.extra['reverify_enabled'] == true;
-
-    final nowUtc = DateTime.now().toUtc();
-    final notExpired =
-        item.expiresAt != null && item.expiresAt!.toUtc().isAfter(nowUtc);
 
     // ไม่มี sessionId → แสดงการ์ดพื้นฐาน
     if (sessionId == null || sessionId.isEmpty) {
@@ -177,15 +180,14 @@ class _FeedCard extends StatelessWidget {
         context: context,
         title: 'เช็คชื่อ',
         expText: expText,
+        lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
         radius: radius,
-        lat: lat,
-        lon: lon,
-        reverifyEnabled: reverifyEnabled,
+        lat: isTeacher ? lat : null,
+        lon: isTeacher ? lon : null,
         trailing: _studentOrTeacherButtons(
           context: context,
           sessionId: null,
           hasCheckedIn: false,
-          canReverify: false,
         ),
       );
     }
@@ -197,30 +199,25 @@ class _FeedCard extends StatelessWidget {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator(
-              color: Colors.blue,
-            )),
+            child: Center(child: CircularProgressIndicator(color: Colors.blue)),
           );
         }
 
         final status = snap.data ?? {};
         final hasCheckedIn = status['has_checked_in'] == true;
-        final canReverifyFlag = status['can_reverify'] == true;
-        final canReverify = canReverifyFlag || (reverifyEnabled && notExpired);
 
         return _baseCard(
           context: context,
           title: 'เช็คชื่อ',
           expText: expText,
+          lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
           radius: radius,
-          lat: lat,
-          lon: lon,
-          reverifyEnabled: reverifyEnabled,
+          lat: isTeacher ? lat : null,
+          lon: isTeacher ? lon : null,
           trailing: _studentOrTeacherButtons(
             context: context,
             sessionId: sessionId,
             hasCheckedIn: hasCheckedIn,
-            canReverify: canReverify,
           ),
         );
       },
@@ -232,10 +229,10 @@ class _FeedCard extends StatelessWidget {
     required BuildContext context,
     required String title,
     required String expText,
+    required String? lateTxt,
     required String? radius,
     required String? lat,
     required String? lon,
-    required bool reverifyEnabled,
     required Widget trailing,
   }) {
     final dfTime = DateFormat('d MMM, HH:mm');
@@ -278,6 +275,19 @@ class _FeedCard extends StatelessWidget {
               ),
             ),
 
+            if (lateTxt != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'สายหลังจาก: $lateTxt น.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
             const SizedBox(height: 3),
 
             // แสดง Anchor
@@ -286,25 +296,6 @@ class _FeedCard extends StatelessWidget {
                 'Anchor: $lat, $lon',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-
-            const SizedBox(height: 3),
-
-            // แสดง Reverify (ON/OFF)
-            RichText(
-              text: TextSpan(
-                style: Theme.of(context).textTheme.bodySmall,
-                children: [
-                  const TextSpan(text: 'Reverify: '),
-                  TextSpan(
-                    text: reverifyEnabled ? 'ON' : 'OFF',
-                    style: TextStyle(
-                      color: reverifyEnabled ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
             const SizedBox(height: 8),
 
@@ -320,61 +311,27 @@ class _FeedCard extends StatelessWidget {
     required BuildContext context,
     required String? sessionId,
     required bool hasCheckedIn,
-    required bool canReverify,
   }) {
     if (isTeacher) {
-      // ปุ่มสำหรับครู: toggle reverify
-      final isEnabled = item.extra['reverify_enabled'] == true;
+      if (sessionId == null || sessionId.isEmpty) {
+        return const SizedBox.shrink();
+      }
 
-      return OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white, // สีตัวอักษร
-          backgroundColor: isEnabled
-              ? Colors.green
-              : Colors.red, // ✅ เปิด=เขียว, ปิด=แดง
-          side: BorderSide(
-            color: isEnabled ? Colors.green : Colors.red,
-          ), // เส้นขอบตามสี
-        ),
-        onPressed: (sessionId == null)
-            ? null
-            : () async {
-                try {
-                  final next = !isEnabled; // toggle สถานะใหม่
-                  final newEnabled = await SessionsService.toggleReverify(
-                    sessionId: sessionId,
-                    enabled: next,
-                  );
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          newEnabled
-                              ? 'เปิด reverify แล้ว'
-                              : 'ปิด reverify แล้ว',
-                          
-                        ),
-                        // behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-
-                  onChanged?.call(); // reload UI
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('สลับ reverify ไม่สำเร็จ: $e')),
-                    );
-                  }
-                }
-              },
-        child: Text(
-          isEnabled ? 'ปิด reverify' : 'เปิด reverify',
-          style: const TextStyle(
-            color: Colors.white,
-          ), // ✅ ตัวอักษรสีขาวบนปุ่มสีเข้ม
-        ),
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TeacherLiveAttendanceScreen(
+                sessionId: sessionId,
+                classId: classId,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.visibility_outlined),
+        label: const Text('ดูคนเช็คชื่อปัจจุบัน'),
       );
     }
 
@@ -403,58 +360,6 @@ class _FeedCard extends StatelessWidget {
       buttons.add(const SizedBox(width: 12));
     }
 
-    // ปุ่มยืนยันซ้ำ
-    buttons.add(
-      FutureBuilder<bool>(
-        future: AttendanceService.getIsReverified(sessionId),
-        builder: (context, snap) {
-          final isReverified = snap.data == true;
-          final enableReverify = hasCheckedIn && canReverify && !isReverified;
-
-          return OutlinedButton.icon(
-            onPressed: enableReverify
-                ? () async {
-                    try {
-                      final result = await Navigator.pushNamed(
-                        context,
-                        '/reverify-face',
-                      );
-                      if (result == null || result is! String || result.isEmpty)
-                        return;
-
-                      final pos =
-                          await LocationHelper.getCurrentPositionOrThrow();
-                      await AttendanceService.reVerify(
-                        sessionId: sessionId,
-                        imagePath: result,
-                        latitude: pos.latitude,
-                        longitude: pos.longitude,
-                      );
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('ยืนยันตัวตนซ้ำสำเร็จ')),
-                        );
-                      }
-                      onChanged?.call();
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
-                        );
-                      }
-                    }
-                  }
-                : null,
-            label: Text(
-              style: TextStyle(color: Colors.black),
-              isReverified ? 'ยืนยันแล้ว' : 'ยืนยันซ้ำ',
-            ),
-          );
-        },
-      ),
-    );
-
     return Row(children: buttons);
   }
 }
@@ -478,8 +383,8 @@ class _HeaderRow extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: Colors.red,
-          child: Icon(icon, size: 18, color: Colors.white),
+          backgroundColor: iconColor.withValues(alpha: 30),
+          child: Icon(icon, size: 18, color: iconColor),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -499,6 +404,7 @@ class _AnnouncementCard extends StatelessWidget {
   final bool pinned;
   final String author;
   final String announcementId;
+  final List? attachments; // 👈 เพิ่มตัวนี้
   final bool isTeacher;
   final VoidCallback? onChanged;
 
@@ -509,6 +415,7 @@ class _AnnouncementCard extends StatelessWidget {
     required this.pinned,
     required this.author,
     required this.announcementId,
+    this.attachments, // 👈 เพิ่มตัวนี้
     required this.isTeacher,
     this.expiresAt,
     this.onChanged,
@@ -532,11 +439,13 @@ class _AnnouncementCard extends StatelessWidget {
                 title: title, // ส่งชื่อเรื่อง
                 body: body, // ส่งเนื้อหา
                 postedAt: postedAt, // ส่งเวลา
+                pinned: pinned,
+                attachments: attachments, // 👈 เพิ่มตัวนี้
               ),
             ),
           ).then((_) {
             // ถ้ารีเฟรชได้ ให้เรียกตรงนี้ครับ
-            onChanged?.call(); 
+            onChanged?.call();
           });
         },
         child: Padding(
@@ -546,7 +455,7 @@ class _AnnouncementCard extends StatelessWidget {
             children: [
               _HeaderRow(
                 icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
-                iconColor: pinned ? Colors.red : Colors.blueGrey,
+                iconColor: pinned ? Colors.red.shade700 : Colors.blue.shade700,
                 title: pinned ? '[ปักหมุด] $title' : title,
                 dateText: df.format(postedAt.toLocal()),
               ),
@@ -571,7 +480,7 @@ class _AnnouncementCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-        
+
               // 🔹 เพิ่มเมนู 3 จุด สำหรับครูเท่านั้น
               if (isTeacher)
                 Padding(
@@ -582,74 +491,27 @@ class _AnnouncementCard extends StatelessWidget {
                       icon: const Icon(Icons.more_vert, color: Colors.grey),
                       onSelected: (value) async {
                         if (value == 'edit') {
-                          // ---------- ฟังก์ชันแก้ไข ----------
-                          final titleCtrl = TextEditingController(text: title);
-                          final bodyCtrl = TextEditingController(text: body);
-        
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('แก้ไขประกาศ'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(
-                                    controller: titleCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'หัวข้อ',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: bodyCtrl,
-                                    maxLines: 4,
-                                    decoration: const InputDecoration(
-                                      labelText: 'เนื้อหา',
-                                    ),
-                                  ),
-                                ],
+                          // ---------- ไปหน้าแก้ไข ----------
+                          final ok = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditAnnouncementScreen(
+                                announcementId: announcementId,
+                                title: title,
+                                body: body,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text(
-                                    'ยกเลิก',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                  ),
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('บันทึก'),
-                                ),
-                              ],
                             ),
                           );
-        
+
                           if (ok == true) {
-                            try {
-                              await AnnouncementService.update(
-                                announcementId: announcementId,
-                                title: titleCtrl.text,
-                                body: bodyCtrl.text,
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('อัปเดตประกาศสำเร็จ'),
+                                ),
                               );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('อัปเดตประกาศสำเร็จ'),
-                                  ),
-                                );
-                              }
-                              onChanged?.call();
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('อัปเดตไม่สำเร็จ: $e')),
-                                );
-                              }
                             }
+                            onChanged?.call();
                           }
                         } else if (value == 'delete') {
                           // ---------- ฟังก์ชันลบ ----------
@@ -681,13 +543,15 @@ class _AnnouncementCard extends StatelessWidget {
                               ],
                             ),
                           );
-        
+
                           if (ok == true) {
                             try {
                               await AnnouncementService.delete(announcementId);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('ลบประกาศสำเร็จ')),
+                                  const SnackBar(
+                                    content: Text('ลบประกาศสำเร็จ'),
+                                  ),
                                 );
                               }
                               onChanged?.call();

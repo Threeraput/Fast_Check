@@ -16,7 +16,9 @@ from app.schemas.attendance_schema import AttendanceResponse
 from app.services.face_recognition_service import get_face_embedding, compare_faces
 from app.services.location_service import (
     PROXIMITY_THRESHOLD,
+    calculate_distance,
     is_within_proximity,
+    log_student_location,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,8 +63,6 @@ def decide_status_by_hard_times(
         return AttendanceStatus.ABSENT
     if now < s:
         return AttendanceStatus.PRESENT
-    if (now >= s and now < l):
-        return AttendanceStatus.PRESENT
     if now >= s and now < l:
         return AttendanceStatus.PRESENT
     if now >= l and now < e:
@@ -95,6 +95,11 @@ def record_check_in(
         raise HTTPException(
             status_code=400, detail="Check-in window for this session has closed."
         )
+    if session.anchor_lat is None or session.anchor_lon is None:
+        raise HTTPException(
+            status_code=400,
+            detail="ไม่สามารถเช็คชื่อได้ เนื่องจากไม่พบพิกัดจุดศูนย์กลางของคลาสเรียน (Anchor location missing)",
+        )
 
     t_lat = float(session.anchor_lat)
     t_lon = float(session.anchor_lon)
@@ -106,11 +111,11 @@ def record_check_in(
     ):
         raise HTTPException(
             status_code=403,
-            detail="Location check failed. You are too far from the classroom teacher.",
+            detail="ไม่สามารถเช็คชื่อได้ เนื่องจากคุณอยู่ห่างจากห้องเรียนเกินกว่าที่กำหนด (Location check failed)",
         )
 
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="Image is required for check-in.")
+        raise HTTPException(status_code=400, detail="ไม่สามารถเช็คชื่อได้ เนื่องจากไม่พบรูปภาพ (Image is required for check-in)")
 
     # --- Face Verification Logic ---
     try:
@@ -162,12 +167,21 @@ def record_check_in(
         check_in_lon=student_lon,
         face_image_path=relative_path,
         check_in_time=now,
+        last_verified_at=now,
     )
 
     try:
         db.add(new_attendance)
         db.commit()
         db.refresh(new_attendance)
+        
+        # ✨ เพิ่ม: อัปเดตรายงานรายงานการเช็คชื่อแบบ Real-time รายบุคคล
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(session.class_id), str(student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report for student {student_id}: {report_err}")
+            
     except Exception as e:
         db.rollback()
         if os.path.exists(file_path):
@@ -206,7 +220,10 @@ def handle_reverification(
     if not session:
         raise HTTPException(status_code=404, detail="Attendance session not found.")
     if session.anchor_lat is None or session.anchor_lon is None:
-        raise HTTPException(status_code=400, detail="Re-verification unavailable: teacher anchor location is not set.")
+        raise HTTPException(
+            status_code=400,
+            detail="Re-verification unavailable: teacher anchor location is not set.",
+        )
 
     end_aware = _ensure_aware_utc(session.end_time)
     if end_aware and datetime.now(timezone.utc) > end_aware:
@@ -313,6 +330,14 @@ def manual_override_attendance(
     try:
         db.commit()
         db.refresh(attendance)
+
+        # ✨ เพิ่ม: อัปเดตรายงานรายงานการเช็คชื่อแบบ Real-time ทันทีที่แก้ไข
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(attendance.class_id), str(attendance.student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report after manual override for student {attendance.student_id}: {report_err}")
+
         # รองรับทั้ง Pydantic V1 และ V2
         try:
             return AttendanceResponse.model_validate(attendance, from_attributes=True)
@@ -326,5 +351,223 @@ def manual_override_attendance(
         )
 
 
+def create_manual_attendance(
+    db: Session,
+    session_id: uuid.UUID,
+    student_id: uuid.UUID,
+    new_status: AttendanceStatus,
+    recorded_by_user_id: uuid.UUID,
+) -> AttendanceResponse:
+    """
+    กรณีนักเรียนไม่มี Record ใน session นั้น (เช่น ขาดเรียน) 
+    ครูสามารถสร้าง Record ขึ้นมาใหม่เองได้เลย
+    """
+    session = db.query(AttendanceSession).filter_by(session_id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # เช็คว่ามีอยู่แล้วหรือยัง
+    attendance = (
+        db.query(Attendance)
+        .filter(Attendance.session_id == session_id, Attendance.student_id == student_id)
+        .first()
+    )
+
+    now = datetime.now(timezone.utc)
+
+    if attendance:
+        # ถ้ามีอยู่แล้วให้ใช้ Logic เดียวกับ Manual Override
+        return manual_override_attendance(db, attendance.attendance_id, new_status, recorded_by_user_id)
+    
+    # ถ้ายังไม่มีให้สร้างใหม่
+    attendance = Attendance(
+        class_id=session.class_id,
+        session_id=session_id,
+        student_id=student_id,
+        status=new_status,
+        is_manual_override=True,
+        recorded_by_user_id=recorded_by_user_id,
+        check_in_time=now,
+        last_verified_at=now,
+    )
+
+    try:
+        db.add(attendance)
+        db.commit()
+        db.refresh(attendance)
+
+        # ✨ อัปเดตรายงานทันที
+        try:
+            from app.services.attendance_report_service import sync_student_report_for_session
+            sync_student_report_for_session(db, str(attendance.class_id), str(student_id))
+        except Exception as report_err:
+            logger.error(f"Failed to sync report after manual create for student {student_id}: {report_err}")
+
+        return AttendanceResponse.model_validate(attendance, from_attributes=True)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create manual attendance: {e}"
+        )
+
+
 def identify_user(image_bytes: bytes) -> Tuple[Optional[uuid.UUID], Optional[float]]:
     raise NotImplementedError("identify_user must be implemented")
+
+
+def handle_silent_location_update(
+    db: Session,
+    session_id: uuid.UUID,
+    student_id: uuid.UUID,
+    student_lat: float,
+    student_lon: float,
+) -> dict:
+    """
+    ฟังก์ชันลับสำหรับรับพิกัดเบื้องหลังจากระบบสุ่มตรวจ
+    หน้าที่: บันทึกประวัติพิกัดลง Log -> เช็คระยะ -> ถ้าอยู่ในระยะให้อัปเดตเวลา
+    """
+    # 1. หา Session
+    session = (
+        db.query(AttendanceSession)
+        .filter(AttendanceSession.session_id == session_id)
+        .first()
+    )
+    received_at = datetime.now(timezone.utc)
+    if not session:
+        return {
+            "status": "ignored",
+            "reason": "Session not found",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "verification_result": "ignored",
+        }
+
+    t_lat = float(session.anchor_lat)
+    t_lon = float(session.anchor_lon)
+    radius = float(getattr(session, "radius_meters", PROXIMITY_THRESHOLD))
+
+    distance_m = calculate_distance((student_lat, student_lon), (t_lat, t_lon))
+    in_range = distance_m <= radius
+
+    # 2. หาข้อมูลการเข้าเรียนของนักเรียนคนนี้
+    attendance = (
+        db.query(Attendance)
+        .filter(
+            Attendance.session_id == session_id, Attendance.student_id == student_id
+        )
+        .first()
+    )
+    if not attendance:
+        return {
+            "status": "ignored",
+            "reason": "No attendance record",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "ignored",
+        }
+
+    valid_statuses = [
+        AttendanceStatus.PRESENT,
+        AttendanceStatus.PRESENT.value,
+        AttendanceStatus.LATE,
+        AttendanceStatus.LATE.value,
+    ]
+    if attendance.status not in valid_statuses:
+        reason = f"Student status is {attendance.status}, ignoring check"
+        try:
+            log_student_location(
+                db=db,
+                student_id=student_id,
+                class_id=session.class_id,
+                session_id=session.session_id,
+                latitude=student_lat,
+                longitude=student_lon,
+                is_silent_check=True,
+                server_received_at=received_at,
+                anchor_lat=t_lat,
+                anchor_lon=t_lon,
+                distance_m=distance_m,
+                radius_m=radius,
+                verification_result="ignored",
+                verification_reason=reason,
+            )
+        except Exception as e:
+            logger.error(f"Silent Check-in: Failed to log ignored status for {student_id}: {e}")
+        return {
+            "status": "ignored",
+            "reason": reason,
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "ignored",
+        }
+
+    # ---------------------------------------------------------
+    # บันทึกพิกัดเก็บไว้เป็นหลักฐาน (Log)
+    # ไม่ว่าจะอยู่ในระยะหรือนอกระยะ เราก็จะเก็บหมดเพื่อกางแผนที่ดูได้
+    # ---------------------------------------------------------
+    try:
+        log_student_location(
+            db=db,
+            student_id=student_id,
+            class_id=session.class_id,
+            session_id=session.session_id,
+            latitude=student_lat,
+            longitude=student_lon,
+            is_silent_check=True,
+            server_received_at=received_at,
+            anchor_lat=t_lat,
+            anchor_lon=t_lon,
+            distance_m=distance_m,
+            radius_m=radius,
+            verification_result="in_range" if in_range else "out_of_range",
+            verification_reason=(
+                "distance within radius" if in_range else "distance exceeds radius"
+            ),
+        )
+        print(
+            f"📍 [SILENT CHECK LOGGED] student={student_id} session={session_id} "
+            f"distance={distance_m:.2f}m radius={radius:.2f}m result={'in_range' if in_range else 'out_of_range'}"
+        )
+    except Exception as e:
+        # ถ้าบันทึก Log พัง (เช่น DB มีปัญหาชั่วคราว) ให้แค่ปริ้นท์ Error แต่ปล่อยให้ระบบเช็คระยะทำงานต่อ
+        logger.error(f"Silent Check-in: Failed to log location for {student_id}: {e}")
+
+    # 3. ตรวจสอบระยะทาง
+    if in_range:
+        # 4. ถ้าอยู่ในระยะ ให้อัปเดตเวลาล่าสุด
+        attendance.last_verified_at = received_at
+        print(
+            f"📍 [SILENT CHECK SUCCESS] นักเรียน {student_id} ยืนยันพิกัดสำเร็จ! (แอปแอบส่งพิกัดมาให้แล้ว)"
+        )
+        try:
+            db.commit()
+            return {
+                "status": "success",
+                "message": "Location verified silently",
+                "server_received_at": received_at,
+                "session_id": session_id,
+                "distance_m": round(distance_m, 3),
+                "radius_m": round(radius, 3),
+                "verification_result": "in_range",
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update silent location for {student_id}: {e}")
+            raise HTTPException(
+                status_code=500, detail="Database error during silent update"
+            )
+    else:
+        return {
+            "status": "ignored",
+            "reason": "Student is out of range",
+            "server_received_at": received_at,
+            "session_id": session_id,
+            "distance_m": round(distance_m, 3),
+            "radius_m": round(radius, 3),
+            "verification_result": "out_of_range",
+        }

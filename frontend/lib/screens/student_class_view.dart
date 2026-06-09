@@ -16,19 +16,21 @@ import 'package:frontend/services/class_service.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/users.dart';
 
-// ✅ ใช้สำหรับแปลง avatarUrl ให้เป็น URL เต็ม
+// ใช้สำหรับแปลง avatarUrl ให้เป็น URL เต็ม
 import 'package:frontend/services/user_service.dart';
 
 class StudentClassView extends StatefulWidget {
-  final String classId; // <- ต้องเป็น UUID ของคลาส
+  final String classId;
   final String className;
   final String teacherName;
+  final String? description;
 
   const StudentClassView({
     super.key,
     required this.classId,
     required this.className,
     required this.teacherName,
+    this.description,
   });
 
   @override
@@ -79,12 +81,13 @@ class _StudentClassViewState extends State<StudentClassView> {
           classId: widget.classId,
           className: widget.className,
           teacherName: widget.teacherName,
+          description: widget.description,
         );
       case 1:
         // เปลี่ยนจาก const _StudentClassworkTab() -> ส่ง classId และ isTeacher=false
         return StudentClassworkTab(classId: widget.classId);
       case 2:
-        return const StudentReportTab();
+        return StudentReportTab(classId: widget.classId);
       case 3:
         // People tab now loads real members from API
         return _StudentPeopleTab(
@@ -104,10 +107,12 @@ class _StudentStreamTab extends StatefulWidget {
   final String classId;
   final String className;
   final String teacherName;
+  final String? description;
   const _StudentStreamTab({
     required this.classId,
     required this.className,
     required this.teacherName,
+    this.description,
   });
 
   @override
@@ -151,28 +156,73 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    className,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        className,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                        'Teacher: $teacherName',
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                    'Teacher: $teacherName',
+                ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: IconButton(
+                    icon: const Icon(Icons.info_outline, color: Colors.white),
+                    tooltip: 'คำอธิบายคลาส',
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.blueAccent,
+                              ),
+                              SizedBox(width: 8),
+                              Text('คำอธิบายคลาส'),
+                            ],
+                          ),
+                          content: Text(
+                            (widget.description != null &&
+                                    widget.description!.isNotEmpty)
+                                ? widget.description!
+                                : 'ยังไม่มีคำอธิบายสำหรับคลาสนี้',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('ปิด'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -183,16 +233,16 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
           Text('Announcements', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
 
-          // ✅ ฟีด Stream จริง (feed_cards)
+          // ฟีด Stream จริง (feed_cards)
           FutureBuilder<List<FeedItem>>(
             future: _futureFeed,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator(
-                    color: Colors.blue,
-                  )),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.blue),
+                  ),
                 );
               }
               if (snap.hasError) {
@@ -240,7 +290,7 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
   @override
   void initState() {
     super.initState();
-    // ✅ โหลดเฉพาะ feed ที่เหมาะกับนักเรียน (รวม assignments)
+    // โหลดเฉพาะ feed ที่เหมาะกับนักเรียน (รวม assignments)
     _future = FeedService.getClassFeedForStudentWithAssignments(widget.classId);
   }
 
@@ -267,9 +317,9 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
               if (snap.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator(
-                    color: Colors.blue,
-                  )),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.blue),
+                  ),
                 );
               }
               if (snap.hasError) {
@@ -281,7 +331,7 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
                 );
               }
               final items = (snap.data ?? const <FeedItem>[])
-                  // ✅ แสดงเฉพาะการ์ด assignment ในแท็บ Classwork
+                  // แสดงเฉพาะการ์ด assignment ในแท็บ Classwork
                   .where((f) => (f.extra['kind']?.toString() == 'assignment'))
                   .toList();
 

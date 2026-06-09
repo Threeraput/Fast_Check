@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:frontend/services/announcement_service.dart';
 
 class CreateAnnouncementScreen extends StatefulWidget {
@@ -25,14 +27,36 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
   // เพิ่มตัวเลือกเสริม
   bool _pinned = false;
-  bool _visible = true;
   DateTime? _expiresAt;
+
+  // ไฟล์แนบ
+  List<File> _attachments = [];
 
   @override
   void dispose() {
     _titleCtl.dispose();
     _bodyCtl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg'],
+      allowMultiple: true,
+    );
+
+    if (result != null) {
+      setState(() {
+        _attachments.addAll(result.paths.where((p) => p != null).map((p) => File(p!)));
+      });
+    }
+  }
+
+  void _removeAttachment(int index) {
+    setState(() {
+      _attachments.removeAt(index);
+    });
   }
 
   Future<void> _pickExpireDateTime() async {
@@ -45,48 +69,48 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
       firstDate: now,
       lastDate: now.add(const Duration(days: 365 * 3)),
       builder: (BuildContext context, Widget? child) {
-         return Theme(
+        return Theme(
           data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.blue, // 🔵 สีวงกลมวันที่เลือก
-            onPrimary: Colors.white, // 🔵 สีตัวเลขในวงกลม
-            surface: Colors.white, // พื้นหลัง popup
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: Colors.blue, // สีวงกลมวันที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white, // พื้นหลัง popup
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-        ),
-        child: child!,
-      );
-    },
-  );
+          child: child!,
+        );
+      },
+    );
     if (d == null) return;
 
     final t = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(init),
       builder: (BuildContext context, Widget? child) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: Colors.lightBlue, // 🔵 สีไฮไลต์วงกลมรอบตัวเลข
-            secondary: Colors.lightBlueAccent, // 🔵 สีเวลาที่เลือก
-            onPrimary: Colors.white, // สีตัวเลขในวงกลม
-            surface: Colors.white,
-            onSurface: Colors.black87, // สีข้อความทั่วไป
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue, // 🔵 สีปุ่ม Cancel / OK
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
+              secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
+              onPrimary: Colors.white, // สีตัวเลขในวงกลม
+              surface: Colors.white,
+              onSurface: Colors.black87, // สีข้อความทั่วไป
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
+              ),
             ),
           ),
-        ),
-        child: child!,
-      );
-    }, 
+          child: child!,
+        );
+      },
     );
     if (t == null) return;
 
@@ -108,16 +132,20 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
 
     setState(() => _posting = true);
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      await AnnouncementService.create(
+      final ann = await AnnouncementService.create(
         classId: widget.classId,
         title: title,
         body: body.isEmpty ? null : body,
         pinned: _pinned,
-        visible: _visible,
+        visible: true,
         expiresAt:
             _expiresAt, // ส่งเป็น DateTime? (ให้ service แปลงเป็น ISO8601)
       );
+
+      // อัปโหลดไฟล์แนบ (ถ้ามี)
+      for (var file in _attachments) {
+        await AnnouncementService.uploadAttachment(ann.announcementId, file);
+      }
 
       if (!mounted) return;
       // ให้หน้าก่อนหน้ารู้ว่าทำสำเร็จแล้วไป refresh เอง
@@ -128,14 +156,14 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('สร้างประกาศไม่สำเร็จ: $e')));
     } finally {
-      if (mounted) setState(() => _success = false);
+      if (mounted) setState(() => _posting = false);
     }
   }
 
   @override
   void initState() {
     super.initState();
-    // 🟦 เพิ่ม listener เพื่ออัปเดตตัวอย่างแบบเรียลไทม์
+    // เพิ่ม listener เพื่ออัปเดตตัวอย่างแบบเรียลไทม์
     _titleCtl.addListener(() => setState(() {}));
     _bodyCtl.addListener(() => setState(() {}));
   }
@@ -145,7 +173,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     final df = DateFormat('dd MMM yyyy HH:mm');
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar( 
+      appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black87,
@@ -225,6 +253,45 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                       alignLabelWithHint: true,
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // 🔹 ส่วนของไฟล์แนบ
+                  const Text(
+                    'ไฟล์แนบ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_attachments.isNotEmpty)
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _attachments.length,
+                      itemBuilder: (context, index) {
+                        final file = _attachments[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                            title: Text(file.path.split('/').last.split('\\').last),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => _removeAttachment(index),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: _pickFiles,
+                    icon: const Icon(Icons.attach_file),
+                    label: const Text('แนบไฟล์ (PDF/เอกสาร/รูปภาพ)'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
 
                   // 🔹 ตัวเลือกเพิ่มเติม
@@ -247,19 +314,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           title: const Text('ปักหมุด (Pinned)'),
                           controlAffinity: ListTileControlAffinity.leading,
                           contentPadding: EdgeInsets.zero,
-                          activeColor: Colors.blueAccent, // ✅ สีเมื่อถูกเลือก
+                          activeColor: Colors.blueAccent, // สีเมื่อถูกเลือก
                           checkColor: Colors.white,
-                        ),
-                        const Divider(height: 1),
-                        SwitchListTile(
-                          value: _visible,
-                          onChanged: (v) => setState(() => _visible = v),
-                          title: const Text('แสดงให้นักเรียนเห็น'),
-                          contentPadding: EdgeInsets.zero,
-                          activeColor:
-                              Colors.blueAccent, // ✅ สีของสวิตช์ตอนเปิด
-                          activeTrackColor: Colors
-                              .blue[100], // ✅ สีพื้นหลังตอนเปิด (อ่อนกว่า)
                         ),
                       ],
                     ),
@@ -366,7 +422,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               color: Colors.blue,
-                              strokeWidth: 2),
+                              strokeWidth: 2,
+                            ),
                           ),
                           SizedBox(width: 8),
                           Text(
@@ -398,58 +455,6 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                         ],
                       ),
                     ),
-
-                  // // 🔹 Preview ตัวอย่างโพสต์
-                  //  Padding(
-                  //   padding: const EdgeInsets.only(top: 24),
-                  //   child: AnimatedContainer(
-                  //     duration: const Duration(milliseconds: 300),
-                  //     curve: Curves.easeInOut,
-                  //     child: Card(
-                  //       color: Colors.blue.shade50,
-                  //       shape: RoundedRectangleBorder(
-                  //           borderRadius: BorderRadius.circular(12)),
-                  //       elevation: 0,
-                  //       child: Padding(
-                  //         padding: const EdgeInsets.all(16),
-                  //         child: Column(
-                  //           crossAxisAlignment: CrossAxisAlignment.start,
-                  //           children: [
-                  //             Row(
-                  //               children: const [
-                  //                 Icon(Icons.visibility,
-                  //                     color: Colors.blueAccent),
-                  //                 SizedBox(width: 6),
-                  //                 Text(
-                  //                   'ตัวอย่างโพสต์',
-                  //                   style: TextStyle(
-                  //                       fontWeight: FontWeight.bold,
-                  //                       color: Colors.blueAccent),
-                  //                 ),
-                  //               ],
-                  //             ),
-                  //             const SizedBox(height: 12),
-                  //             Text(
-                  //               _titleCtl.text.isEmpty
-                  //                   ? 'หัวข้อประกาศ'
-                  //                   : _titleCtl.text,
-                  //               style: const TextStyle(
-                  //                   fontWeight: FontWeight.bold, fontSize: 16),
-                  //             ),
-                  //             const SizedBox(height: 8),
-                  //             Text(
-                  //               _bodyCtl.text.isEmpty
-                  //                   ? 'รายละเอียด...'
-                  //                   : _bodyCtl.text,
-                  //               style: const TextStyle(
-                  //                   fontSize: 14, color: Colors.black87),
-                  //             ),
-                  //           ],
-                  //         ),
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
                 ],
               ),
             ),

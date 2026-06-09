@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/models/comment_model.dart';
 import 'package:frontend/services/announcement_service.dart';
+import 'package:frontend/services/classwork_simple_service.dart'; // 👈 เพิ่มตัวนี้
+import 'package:url_launcher/url_launcher.dart';
+import 'package:frontend/config.dart';
 
 class AnnouncementDetailScreen extends StatefulWidget {
   final String announcementId;
   final String title;
   final String? body;
   final DateTime? postedAt;
+  final bool pinned;
+  final List? attachments; // 👈 เพิ่มตัวนี้
 
   const AnnouncementDetailScreen({
     super.key,
@@ -15,27 +21,44 @@ class AnnouncementDetailScreen extends StatefulWidget {
     required this.title,
     this.body,
     this.postedAt,
+    this.pinned = false,
+    this.attachments, // 👈 เพิ่มตัวนี้
   });
 
   @override
-  State<AnnouncementDetailScreen> createState() => _AnnouncementDetailScreenState();
+  State<AnnouncementDetailScreen> createState() =>
+      _AnnouncementDetailScreenState();
 }
 
 class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   List<AnnouncementComment> _comments = [];
   bool _isLoadingComments = true;
   final TextEditingController _commentController = TextEditingController();
+  List<AnnouncementAttachmentDto> _attachmentDtos = [];
 
   @override
   void initState() {
     super.initState();
     _fetchComments();
+    _initAttachments();
+  }
+
+  void _initAttachments() {
+    if (widget.attachments != null) {
+      setState(() {
+        _attachmentDtos = widget.attachments!
+            .map((e) => AnnouncementAttachmentDto.fromJson(e))
+            .toList();
+      });
+    }
   }
 
   Future<void> _fetchComments() async {
     try {
       // เรียกใช้ Service ของ Announcement ที่เราเพิ่งสร้าง
-      final comments = await AnnouncementService.getComments(widget.announcementId);
+      final comments = await AnnouncementService.getComments(
+        widget.announcementId,
+      );
       if (mounted) {
         setState(() {
           _comments = comments;
@@ -48,24 +71,43 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
     }
   }
 
+  Future<void> _openAttachment(AnnouncementAttachmentDto att) async {
+    try {
+      // ใช้ฟังก์ชันเดียวกับระบบงาน (Classwork) เพื่อความสม่ำเสมอ
+      await ClassworkSimpleService.openAttachmentFile(
+        storagePath: att.storagePath,
+        preferredName: att.fileName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ไม่สามารถเปิดไฟล์ได้: $e')));
+      }
+    }
+  }
+
   Future<void> _sendComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
 
     _commentController.clear();
     FocusScope.of(context).unfocus(); // ซ่อนคีย์บอร์ดตอนส่งเสร็จ
-    
+
     try {
-      await AnnouncementService.addComment(
+      final created = await AnnouncementService.addComment(
         announcementId: widget.announcementId,
         content: text,
       );
-      _fetchComments(); // รีเฟรชคอมเมนต์ใหม่
+      if (!mounted) return;
+      setState(() {
+        _comments = [created, ..._comments];
+      });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ส่งคอมเมนต์ไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ส่งคอมเมนต์ไม่สำเร็จ: $e')));
       }
     }
   }
@@ -73,12 +115,19 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy, HH:mm');
-    
+    final headerIcon = widget.pinned ? Icons.push_pin : Icons.campaign_outlined;
+    final headerIconColor = widget.pinned
+        ? Colors.red.shade700
+        : Colors.blue.shade700;
+    final displayTitle = widget.pinned
+        ? '[ปักหมุด] ${widget.title}'
+        : widget.title;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('รายละเอียดประกาศ'),
-        // 💡 หน้าประกาศไม่มีการให้คะแนน เลยไม่ต้องมีปุ่มตรวจงานครับ! คลีนๆ เลย
+        // หน้าประกาศไม่มีการให้คะแนน เลยไม่ต้องมีปุ่มตรวจงาน
       ),
       body: Column(
         children: [
@@ -90,13 +139,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                 // จำนวน item = 1 (ตัวประกาศ) + จำนวนคอมเมนต์
                 itemCount: 1 + _comments.length,
                 itemBuilder: (context, index) {
-                  
                   // ====== ส่วนที่ 1: รายละเอียดประกาศ (อยู่บนสุดเสมอ) ======
                   if (index == 0) {
                     return Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade300),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,10 +156,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1), // เปลี่ยนธีมสีนิดหน่อยให้ต่างจากงาน
+                                  color: headerIconColor.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.campaign, color: Colors.orange, size: 28),
+                                child: Icon(
+                                  headerIcon,
+                                  color: headerIconColor,
+                                  size: 28,
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -117,15 +171,22 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      widget.title,
-                                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                                      displayTitle,
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      widget.postedAt != null 
-                                          ? 'ประกาศเมื่อ: ${df.format(widget.postedAt!)}' 
+                                      widget.postedAt != null
+                                          ? 'ประกาศเมื่อ: ${df.format(widget.postedAt!)}'
                                           : 'ประกาศ',
-                                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -135,9 +196,60 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                           const SizedBox(height: 20),
                           // เนื้อหาประกาศ
                           Text(
-                            widget.body?.isNotEmpty == true ? widget.body! : '(ไม่มีเนื้อหาเพิ่มเติม)',
+                            widget.body?.isNotEmpty == true
+                                ? widget.body!
+                                : '(ไม่มีเนื้อหาเพิ่มเติม)',
                             style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
+                          const SizedBox(height: 20),
+
+                          // 🔹 ส่วนของไฟล์แนบ (ถ้ามี)
+                          if (_attachmentDtos.isNotEmpty) ...[
+                            const Divider(),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                'ไฟล์แนบ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            ..._attachmentDtos.map(
+                              (att) => Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey.shade200),
+                                ),
+                                child: ListTile(
+                                  leading: Icon(
+                                    att.mimeType.contains('image')
+                                        ? Icons.image_outlined
+                                        : Icons.description_outlined,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  title: Text(
+                                    att.fileName,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  subtitle: Text(
+                                    '${(att.sizeBytes / 1024).toStringAsFixed(1)} KB',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.open_in_new,
+                                    size: 20,
+                                    color: Colors.grey,
+                                  ),
+                                  onTap: () => _openAttachment(att),
+                                ),
+                              ),
+                            ),
+                          ],
+
                           const SizedBox(height: 24),
                           const Divider(),
                           // หัวข้อบอกจำนวนคอมเมนต์
@@ -145,7 +257,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               'ความคิดเห็นในชั้นเรียน (${_comments.length})',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ],
@@ -162,19 +277,45 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                   }
 
                   // ลบ 1 ออกจาก index เพราะ 0 เป็นประกาศไปแล้ว
-                  final comment = _comments[index - 1]; 
+                  final comment = _comments[index - 1];
+
+                  // 🚨 1. ดึง URL ของรูปภาพ (คุณอาจจะต้องปรับบรรทัดนี้ให้ตรงกับ Data Model ของคุณ)
+                  // ถ้าระบบคอมเมนต์มีส่ง avatarUrl มาด้วย:
+                  final String? avatarUrl = comment.avatarUrl;
+
+                  // หรือถ้าต้องไปหาในสมุดหน้าเหลือง:
+                  // final String? avatarUrl = _userIndex[comment.userId]?.avatarUrl;
+
+                  // 🚨 2. แปลงเป็น URL แบบเต็ม (ถ้าต้องใช้)
+                  final String? fullAvatarUrl = avatarUrl != null
+                      ? UserService.absoluteAvatarUrl(avatarUrl)
+                      : null;
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.blueGrey,
-                          child: Text(
-                            comment.commenterName.isNotEmpty ? comment.commenterName[0].toUpperCase() : '?',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
+                        // 🚨 3. วาด Avatar โดยเช็คว่ามี URL ไหม
+                        fullAvatarUrl != null && fullAvatarUrl.isNotEmpty
+                            ? CircleAvatar(
+                                radius: 20,
+                                backgroundImage: NetworkImage(
+                                  fullAvatarUrl,
+                                ), // โชว์รูป!
+                              )
+                            : CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.blueGrey,
+                                child: Text(
+                                  comment.commenterName.isNotEmpty
+                                      ? comment.commenterName[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -184,12 +325,20 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                                 children: [
                                   Text(
                                     comment.commenterName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    DateFormat('dd MMM HH:mm').format(comment.createdAt),
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    DateFormat(
+                                      'dd MMM HH:mm',
+                                    ).format(comment.createdAt),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -219,7 +368,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                   color: Colors.black.withOpacity(0.05),
                   offset: const Offset(0, -2),
                   blurRadius: 5,
-                )
+                ),
               ],
             ),
             child: SafeArea(
@@ -239,7 +388,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -250,7 +402,11 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: _sendComment,
                     ),
                   ),

@@ -10,6 +10,7 @@ class Attendance {
   final double? distanceMeters;
   final DateTime? verifiedAt;
   final DateTime? createdAt;
+  final bool isManualOverride;
 
   Attendance({
     required this.attendanceId,
@@ -23,27 +24,30 @@ class Attendance {
     this.distanceMeters,
     this.verifiedAt,
     this.createdAt,
+    this.isManualOverride = false,
   });
 
   factory Attendance.fromJson(Map<String, dynamic> j) {
     return Attendance(
-      attendanceId: j['attendance_id'] as String,
-      sessionId: j['session_id'] as String,
-      classId: j['class_id'] as String,
-      studentId: j['student_id'] as String,
-      status: j['status'] as String,
-      method: j['method'] as String,
+      attendanceId: (j['attendance_id'] ?? '').toString(),
+      sessionId: (j['session_id'] ?? '').toString(),
+      classId: (j['class_id'] ?? '').toString(),
+      studentId: (j['student_id'] ?? '').toString(),
+      status: (j['status'] ?? '').toString(),
+      method: (j['method'] ?? 'unknown').toString(),
       lat: j['lat'] == null ? null : (j['lat'] as num).toDouble(),
       lon: j['lon'] == null ? null : (j['lon'] as num).toDouble(),
       distanceMeters: j['distance_meters'] == null
           ? null
           : (j['distance_meters'] as num).toDouble(),
-      verifiedAt: j['verified_at'] == null
-          ? null
-          : DateTime.parse(j['verified_at']),
-      createdAt: j['created_at'] == null
-          ? null
-          : DateTime.parse(j['created_at']),
+      // แมปชื่อฟิลด์จาก Backend ให้ตรงกัน และใช้วิธีที่ปลอดภัยที่สุด
+      verifiedAt: j['last_verified_at'] != null
+          ? DateTime.tryParse(j['last_verified_at'].toString())
+          : null,
+      createdAt: j['check_in_time'] != null
+          ? DateTime.tryParse(j['check_in_time'].toString())
+          : null,
+      isManualOverride: j['is_manual_override'] ?? false,
     );
   }
 
@@ -59,5 +63,6 @@ class Attendance {
     'distance_meters': distanceMeters,
     'verified_at': verifiedAt?.toIso8601String(),
     'created_at': createdAt?.toIso8601String(),
+    'is_manual_override': isManualOverride,
   };
 }

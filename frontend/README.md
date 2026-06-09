@@ -4,6 +4,10 @@ A new Flutter project.
 
 ## Getting Started
 
+This software includes code from face_recognition
+Copyright (c) 2021 Adam Geitgey
+Licensed under the MIT License
+
 This project is a starting point for a Flutter application.
 
 A few resources to get you started if this is your first Flutter project:

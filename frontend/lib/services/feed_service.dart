@@ -1,7 +1,4 @@
 // lib/services/feed_service.dart
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-
 import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:frontend/models/classwork.dart';
 import '../models/feed_item.dart';
@@ -29,7 +26,7 @@ bool _truthy(Map<String, dynamic>? m, List<String> keys) {
   return false;
 }
 
-// ✅ ช่วย dedupe โดยใช้ id+kind เป็นกุญแจ
+// ช่วย dedupe โดยใช้ id+kind เป็นกุญแจ
 List<FeedItem> _uniqByIdKind(Iterable<FeedItem> items) {
   final seen = <String>{};
   final out = <FeedItem>[];
@@ -42,13 +39,16 @@ List<FeedItem> _uniqByIdKind(Iterable<FeedItem> items) {
 }
 
 class FeedService {
-  /// ✅ ดึงฟีดพื้นฐาน (เช็คชื่อ) + ✅ รวม "ประกาศ" + ✅ ต่อท้าย "งาน (ครู)"
-  static Future<List<FeedItem>> getClassFeed(String classId) async {
+  /// ดึงฟีดพื้นฐาน (เช็คชื่อ) + รวม "ประกาศ" + ต่อท้าย "งาน (ครู)"
+  static Future<List<FeedItem>> getClassFeed(
+    String classId, {
+    bool force = false,
+  }) async {
     final items = <FeedItem>[];
 
     // 1) เช็คชื่อ (เดิม)
     try {
-      final sessions = await AttendanceService.getActiveSessions();
+      final sessions = await AttendanceService.getActiveSessions(force: force);
       for (final s in sessions) {
         if ((s['class_id']?.toString() ?? '') != classId) continue;
 
@@ -74,6 +74,7 @@ class FeedService {
             extra: {
               'session_id': id,
               'reverify_enabled': s['reverify_enabled'] == true,
+              'late_cutoff_time': s['late_cutoff_time'], // เพิ่มบรรทัดนี้
               'radius': s['radius_meters'],
               'anchor_lat': s['anchor_lat'],
               'anchor_lon': s['anchor_lon'],
@@ -86,10 +87,14 @@ class FeedService {
       print('⚠️ โหลด session feed ไม่สำเร็จ: $e');
     }
 
-    // 2) ✅ ประกาศ (announcements)
+    // 2) ประกาศ (announcements)
     try {
       final anns = await AnnouncementService.listByClassId(classId);
       for (final a in anns) {
+        final annExpiresAt = DateTime.tryParse(
+          a['expires_at']?.toString() ?? '',
+        )?.toLocal();
+
         items.add(
           FeedItem(
             id: 'ann:${a['announcement_id']}',
@@ -99,13 +104,14 @@ class FeedService {
             postedAt:
                 DateTime.tryParse(a['created_at']?.toString() ?? '') ??
                 DateTime.now(),
-            expiresAt: a['expires_at'],
+            expiresAt: annExpiresAt,
             extra: {
               'kind': 'announcement',
               'body': a['body'],
               'pinned': a['pinned'],
               'visible': a['visible'],
               'author_name': a['author_name'],
+              'attachments': a['attachments'], // 👈 เพิ่มบรรทัดนี้
             },
           ),
         );
@@ -114,7 +120,7 @@ class FeedService {
       print('⚠️ โหลดประกาศไม่สำเร็จ: $e');
     }
 
-    // 3) ✅ งาน (สำหรับครู) — ของเดิม
+    // 3) งาน (สำหรับครู) — ของเดิม
     try {
       final asgs =
           await ClassworkSimpleService.listAssignmentsForClassAsTeacherTyped(
@@ -135,6 +141,8 @@ class FeedService {
               'title': a.title,
               'due_date': a.dueDate.toIso8601String(),
               'max_score': a.maxScore,
+
+              'is_accepting_submissions': a.isAcceptingSubmissions,
             },
           ),
         );
@@ -143,7 +151,7 @@ class FeedService {
       print('⚠️ โหลด assignments (ครู) ไม่สำเร็จ: $e');
     }
 
-    // ✅ เรียงลำดับ
+    // เรียงลำดับ
     items.sort((a, b) {
       final aKind = a.extra['kind']?.toString();
       final bKind = b.extra['kind']?.toString();
@@ -167,14 +175,15 @@ class FeedService {
     return items;
   }
 
-  /// ✅ ฟีดสำหรับนักเรียน (เช็คชื่อ + งานนักเรียน + ประกาศ)
+  /// ฟีดสำหรับนักเรียน (เช็คชื่อ + งานนักเรียน + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForStudentWithAssignments(
-    String classId,
-  ) async {
+    String classId, {
+    bool force = false,
+  }) async {
     final result = <FeedItem>[];
 
-    // ✳️ ดึง base แค่ครั้งเดียว
-    final base = await getClassFeed(classId);
+    // ดึง base แค่ครั้งเดียว
+    final base = await getClassFeed(classId, force: force);
 
     // 1) รวม "ประกาศ" จาก base ครั้งเดียว
     for (final f in base) {
@@ -189,33 +198,33 @@ class FeedService {
       final kind = f.extra['kind']?.toString();
       return f.type == FeedType.checkin || kind == 'checkin';
     });
-    for (final f in checkins) {
-      final sid = f.extra['session_id']?.toString();
-      if (sid == null || sid.isEmpty) {
-        result.add(f);
-        continue;
-      }
-      try {
-        final status = await AttendanceService.getMyStatusForSession(sid);
-        final hasCheckedIn = _truthy(status, [
-          'has_checked_in',
-          'checked_in',
-          'present',
-        ]);
-        final reverifyCompleted = _truthy(status, [
-          'reverify_completed',
-          'has_reverified',
-          'reverify_passed',
-          'reverified',
-        ]);
+    final checkinResults = await Future.wait(
+      checkins.map((f) async {
+        final sid = f.extra['session_id']?.toString();
+        if (sid == null || sid.isEmpty) return f;
+        try {
+          final status = await AttendanceService.getMyStatusForSession(sid);
+          final hasCheckedIn = _truthy(status, [
+            'has_checked_in',
+            'checked_in',
+            'present',
+          ]);
+          final reverifyCompleted = _truthy(status, [
+            'reverify_completed',
+            'has_reverified',
+            'reverify_passed',
+            'reverified',
+          ]);
 
-        // แสดงเฉพาะกรณีที่ยังไม่ครบขั้นตอน
-        if (!(hasCheckedIn && reverifyCompleted)) {
-          result.add(f);
+          // แสดงเฉพาะกรณีที่ยังไม่ครบขั้นตอน
+          return (hasCheckedIn && reverifyCompleted) ? null : f;
+        } catch (_) {
+          return f; // fallback ถ้าเรียกไม่สำเร็จ
         }
-      } catch (_) {
-        result.add(f); // fallback ถ้าเรียกไม่สำเร็จ
-      }
+      }),
+    );
+    for (final f in checkinResults) {
+      if (f != null) result.add(f);
     }
 
     // 3) เพิ่ม “งานของนักเรียน” (สถานะของฉัน) — ไม่ต้องดึงงานครูซ้ำอีก
@@ -241,6 +250,7 @@ class FeedService {
               'max_score': a.maxScore,
               'computed_status': latenessToString(v.computedStatus),
               'my_submission': v.mySubmission?.toJson(),
+              'is_accepting_submissions': a.isAcceptingSubmissions,
             },
           ),
         );
@@ -249,10 +259,10 @@ class FeedService {
       print('⚠️ โหลด assignments (นักเรียน) ไม่สำเร็จ: $e');
     }
 
-    // ✅ กันพลาด: dedupe อีกรอบ
+    // กันพลาด dedupe อีกรอบ
     final deduped = _uniqByIdKind(result);
 
-    // ✅ เรียงลำดับ (เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด)
+    // เรียงลำดับ (เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด)
     deduped.sort((a, b) {
       final now = DateTime.now();
       final aKind = a.extra['kind']?.toString();
@@ -283,21 +293,42 @@ class FeedService {
     return deduped;
   }
 
-  /// ✅ ฟีดของครู (เช็คชื่อ + งานครู + ประกาศ)
+  /// ฟีดของครู (เช็คชื่อ + งานครู + ประกาศ)
   static Future<List<FeedItem>> getClassFeedForTeacherWithAssignments(
-    String classId,
-  ) async {
-    final items = await getClassFeed(classId);
-    items.sort((a, b) {
-      final aIsAnn = (a.extra['kind']?.toString() == 'announcement');
-      final bIsAnn = (b.extra['kind']?.toString() == 'announcement');
+    String classId, {
+    bool force = false,
+  }) async {
+    final items = await getClassFeed(classId, force: force);
+    final deduped = _uniqByIdKind(items);
+
+    // ใช้กติกาเดียวกับฝั่งนักเรียน: เช็คชื่อที่ยังเปิด > ประกาศปักหมุด > ใหม่สุด
+    deduped.sort((a, b) {
+      final now = DateTime.now();
+      final aKind = a.extra['kind']?.toString();
+      final bKind = b.extra['kind']?.toString();
+
+      final aIsCheckin = a.type == FeedType.checkin || aKind == 'checkin';
+      final bIsCheckin = b.type == FeedType.checkin || bKind == 'checkin';
+
+      if (aIsCheckin || bIsCheckin) {
+        final aExpired = a.expiresAt != null && a.expiresAt!.isBefore(now);
+        final bExpired = b.expiresAt != null && b.expiresAt!.isBefore(now);
+
+        if (aExpired != bExpired) return aExpired ? 1 : -1;
+        if (aIsCheckin != bIsCheckin) return aIsCheckin ? -1 : 1;
+      }
+
+      final aIsAnn = aKind == 'announcement';
+      final bIsAnn = bKind == 'announcement';
       if (aIsAnn && bIsAnn) {
         final ap = a.extra['pinned'] == true;
         final bp = b.extra['pinned'] == true;
         if (ap != bp) return bp ? 1 : -1;
       }
+
       return b.postedAt.compareTo(a.postedAt);
     });
-    return items;
+
+    return deduped;
   }
 }

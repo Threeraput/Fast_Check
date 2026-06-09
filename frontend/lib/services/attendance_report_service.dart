@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../models/attendance_report.dart';
 import '../models/attendance_report_detail.dart';
 import 'auth_service.dart';
@@ -52,7 +54,7 @@ class AttendanceReportService {
   }
 
   // -------------------------------------------------------------
-  // 🧑‍🎓 นักเรียน
+  // นักเรียน
   // -------------------------------------------------------------
 
   /// นักเรียนดูรายงานรวมของตัวเอง
@@ -64,7 +66,7 @@ class AttendanceReportService {
     try {
       final res = await _get(url, token);
 
-      // ✅ รองรับทุกเคสแบบไม่ทำให้ UI ล้ม
+      // รองรับทุกเคสแบบไม่ทำให้ UI ล้ม
       if (res.statusCode == 200) {
         final raw = json.decode(res.body);
         if (raw is List) {
@@ -93,11 +95,16 @@ class AttendanceReportService {
   }
 
   /// นักเรียนดูรายงานรายวันของตัวเอง
-  static Future<List<AttendanceReportDetail>> getMyDailyReports() async {
+  static Future<List<AttendanceReportDetail>> getMyDailyReports({
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final url = Uri.parse('$baseUrl/attendance/reports/details/my');
+    // 👈 เพิ่ม Query Params
+    final url = Uri.parse('$baseUrl/attendance/reports/details/my').replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
+    );
     try {
       final res = await _get(url, token);
       // หลังบ้านจะ 404 ถ้ายังไม่มี detail → คืนลิสต์ว่าง
@@ -112,7 +119,7 @@ class AttendanceReportService {
   }
 
   // -------------------------------------------------------------
-  // 👩‍🏫 ครู
+  // ครู
   // -------------------------------------------------------------
 
   /// ครูสร้างรายงานใหม่ทั้งคลาส
@@ -220,12 +227,17 @@ class AttendanceReportService {
 
   /// ครูดูรายงานรายวันของนักเรียน "เจาะจงรายบุคคล" (เพื่อดูรูปเช็คชื่อ)
   static Future<List<AttendanceReportDetail>> getStudentDailyReports(
-    String studentId,
-  ) async {
+    String studentId, {
+    String? classId, // 👈 เพิ่ม classId
+  }) async {
     final token = await AuthService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
+    
+    // 👈 เพิ่ม Query Params
     final url = Uri.parse(
       '$baseUrl/attendance/reports/details/student/$studentId',
+    ).replace(
+      queryParameters: classId != null ? {'class_id': classId} : null,
     );
     try {
       final res = await _get(url, token);
@@ -237,6 +249,42 @@ class AttendanceReportService {
       );
     } on SocketException {
       throw Exception('Network error while fetching student daily reports');
+    }
+  }
+
+  /// ฟังก์ชันดาวน์โหลดรายงาน (เวอร์ชันใช้งานจริง)
+  static Future<void> exportDetailedReport(String classId, String token) async {
+    try {
+      final url = Uri.parse('${AppConfig.baseUrl}/attendance/reports/details/class/$classId/export/detailed');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '${dir.path}/detailed_report_$timestamp.xlsx'; 
+        
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final result = await OpenFilex.open(filePath);
+        if (result.type == ResultType.noAppToOpen) {
+          throw Exception("ไม่มีแอปสำหรับเปิดไฟล์ Excel กรุณาติดตั้ง Google Sheets หรือ Microsoft Excel");
+        } else if (result.type != ResultType.done) {
+          throw Exception("ไม่สามารถเปิดไฟล์ได้: ${result.message}");
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception("ยังไม่มีรายงานการเช็คชื่อในระบบ");
+      } else {
+        throw Exception("ดาวน์โหลดล้มเหลว (รหัสข้อผิดพลาด: ${response.statusCode})");
+      }
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
     }
   }
 }

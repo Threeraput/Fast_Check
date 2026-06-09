@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/attendance_report.dart';
 import 'package:frontend/models/attendance_report_detail.dart';
+import 'package:frontend/screens/classwork/classwork_report_detail_screen.dart';
 import 'package:frontend/services/attendance_report_service.dart';
+import 'package:frontend/services/classwork_simple_service.dart'; // เพิ่ม import นี้
+import 'package:shared_preferences/shared_preferences.dart';
 import 'student_report_detail_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -22,6 +25,9 @@ class _ClassReportTabState extends State<ClassReportTab> {
   bool _loading = true;
   bool _hasError = false;
   String _errorMsg = '';
+
+  // เพิ่มสถานะสำหรับการดาวน์โหลด
+  bool _isDownloading = false;
 
   List<AttendanceReport> _reports = [];
   Map<String, dynamic>? _summary;
@@ -107,6 +113,138 @@ class _ClassReportTabState extends State<ClassReportTab> {
     }
   }
 
+  Future<void> _showExportOptions() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'เลือกประเภทการส่งออก (Excel)',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.green,
+                ),
+                title: const Text('รายงานการเข้าเรียนรายวัน'),
+                subtitle: const Text('สรุปการเช็คชื่อของนักเรียนทุกคน'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadAttendanceReport();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.assignment_outlined,
+                  color: Colors.blue,
+                ),
+                title: const Text('สถิติการส่งงานของคลาส'),
+                subtitle: const Text('สรุปคะแนนและสถานะการส่งงานทุกชิ้น'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadClassworkStats();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadAttendanceReport() async {
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String realToken = prefs.getString('accessToken') ?? '';
+
+      if (realToken.isEmpty) {
+        throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
+      }
+
+      await AttendanceReportService.exportDetailedReport(
+        widget.classId,
+        realToken,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ดาวน์โหลดรายงานการเข้าเรียนสำเร็จ!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadClassworkStats() async {
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String realToken = prefs.getString('accessToken') ?? '';
+
+      if (realToken.isEmpty) {
+        throw Exception("ไม่พบ Token กรุณาล็อกอินใหม่อีกครั้ง");
+      }
+
+      await ClassworkSimpleService.exportClassworkOverallStats(
+        widget.classId,
+        realToken,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ดาวน์โหลดสถิติงานสำเร็จ!'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -139,17 +277,29 @@ class _ClassReportTabState extends State<ClassReportTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ปุ่มสร้างรายงานใหม่
+          // ปุ่มดาวน์โหลดรายงาน (Excel)
           ElevatedButton.icon(
-            onPressed: _generateReport,
-            icon: const Icon(Icons.refresh, color: Colors.blueAccent),
-            label: const Text('สร้างรายงานใหม่', style: TextStyle(
-              color: Colors.black,
-            ),),
+            onPressed: _isDownloading
+                ? null
+                : _showExportOptions, // เปลี่ยนจาก _downloadReport เป็น _showExportOptions
+            icon: _isDownloading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download, color: Colors.white),
+            label: Text(
+              _isDownloading ? 'กำลังดาวน์โหลด...' : 'ดาวน์โหลดรายงาน (Excel)',
+              style: const TextStyle(color: Colors.white),
+            ),
             style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  Colors.green.shade600, // ใช้สีเขียวให้สื่อถึง Excel
               minimumSize: const Size.fromHeight(48),
             ),
           ),
+
           const SizedBox(height: 16),
 
           // สรุปภาพรวมคลาส
@@ -400,17 +550,14 @@ class _ClassReportTabState extends State<ClassReportTab> {
               _buildDetailRow('สาย', '${report.lateSessions} ครั้ง'),
               _buildDetailRow('ขาด', '${report.absentSessions} ครั้ง'),
               _buildDetailRow('กลับก่อน', '${report.leftEarlySessions} ครั้ง'),
-              _buildDetailRow(
-                'ตรวจสอบซ้ำ',
-                '${report.reverifiedSessions} ครั้ง',
-              ),
+              // Removed 'ตรวจสอบซ้ำ' row as requested
               _buildDetailRow(
                 'อัตราเข้าเรียน',
                 '${report.attendanceRate.toStringAsFixed(2)}%',
               ),
               const SizedBox(height: 16),
 
-              // ✅ เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
+              // เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -422,14 +569,44 @@ class _ClassReportTabState extends State<ClassReportTab> {
                       MaterialPageRoute(
                         builder: (context) =>
                             // ไปที่ไฟล์ student_report_detail_screen.dart
-                              StudentReportDetailScreen(
+                            StudentReportDetailScreen(
                               studentId: report.studentId,
+                              classId: widget.classId, // 👈 ส่ง classId ไปด้วย
                             ),
                       ),
                     );
                   },
                   icon: const Icon(Icons.photo_library),
                   label: const Text('ดูประวัติรายวันและรูปถ่าย'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade50,
+                    foregroundColor: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // เพิ่มปุ่มนี้เข้าไป เพื่อให้ครูกดไปหน้าดูรูป
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context); // ปิด Dialog
+                    // import หน้าต่างนี้ไว้ด้านบนไฟล์ด้วยนะครับ ถ้ายังไม่มี
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            // ไปที่ไฟล์ student_report_detail_screen.dart
+                            ClassworkReportDetailScreen(
+                              studentId: report.studentId,
+                              classId: report.classId, // เพิ่ม classId
+                              userRole: 'teacher', // กำหนดเป็น teacher
+                            ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.assignment),
+                  label: const Text('ดูประวัติการส่งงาน'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade50,
                     foregroundColor: Colors.blue,

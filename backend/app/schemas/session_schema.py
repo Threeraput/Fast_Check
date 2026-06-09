@@ -13,7 +13,7 @@ class SessionOpenRequest(BaseModel):
     class_id: UUID
     latitude: float
     longitude: float
-    radius_meters: conint(ge=10, le=2000) = Field(..., description="รัศมีเมตร")
+    radius_meters: conint(ge=1, le=2000) = Field(..., description="รัศมีเมตร")
     start_time: Optional[datetime] = None
     late_cutoff_time: Optional[datetime] = None   
     end_time: Optional[datetime] = None
@@ -30,6 +30,13 @@ class SessionOpenRequest(BaseModel):
         l = values.get("late_cutoff_time")
         if l and v < l:
             raise ValueError("end_time must be >= late_cutoff_time")
+        
+        # เพิ่มเงื่อนไขนี้: ดักว่าต้องห่างกันอย่างน้อย 1 นาที (60 วินาที)
+        if l and v:
+            gap_seconds = (v - l).total_seconds()
+            if gap_seconds < 60:
+                raise ValueError("เวลาเลิกเรียน ต้องห่างจากเวลาคนมาสายอย่างน้อย 1 นาที เพื่อให้ระบบสุ่มตรวจทำงานได้")
+        
         return v
 
 class SessionResponse(BaseModel):

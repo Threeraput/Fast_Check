@@ -1,13 +1,14 @@
 // lib/screens/login_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/face_service.dart';
+import '../../services/fcm_service.dart';
 import "../classroom/classroom_home_screen.dart";
 import '../face_recognition/camera_screen.dart';
 import 'package:frontend/main.dart' show cameras;
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,8 +22,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   String? _message;
   bool _isLoading = false;
+  bool _isPasswordVisible = false; // 👈 เพิ่มสถานะการมองเห็นรหัสผ่าน
 
- Future<void> _login() async {
+  Future<void> _login() async {
     setState(() {
       _isLoading = true;
       _message = null;
@@ -35,6 +37,19 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (token != null) {
+        // รอผูก FCM token กับบัญชีที่ล็อกอินสำเร็จเพื่อลด race ตอน silent-check
+        try {
+          await FCMService.sendTokenAfterLogin().timeout(
+            const Duration(seconds: 2),
+          );
+        } on TimeoutException {
+          // ไม่ให้ค้างหน้า login หากเครือข่ายช้า แต่ยังไปต่อได้
+          debugPrint('FCM token sync timeout after login');
+        } catch (e) {
+          // login ไม่ควรล้มเพราะ sync token พลาด
+          debugPrint('FCM token sync failed after login: $e');
+        }
+
         final user = await AuthService.getCurrentUserFromLocal();
 
         if (user != null) {
@@ -45,10 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
             final hasFace = await FaceService.checkHasFace(user.userId);
 
             if (hasFace) {
-              // 👩‍🎓 มีใบหน้าแล้ว → ไปหน้า classroom
+              // มีใบหน้าแล้ว → ไปหน้า classroom
               Navigator.pushReplacementNamed(context, '/home');
             } else {
-              // 👩‍🎓 ยังไม่มีใบหน้า → ไปหน้า classroom เหมือนกัน
+              // ยังไม่มีใบหน้า → ไปหน้า classroom เหมือนกัน
               // แต่ถามก่อนว่าต้องการลงทะเบียนไหม
               final consent = await showDialog<bool>(
                 context: context,
@@ -59,7 +74,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   title: const Text(
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    'ยืนยันการบันทึกภาพใบหน้า'),
+                    'ยืนยันการบันทึกภาพใบหน้า',
+                  ),
                   content: const Text(
                     'คุณยังไม่ได้ลงทะเบียนใบหน้าในระบบ\n'
                     'ต้องการลงทะเบียนตอนนี้หรือไม่?',
@@ -68,14 +84,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
                       child: const Text(
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14) ,
-                        'ภายหลัง'),
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        'ภายหลัง',
+                      ),
                     ),
                     FilledButton(
                       style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                        backgroundColor: Colors.blueAccent,
                       ),
                       onPressed: () => Navigator.pop(context, true),
                       child: const Text('ลงทะเบียนตอนนี้'),
@@ -159,17 +174,29 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     TextField(
                       controller: _passwordController,
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
                         labelText: 'Password',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                     ),
 
                     Align(
@@ -267,4 +294,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}           
+}

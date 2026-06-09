@@ -4,15 +4,30 @@ import logging
 import io
 from uuid import UUID
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response, Path, Body, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+    UploadFile,
+    File,
+    Response,
+    Path,
+    Body,
+    Query,
+)
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
+from app.models.class_model import Class
+from app.models.association import class_students
 
 from app.database import get_db
 from app.models.user import User
 from app.models.attendance import Attendance
 from app.models.attendance_session import AttendanceSession
-from app.models.user_face_sample import UserFaceSample  # ✅ เช็คว่าผู้ใช้มี sample หรือยัง
+from app.models.user_face_sample import UserFaceSample  # เช็คว่าผู้ใช้มี sample หรือยัง
 
 from app.schemas.attendance_schema import (
     AttendanceCheckIn,
@@ -20,18 +35,36 @@ from app.schemas.attendance_schema import (
     TeacherLocationUpdate,
     StudentLocationLogCreate,
     AttendanceManualOverride,
+    AttendanceManualCreate,
     ReverifyRequest,
+    SilentLocationUpdate,
+    SilentCheckResponse,
 )
 from app.schemas.session_schema import SessionResponse
 from app.schemas.reverify_schema import ToggleReverifyRequest, ToggleReverifyResponse
-from app.core.deps import get_current_user, role_required
-from app.services.attendance_service import record_check_in, handle_reverification, manual_override_attendance
-from app.services.location_service import update_teacher_location_log, log_student_location
+from app.core.deps import get_current_user, get_roles_from_token, role_required
+from app.core.security import decode_access_token
+from app.services.attendance_service import (
+    record_check_in,
+    handle_reverification,
+    manual_override_attendance,
+    create_manual_attendance,
+    handle_silent_location_update,
+)
+from app.services.live_attendance_ws import (
+    live_attendance_ws_manager,
+    get_live_session_payload,
+)
+from app.services.location_service import (
+    update_teacher_location_log,
+    log_student_location,
+)
 from app.services.face_recognition_service import get_face_embedding, compare_faces
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # ---------- NEW: ช่วยจัด EXIF orientation เพื่อลด false reject ----------
 from PIL import Image, ImageOps
+
 
 def _normalize_image_bytes(raw: bytes) -> bytes:
     """แก้ EXIF orientation + บังคับ RGB -> bytes (JPEG)"""
@@ -47,11 +80,11 @@ def _normalize_image_bytes(raw: bytes) -> bytes:
         # ถ้าจัดการไม่ได้ ให้ใช้ raw เดิม
         return raw
 
+
 REVERIFY_MIN_SIMILARITY = 0.25
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 logger = logging.getLogger(__name__)
-
 
 
 def _has_role(user: User, role_name: str) -> bool:
@@ -59,6 +92,123 @@ def _has_role(user: User, role_name: str) -> bool:
         return any(getattr(r, "name", None) == role_name for r in (user.roles or []))
     except Exception:
         return False
+
+
+def _extract_ws_token(websocket: WebSocket) -> str | None:
+    auth = websocket.headers.get("authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+
+    token = websocket.query_params.get("token")
+    if token:
+        return token.strip()
+
+    return None
+
+
+def _get_ws_user(websocket: WebSocket, db: Session) -> User | None:
+    token = _extract_ws_token(websocket)
+    if not token:
+        return None
+
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        return None
+
+    return user
+
+
+def _can_watch_live_session(db: Session, session_id: UUID, user: User) -> bool:
+    session = (
+        db.query(AttendanceSession)
+        .join(Class, AttendanceSession.class_id == Class.class_id)
+        .filter(AttendanceSession.session_id == session_id)
+        .first()
+    )
+    if not session:
+        logger.warning(f"❌ [_can_watch_live_session] Session {session_id} not found")
+        return False
+
+    # ตรวจสอบบทบาทจาก roles_list (ที่ใส่ไว้ใน get_current_user) หรือ db.roles
+    roles = set()
+    if hasattr(user, "roles_list") and user.roles_list:
+        roles = set(user.roles_list)
+    else:
+        roles = {getattr(r, "name", "") for r in (user.roles or [])}
+
+    logger.info(f"🔍 [_can_watch_live_session] User {user.username} roles: {roles}")
+
+    if "admin" in roles:
+        return True
+
+    if "teacher" not in roles:
+        logger.warning(f"❌ [_can_watch_live_session] User {user.username} is not a teacher")
+        return False
+
+    is_owner = str(session.classroom.teacher_id) == str(user.user_id)
+    if not is_owner:
+        logger.warning(
+            f"❌ [_can_watch_live_session] User {user.username} is not the owner of this class. "
+            f"Class teacher: {session.classroom.teacher_id}, User: {user.user_id}"
+        )
+    return is_owner
+
+
+@router.websocket("/sessions/{session_id}/live")
+async def live_session_attendance(
+    websocket: WebSocket,
+    session_id: str, # เปลี่ยนจาก UUID เป็น str เพื่อป้องกัน 422 ก่อน accept
+    db: Session = Depends(get_db),
+):
+    # 1. ยอมรับการเชื่อมต่อก่อน
+    await websocket.accept()
+    
+    try:
+        # 2. แปลง session_id เป็น UUID เอง
+        try:
+            actual_session_id = uuid.UUID(session_id)
+        except ValueError:
+            await websocket.send_json({"event": "error", "message": "Invalid session ID format"})
+            await websocket.close(code=1008)
+            return
+
+        # 3. ตรวจสอบสิทธิ์
+        user = _get_ws_user(websocket, db)
+        if not user or not _can_watch_live_session(db, actual_session_id, user):
+            await websocket.send_json({"event": "error", "message": "Unauthorized or session not found"})
+            await websocket.close(code=1008)
+            return
+
+        session_key = str(actual_session_id)
+        # 4. ลงทะเบียนเข้า Room
+        async with live_attendance_ws_manager._lock:
+            live_attendance_ws_manager._rooms[session_key].add(websocket)
+
+        # 5. ส่ง Snapshot แรก
+        payload = get_live_session_payload(db, actual_session_id)
+        if payload:
+            await websocket.send_json({"event": "snapshot", **payload})
+
+        # 6. Loop รับข้อความ
+        while True:
+            msg = await websocket.receive_text()
+            if msg.strip().lower() == "ping":
+                await websocket.send_json({"event": "pong"})
+                
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.error(f"❌ WebSocket Error: {e}")
+    finally:
+        await live_attendance_ws_manager.disconnect(session_id, websocket)
 
 
 # ------------------------------------
@@ -70,12 +220,15 @@ async def check_in(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
-    if "student" not in [role.name for role in current_user.roles]:
+    token_roles: list = Depends(get_roles_from_token)
+):  
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can check in.")
 
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Only images are allowed."
+        )
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
@@ -89,9 +242,31 @@ async def check_in(
             student_lat=class_data.latitude,
             student_lon=class_data.longitude,
         )
+
+        payload = get_live_session_payload(db, class_data.session_id)
+        if payload:
+            latest_item = payload.get("attendees", [None])[0]
+            await live_attendance_ws_manager.broadcast(
+                str(class_data.session_id),
+                {
+                    "event": "checkin_added",
+                    "session_id": str(class_data.session_id),
+                    "item": latest_item,
+                    "summary": payload.get("summary", {}),
+                    "checked_in_count": payload.get("checked_in_count", 0),
+                    "total_students": payload.get("total_students", 0),
+                    "waiting_count": payload.get("waiting_count", 0),
+                    "server_time": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
         return attendance_record
+    except HTTPException:
+        raise
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"internal_error: {e}")
 
@@ -104,9 +279,12 @@ async def update_teacher_location(
     location_data: TeacherLocationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
-    if not _has_role(current_user, "teacher"):
-        raise HTTPException(status_code=403, detail="Only teachers can update their location.")
+    if "teacher" not in token_roles:
+        raise HTTPException(
+            status_code=403, detail="Only teachers can update their location."
+        )
 
     try:
         update_teacher_location_log(
@@ -118,7 +296,9 @@ async def update_teacher_location(
         )
         return {"message": "Teacher location updated successfully."}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 # ------------------------------------
@@ -129,8 +309,9 @@ async def track_student_location(
     log_data: StudentLocationLogCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
-    if not _has_role(current_user, "student"):
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Only students can track location.")
 
     try:
@@ -143,7 +324,9 @@ async def track_student_location(
         )
         return {"message": "Student location logged successfully."}
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 # ------------------------------------
@@ -155,33 +338,39 @@ async def re_verify_check_in(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token)
 ):
-    # ✅ ตรวจ role
-    if "student" not in [role.name for role in current_user.roles]:
+    # ตรวจ role
+    if "student" not in token_roles:
         raise HTTPException(status_code=403, detail="Access denied.")
 
-    # ✅ ตรวจไฟล์รูป
+    # ตรวจไฟล์รูป
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Only images are allowed."
+        )
 
     raw_bytes = await file.read()
     image_bytes = _normalize_image_bytes(raw_bytes)
 
-
-    # ✅ ตรวจว่าผู้ใช้มี Face Sample หรือไม่
+    # ตรวจว่าผู้ใช้มี Face Sample หรือไม่
     try:
-        has_sample = db.query(UserFaceSample).filter(
-            UserFaceSample.user_id == current_user.user_id
-        ).limit(1).count() > 0
+        has_sample = (
+            db.query(UserFaceSample)
+            .filter(UserFaceSample.user_id == current_user.user_id)
+            .limit(1)
+            .count()
+            > 0
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"database_error: {e}")
     if not has_sample:
         raise HTTPException(
             status_code=404,
-            detail="No face samples found for this user. Please register your face first."
+            detail="No face samples found for this user. Please register your face first.",
         )
 
-    # ✅ ใช้ logic เดียวกับ check-in
+    # ใช้ logic เดียวกับ check-in
     try:
         embedding = get_face_embedding(io.BytesIO(image_bytes))
         result = compare_faces(db, current_user.user_id, embedding)
@@ -191,14 +380,28 @@ async def re_verify_check_in(
         else:
             matched = bool(result)
             score = None
+    except ValueError as e:
+        msg = str(e).lower()
+        if "no_face" in msg:
+            raise HTTPException(status_code=400, detail="No face detected.")
+        if "multi_face" in msg:
+            raise HTTPException(
+                status_code=400,
+                detail="Please upload an image with exactly one face.",
+            )
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Face service error: {e}")
 
-    # ✅ ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
+    # ใช้เงื่อนไขเดียวกับ check-in — ถ้า matched=False ให้ reject
     if not matched:
-        raise HTTPException(status_code=403, detail="Face verification failed for this user.")
+        raise HTTPException(
+            status_code=403, detail="Face verification failed for this user."
+        )
 
-    # ✅ ถ้าผ่าน ให้เรียก handle_reverification
+    # ถ้าผ่าน ให้เรียก handle_reverification
     try:
         result = handle_reverification(
             db=db,
@@ -213,7 +416,9 @@ async def re_verify_check_in(
         except Exception:
             return AttendanceResponse.from_orm(result)
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -225,14 +430,16 @@ async def re_verify_check_in(
 # ------------------------------------
 @router.patch("/override/{attendance_id}", response_model=AttendanceResponse)
 async def override_attendance_status(
-    attendance_id: uuid.UUID = Path(..., description="UUID of the attendance record to override"),
+    attendance_id: uuid.UUID = Path(
+        ..., description="UUID of the attendance record to override"
+    ),
     override_data: AttendanceManualOverride = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token),
 ):
-    roles = {r.name for r in getattr(current_user, "roles", [])}
-    is_admin = "admin" in roles
-    is_teacher = "teacher" in roles
+    is_admin = "admin" in token_roles
+    is_teacher = "teacher" in token_roles
 
     if not (is_admin or is_teacher):
         raise HTTPException(status_code=403, detail="Access denied.")
@@ -247,7 +454,10 @@ async def override_attendance_status(
         if not att:
             raise HTTPException(status_code=404, detail="Attendance not found.")
         if att.class_rel.teacher_id != current_user.user_id:
-            raise HTTPException(status_code=403, detail="You can only modify attendance for your own class.")
+            raise HTTPException(
+                status_code=403,
+                detail="You can only modify attendance for your own class.",
+            )
 
     try:
         record = manual_override_attendance(
@@ -261,19 +471,103 @@ async def override_attendance_status(
         except Exception:
             return AttendanceResponse.from_orm(record)
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
+
+
+# ------------------------------------
+# 6) POST /attendance/manual-override
+# ------------------------------------
+@router.post("/manual-override", response_model=AttendanceResponse)
+async def manual_create_or_override(
+    data: AttendanceManualCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    token_roles: list = Depends(get_roles_from_token),
+):
+    """
+    Endpoint ใหม่ที่รองรับทั้งกรณีมี Record แล้ว (Override) 
+    และยังไม่มี Record (Create) โดยใช้ session_id + student_id
+    """
+    is_admin = "admin" in token_roles
+    is_teacher = "teacher" in token_roles
+
+    if not (is_admin or is_teacher):
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    # ตรวจสิทธิ์เจ้าของห้องเรียน (ถ้าเป็นครู)
+    if is_teacher and not is_admin:
+        session = db.query(AttendanceSession).filter_by(session_id=data.session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        cls = db.query(Class).filter_by(class_id=session.class_id).first()
+        if cls.teacher_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="You can only modify attendance for your own class.")
+
+    try:
+        record = create_manual_attendance(
+            db=db,
+            session_id=data.session_id,
+            student_id=data.student_id,
+            new_status=data.status,
+            recorded_by_user_id=current_user.user_id,
+        )
+        return record
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/sessions/active", response_model=List[SessionResponse])
-def list_active_sessions(db: Session = Depends(get_db)):
+def list_active_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     now = datetime.now(timezone.utc)
-    qs = (
-        db.query(AttendanceSession)
-        .filter(AttendanceSession.start_time <= now, AttendanceSession.end_time >= now)
-        .order_by(AttendanceSession.start_time.desc())
-        .all()
-    )
-    return qs
+    
+    # เช็คว่าเป็นอาจารย์หรือแอดมินไหม
+    is_privileged = any(r.name in ["admin", "teacher"] for r in current_user.roles)
+
+    if is_privileged:
+        # ครูเห็น: 
+        # 1. อันที่กำลังเปิดอยู่ (end_time >= now)
+        # 2. อันที่จบไปแล้ว แต่เพิ่งทำ Silent Check ไปไม่เกิน 10 นาที
+        qs = (
+            db.query(AttendanceSession)
+            .filter(
+                (AttendanceSession.end_time >= now) | 
+                (
+                    (AttendanceSession.silent_check_scheduled_at.isnot(None)) & 
+                    (AttendanceSession.silent_check_scheduled_at >= now - timedelta(minutes=10))
+                )
+            )
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
+    else:
+        # นักเรียนเห็น: เฉพาะอันที่กำลังเปิดอยู่เท่านั้น
+        qs = (
+            db.query(AttendanceSession)
+            .filter(AttendanceSession.start_time <= now, AttendanceSession.end_time >= now)
+            .order_by(AttendanceSession.start_time.desc())
+            .all()
+        )
+    # แปลงเป็น Pydantic list อย่างปลอดภัย
+    items: List[SessionResponse] = []
+    for s in qs:
+        try:
+            # ใช้ model_validate สำหรับ Pydantic v2
+            items.append(SessionResponse.model_validate(s, from_attributes=True))
+        except Exception:
+            # fallback สำหรับ version ที่ต่างกัน หรือกรณีฉุกเฉิน
+            try:
+                items.append(SessionResponse.from_orm(s))
+            except Exception:
+                continue # ข้ามอันที่แปลงไม่ได้จริง ๆ เพื่อไม่ให้ทั้งหน้าพัง
+    return items
 
 
 @router.post("/re-verify/toggle", response_model=ToggleReverifyResponse)
@@ -293,7 +587,9 @@ def toggle_reverify(req: ToggleReverifyRequest, db: Session = Depends(get_db)):
         return ToggleReverifyResponse(ok=True, reverify_enabled=s.reverify_enabled)
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}")
+        raise HTTPException(
+            status_code=500, detail=f"database_error: {getattr(e, 'orig', e)}"
+        )
 
 
 @router.get("/my-status")
@@ -304,7 +600,9 @@ def my_status(
 ):
     att = (
         db.query(Attendance)
-        .filter(Attendance.session_id == session_id, Attendance.student_id == me.user_id)
+        .filter(
+            Attendance.session_id == session_id, Attendance.student_id == me.user_id
+        )
         .first()
     )
     if not att:
@@ -314,7 +612,11 @@ def my_status(
         "has_checked_in": True,
         "attendance_id": str(att.attendance_id),
         "status": getattr(att, "status", None),
-        "checked_at": getattr(att, "check_in_time", None).isoformat() if getattr(att, "check_in_time", None) else None,
+        "checked_at": (
+            getattr(att, "check_in_time", None).isoformat()
+            if getattr(att, "check_in_time", None)
+            else None
+        ),
     }
 
 
@@ -326,7 +628,10 @@ def get_is_reverified(
 ):
     record = (
         db.query(Attendance)
-        .filter(Attendance.session_id == session_id, Attendance.student_id == current_user.user_id)
+        .filter(
+            Attendance.session_id == session_id,
+            Attendance.student_id == current_user.user_id,
+        )
         .first()
     )
     if not record:
@@ -335,8 +640,103 @@ def get_is_reverified(
     return {"session_id": str(session_id), "is_reverified": record.is_reverified}
 
 
-@router.post("/session/{session_id}/finalize", dependencies=[Depends(role_required(["teacher"]))])
+@router.post(
+    "/session/{session_id}/finalize", dependencies=[Depends(role_required(["teacher"]))]
+)
 def finalize_session(session_id: UUID, db: Session = Depends(get_db)):
     from app.services.session_finalizer_service import handle_finalize_session
+
     handle_finalize_session(db, session_id)
     return {"detail": "Session finalized successfully"}
+
+# ==========================================
+# API สำหรับเช็คว่าผู้ใช้สามารถเปลี่ยนรูปใบหน้าได้หรือ
+# ==========================================
+@router.get("/active-sessions/check-face-change")
+def check_can_change_face(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    API สำหรับเช็คว่า นักเรียนคนนี้สามารถเปลี่ยนรูปใบหน้าได้หรือไม่
+    (ใช้เวลาปัจจุบันไปเช็คว่ามีวิชาไหนอยู่ระหว่าง start_time ถึง end_time ไหม)
+    """
+    # 1. ดึงเวลาปัจจุบัน (ใช้ timezone.utc ให้ตรงกับฐานข้อมูล)
+    now = datetime.now(timezone.utc)
+    
+    # 2. ค้นหาว่ามี Session ไหนที่เวลาปัจจุบันอยู่ในช่วงที่กำลังเปิดเช็คชื่อไหม
+    active_session = (
+        db.query(AttendanceSession)
+        .join(Class, AttendanceSession.class_id == Class.class_id)
+        .filter(
+            Class.students.any(User.user_id == current_user.user_id),
+            AttendanceSession.start_time <= now,  # เวลาเริ่มผ่านไปแล้วหรือยัง?
+            AttendanceSession.end_time >= now     # และยังไม่หมดเวลาใช่ไหม?
+        )
+        .first()
+    )
+
+    # 3. ถ้าเจอว่ามีวิชาที่กำลังเปิดอยู่ -> บล็อกการเปลี่ยนหน้า
+    if active_session:
+        return {
+            "can_change_face": False,
+            "message": "ไม่สามารถเปลี่ยนใบหน้าได้ในขณะนี้ เนื่องจากมีรายวิชาที่กำลังเปิดรอบเช็คชื่ออยู่ (ป้องกันการทุจริต)"
+        }
+        
+    # 4. ถ้าไม่มีวิชาไหนเปิดอยู่เลย (หรือหมดเวลาไปหมดแล้ว) -> ปล่อยผ่าน
+    return {
+        "can_change_face": True,
+        "message": "สามารถเปลี่ยนรูปใบหน้าได้"
+    }
+
+# ==========================================
+# API ลับสำหรับฟีเจอร์  (Silent check)
+# ==========================================
+@router.post(
+    "/silent-check",
+    summary="รับพิกัดเบื้องหลังจากระบบสุ่มตรวจ",
+    status_code=status.HTTP_200_OK,
+    response_model=SilentCheckResponse,
+)
+def silent_check_location(
+    data: SilentLocationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    API ลับสำหรับแอปมือถือเพื่อส่งพิกัดมาแบบเงียบๆ เมื่อโดนระบบหลังบ้านสุ่มตรวจ
+    - ตรวจสอบสิทธิ์เฉพาะนักเรียน
+    - บันทึกพิกัดลง StudentLocation พร้อม Flag 'is_silent_check'
+    - อัปเดตเวลายืนยันล่าสุด (last_verified_at) หากอยู่ในระยะ
+    """
+
+    # 1. ตรวจสอบ Role (ใช้ Any เพื่อความเร็วในการเช็ค)
+    if not any(role.name == "student" for role in current_user.roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ขออภัย เฉพาะนักเรียนเท่านั้นที่สามารถใช้งานส่วนนี้ได้",
+        )
+
+    try:
+        # 2. ส่งข้อมูลให้ Service จัดการ (บันทึก Log + เช็คระยะ + อัปเดตเวลา)
+        result = handle_silent_location_update(
+            db=db,
+            session_id=data.session_id,
+            student_id=current_user.user_id,
+            student_lat=data.latitude,
+            student_lon=data.longitude,
+        )
+
+        # 3. ตอบกลับสถานะ (ไม่ว่าจะ 'success' หรือ 'ignored' ก็ส่ง 200 กลับไป)
+        # เพื่อให้แอปมือถือทำงานจบกระบวนการเบื้องหลังได้ทันที
+        return result
+
+    except HTTPException as http_exc:
+        # ส่งต่อ Error ที่มาจาก Service (เช่น 404 Session ไม่เจอ)
+        raise http_exc
+    except Exception as e:
+        logger.error(f"❌ Silent Check Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="เกิดข้อผิดพลาดภายในระบบขณะประมวลผลพิกัด",
+        )
