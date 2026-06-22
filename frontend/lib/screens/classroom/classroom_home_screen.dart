@@ -762,17 +762,8 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         ],
       ),
       drawer: _buildDrawer(),
-      // แอดมิน: มีปุ่มเพิ่มคลาสเท่านั้น
       floatingActionButton: _isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: _adminCreateClass,
-              backgroundColor: Colors.blueAccent,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                'เพิ่มคลาส',
-                style: TextStyle(color: Colors.white),
-              ),
-            )
+          ? null
           : FloatingActionButton(
               onPressed: _isTeacher ? _openCreate : _openJoin,
               tooltip: _isTeacher ? 'สร้างคลาสใหม่' : 'เข้าร่วมคลาส',
