@@ -21,18 +21,24 @@ class ClassworkSimpleService {
   // ---------- common headers & error ----------
   static Future<Map<String, String>> _headersJson() async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Not authenticated');
+    }
     return {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer $token',
     };
   }
 
   static Future<Map<String, String>> _headersAuthOnly() async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Not authenticated');
+    }
     return {
       'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer $token',
     };
   }
 
@@ -85,27 +91,41 @@ class ClassworkSimpleService {
     throw _errorFrom(res);
   }
 
-  static Future<Map<String, dynamic>> submitPdf({
+  static Future<Map<String, dynamic>> submitAssignment({
     required String assignmentId,
-    required File pdfFile,
+    File? pdfFile,
+    String? submissionText,
   }) async {
     final url = Uri.parse('$_base/assignments/$assignmentId/submit');
     final req = http.MultipartRequest('POST', url);
     final headers = await _headersAuthOnly();
     req.headers.addAll(headers);
 
-    final mime = (lookupMimeType(pdfFile.path) ?? '').toLowerCase();
-    if (!mime.contains('pdf')) {
-      throw Exception('กรุณาเลือกไฟล์ PDF เท่านั้น');
+    final cleanedText = submissionText?.trim();
+    if (pdfFile == null && (cleanedText == null || cleanedText.isEmpty)) {
+      throw Exception('กรุณาพิมพ์คำตอบหรือแนบไฟล์อย่างน้อย 1 อย่าง');
     }
 
-    req.files.add(
-      await http.MultipartFile.fromPath(
-        'file',
-        pdfFile.path,
-        contentType: MediaType.parse(mime.isEmpty ? 'application/pdf' : mime),
-      ),
-    );
+    if (pdfFile != null) {
+      final mime = (lookupMimeType(pdfFile.path) ?? '').toLowerCase();
+      if (!mime.contains('pdf')) {
+        throw Exception('กรุณาเลือกไฟล์ PDF เท่านั้น');
+      }
+
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          pdfFile.path,
+          contentType: MediaType.parse(
+            mime.isEmpty ? 'application/pdf' : mime,
+          ),
+        ),
+      );
+    }
+
+    if (cleanedText != null && cleanedText.isNotEmpty) {
+      req.fields['submission_text'] = cleanedText;
+    }
 
     final streamed = await req.send().timeout(_kTimeout);
     final res = await http.Response.fromStream(streamed);
@@ -114,6 +134,13 @@ class ClassworkSimpleService {
       return json.decode(res.body) as Map<String, dynamic>;
     }
     throw _errorFrom(res);
+  }
+
+  static Future<Map<String, dynamic>> submitPdf({
+    required String assignmentId,
+    required File pdfFile,
+  }) {
+    return submitAssignment(assignmentId: assignmentId, pdfFile: pdfFile);
   }
 
   // ============ TEACHER (raw) ============

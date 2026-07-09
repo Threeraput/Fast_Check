@@ -4,12 +4,15 @@ import 'package:frontend/models/feed_item.dart';
 import 'package:frontend/services/feed_service.dart';
 import 'package:frontend/widgets/feed_cards.dart';
 import 'package:frontend/widgets/active_sessions_banner.dart';
+import 'package:frontend/widgets/glass_card.dart';
 import 'package:frontend/utils/location_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/attendance_service.dart';
 import 'package:frontend/screens/attendance/student_checkin_screen.dart';
+import 'package:frontend/screens/classroom/chat_screen.dart';
 import 'package:frontend/screens/classroom/classroom_home_screen.dart';
 import 'package:frontend/screens/attendance/student_report_tab.dart';
+import 'package:frontend/utils/app_theme.dart';
 
 // Added for People tab (fetching class members)
 import 'package:frontend/services/class_service.dart';
@@ -43,33 +46,109 @@ class _StudentClassViewState extends State<StudentClassView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.className)),
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD6E4FF)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.className, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              'Class ID: ${widget.classId.substring(0, 8)}...',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: const Color.fromARGB(255, 39, 39, 39),
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.forum_outlined),
-            label: 'Stream',
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    const items = [
+      (Icons.forum_outlined, 'Stream'),
+      (Icons.assignment_outlined, 'Classwork'),
+      (Icons.bar_chart_outlined, 'Report'),
+      (Icons.people_outline, 'People'),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 6),
+        child: GlassCard(
+          accent: const Color(0xFF0EA5A4),
+          radius: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: List.generate(items.length, (i) {
+              final selected = _currentIndex == i;
+              final (icon, label) = items[i];
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Material(
+                    color: selected
+                        ? const Color(0xFF0EA5A4).withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => setState(() => _currentIndex = i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 20,
+                              color: selected
+                                  ? const Color(0xFF0F766E)
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: selected
+                                    ? const Color(0xFF0F766E)
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Classwork',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Report',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'People',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -121,6 +200,7 @@ class _StudentStreamTab extends StatefulWidget {
 
 class _StudentStreamTabState extends State<_StudentStreamTab> {
   late Future<List<FeedItem>> _futureFeed;
+  static const Color _studentTone = Color(0xFF0EA5A4);
 
   @override
   void initState() {
@@ -138,6 +218,78 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
     });
   }
 
+  Widget _buildRoleDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.0),
+                  _studentTone.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: _studentTone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: _studentTone.withValues(alpha: 0.35)),
+          ),
+          child: const Text(
+            'Student Stream',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color.fromARGB(255, 15, 1, 1),
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.72),
+                  _studentTone.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _studentTone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: _studentTone.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color.fromARGB(255, 15, 1, 1),
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final className = widget.className;
@@ -147,36 +299,55 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
+          _buildRoleDivider(),
+          const SizedBox(height: 12),
           // Header การ์ดห้องเรียน
-          Card(
-            color: getClassColor(className),
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+          GlassCard(
+            accent: getClassColor(className),
+            radius: 16,
+            padding: const EdgeInsets.all(0),
             child: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         className,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F2547),
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white70,
-                          fontSize: 14,
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0EA5A4).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0xFFA6E3DE)),
                         ),
+                        child: Text(
+                          'Class: ${classId.substring(0, 8)}...',
+                          style: const TextStyle(
+                            color: Color(0xFF0F766E),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         'Teacher: $teacherName',
+                        style: const TextStyle(
+                          color: Color(0xFF2E536F),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -198,7 +369,7 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
                             children: [
                               Icon(
                                 Icons.info_outline,
-                                color: Colors.blueAccent,
+                                color: AppColors.primary,
                               ),
                               SizedBox(width: 8),
                               Text('คำอธิบายคลาส'),
@@ -209,7 +380,7 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
                                     widget.description!.isNotEmpty)
                                 ? widget.description!
                                 : 'ยังไม่มีคำอธิบายสำหรับคลาสนี้',
-                            style: const TextStyle(fontSize: 15),
+                            style: const TextStyle(fontSize: 13),
                           ),
                           actions: [
                             TextButton(
@@ -230,8 +401,8 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
           // แบนเนอร์เช็คชื่อที่กำลังเปิด (นักเรียน)
           // ActiveSessionsBanner(classId: classId, isTeacherView: false),
           const SizedBox(height: 16),
-          Text('Announcements', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          _sectionTitle('Announcements'),
+          const SizedBox(height: 6),
 
           // ฟีด Stream จริง (feed_cards)
           FutureBuilder<List<FeedItem>>(
@@ -241,7 +412,7 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Center(
-                    child: CircularProgressIndicator(color: Colors.blue),
+                    child: CircularProgressIndicator(color: AppColors.primary),
                   ),
                 );
               }
@@ -254,6 +425,15 @@ class _StudentStreamTabState extends State<_StudentStreamTab> {
                 );
               }
               final feed = snap.data ?? const <FeedItem>[];
+              if (feed.isEmpty) {
+                return AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: const Text(
+                    'ยังไม่มีประกาศหรือกิจกรรมในคลาสนี้',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                );
+              }
               return FeedList(
                 items: feed,
                 isTeacher: false,
@@ -286,6 +466,58 @@ class StudentClassworkTab extends StatefulWidget {
 
 class _StudentClassworkTabState extends State<StudentClassworkTab> {
   late Future<List<FeedItem>> _future;
+  static const Color _studentTone = Color(0xFF0EA5A4);
+
+  Widget _buildRoleDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.0),
+                  _studentTone.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: _studentTone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: _studentTone.withValues(alpha: 0.35)),
+          ),
+          child: const Text(
+            'Student Classwork',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color.fromARGB(255, 15, 1, 1),
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.72),
+                  _studentTone.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   void initState() {
@@ -307,10 +539,19 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
-          Text('Classwork', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          _buildRoleDivider(),
+          const SizedBox(height: 12),
+          Text(
+            'Classwork',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+            ),
+          ),
+          const SizedBox(height: 6),
           FutureBuilder<List<FeedItem>>(
             future: _future,
             builder: (context, snap) {
@@ -318,7 +559,7 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                    child: CircularProgressIndicator(color: Colors.blue),
+                    child: CircularProgressIndicator(color: AppColors.primary),
                   ),
                 );
               }
@@ -332,14 +573,21 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
               }
               final items = (snap.data ?? const <FeedItem>[])
                   // แสดงเฉพาะการ์ด assignment ในแท็บ Classwork
-                  .where((f) => (f.extra['kind']?.toString() == 'assignment'))
+                  .where((f) {
+                    final kind = f.extra['kind']?.toString().toLowerCase();
+                    return kind == 'assignment' || f.type == FeedType.assignment;
+                  })
                   .toList();
 
               if (items.isEmpty) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('ยังไม่มีงานในชั้นเรียนนี้'),
+                return AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: const [
+                      Icon(Icons.assignment_late_outlined, color: _studentTone, size: 26),
+                      SizedBox(height: 8),
+                      Text('ยังไม่มีงานในชั้นเรียนนี้', style: TextStyle(fontSize: 13)),
+                    ],
                   ),
                 );
               }
@@ -395,6 +643,8 @@ class _StudentPeopleTab extends StatefulWidget {
 }
 
 class _StudentPeopleTabState extends State<_StudentPeopleTab> {
+  static const Color _teacherTone = Color(0xFF2563EB);
+  static const Color _studentTone = Color(0xFF0EA5A4);
   bool _loading = true;
   bool _error = false;
   String _errorMsg = '';
@@ -446,9 +696,81 @@ class _StudentPeopleTabState extends State<_StudentPeopleTab> {
     );
   }
 
+  Widget _buildRoleDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.0),
+                  _studentTone.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: _studentTone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: _studentTone.withValues(alpha: 0.35)),
+          ),
+          child: const Text(
+            'Student People View',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color.fromARGB(255, 15, 1, 1),
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _studentTone.withValues(alpha: 0.72),
+                  _studentTone.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String title, Color tone) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: tone,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
     if (_error) {
       return Center(
@@ -481,36 +803,68 @@ class _StudentPeopleTabState extends State<_StudentPeopleTab> {
     return RefreshIndicator(
       onRefresh: _loadClassroom,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
-          Text('Teacher', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          ListTile(
-            leading: cls?.teacher != null
-                ? _avatarFor(cls!.teacher!, radius: 22)
-                : CircleAvatar(
-                    radius: 22,
-                    child: Text(
-                      widget.fallbackTeacherName.isNotEmpty
-                          ? widget.fallbackTeacherName[0].toUpperCase()
-                          : '?',
-                    ),
-                  ),
-            title: Text(
-              cls?.teacher != null
-                  ? _displayUserName(cls!.teacher!)
-                  : widget.fallbackTeacherName,
-            ),
-            subtitle: Text(cls?.teacher?.email ?? ''),
-          ),
+          _buildRoleDivider(),
           const SizedBox(height: 12),
-          Text(
-            'Students (${students.length})',
-            style: Theme.of(context).textTheme.titleMedium,
+          _sectionTitle('Teacher', _teacherTone),
+          const SizedBox(height: 6),
+          GlassCard(
+            accent: _teacherTone,
+            radius: 14,
+            padding: const EdgeInsets.all(4),
+            child: ListTile(
+              contentPadding: const EdgeInsets.only(left: 0, right: 8),
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 4, height: 44, color: _teacherTone),
+                  const SizedBox(width: 10),
+                  cls?.teacher != null
+                      ? _avatarFor(cls!.teacher!, radius: 22)
+                      : CircleAvatar(
+                          radius: 22,
+                          child: Text(
+                            widget.fallbackTeacherName.isNotEmpty
+                                ? widget.fallbackTeacherName[0].toUpperCase()
+                                : '?',
+                          ),
+                        ),
+                ],
+              ),
+              title: Text(
+                cls?.teacher != null
+                    ? _displayUserName(cls!.teacher!)
+                    : widget.fallbackTeacherName,
+              ),
+              subtitle: Text(cls?.teacher?.email ?? ''),
+              trailing: cls?.teacher != null
+                  ? IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primary),
+                      tooltip: 'Chat teacher',
+                      onPressed: () {
+                        if (cls?.teacher != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                classId: widget.classId,
+                                otherUser: cls!.teacher!,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  : null,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          _sectionTitle('Students (${students.length})', _studentTone),
+          const SizedBox(height: 6),
           if (students.isEmpty)
-            const Card(
+            const GlassCard(
+              accent: _studentTone,
               child: Padding(
                 padding: EdgeInsets.all(16.0),
                 child: Text('ยังไม่มีนักเรียน'),
@@ -518,10 +872,27 @@ class _StudentPeopleTabState extends State<_StudentPeopleTab> {
             )
           else
             ...students.map(
-              (s) => ListTile(
-                leading: _avatarFor(s),
-                title: Text(_displayUserName(s)),
-                subtitle: Text(s.email ?? ''),
+              (s) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GlassCard(
+                  accent: _studentTone,
+                  radius: 12,
+                  padding: const EdgeInsets.all(4),
+                  child: ListTile(
+                  contentPadding: const EdgeInsets.only(left: 0, right: 12),
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 4, height: 40, color: _studentTone),
+                      const SizedBox(width: 10),
+                      _avatarFor(s),
+                    ],
+                  ),
+                  dense: true,
+                  title: Text(_displayUserName(s), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  subtitle: Text(s.email ?? '', style: const TextStyle(fontSize: 12)),
+                ),
+                ),
               ),
             ),
         ],

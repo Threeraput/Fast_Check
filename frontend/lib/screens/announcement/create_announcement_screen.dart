@@ -1,8 +1,11 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:frontend/services/announcement_service.dart';
+import 'package:frontend/utils/app_theme.dart';
+import 'package:frontend/widgets/glass_card.dart';
+import 'package:intl/intl.dart';
 
 class CreateAnnouncementScreen extends StatefulWidget {
   final String classId;
@@ -22,15 +25,11 @@ class CreateAnnouncementScreen extends StatefulWidget {
 class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _titleCtl = TextEditingController();
   final _bodyCtl = TextEditingController();
-  bool _posting = false;
-  bool _success = false;
+  final List<File> _attachments = [];
 
-  // เพิ่มตัวเลือกเสริม
+  bool _posting = false;
   bool _pinned = false;
   DateTime? _expiresAt;
-
-  // ไฟล์แนบ
-  List<File> _attachments = [];
 
   @override
   void dispose() {
@@ -42,80 +41,61 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg'],
+      allowedExtensions: [
+        'pdf',
+        'doc',
+        'docx',
+        'ppt',
+        'pptx',
+        'xls',
+        'xlsx',
+        'txt',
+        'png',
+        'jpg',
+        'jpeg',
+      ],
       allowMultiple: true,
     );
 
-    if (result != null) {
-      setState(() {
-        _attachments.addAll(result.paths.where((p) => p != null).map((p) => File(p!)));
-      });
-    }
+    if (!mounted || result == null) return;
+    setState(() {
+      _attachments.addAll(
+        result.paths.whereType<String>().map((path) => File(path)),
+      );
+    });
   }
 
   void _removeAttachment(int index) {
-    setState(() {
-      _attachments.removeAt(index);
-    });
+    if (index < 0 || index >= _attachments.length) return;
+    setState(() => _attachments.removeAt(index));
   }
 
   Future<void> _pickExpireDateTime() async {
     final now = DateTime.now();
-    final init = _expiresAt ?? now.add(const Duration(days: 7));
+    final initial = _expiresAt ?? now.add(const Duration(days: 7));
 
-    final d = await showDatePicker(
+    final date = await showDatePicker(
       context: context,
-      initialDate: init,
+      initialDate: initial,
       firstDate: now,
       lastDate: now.add(const Duration(days: 365 * 3)),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: Colors.blue, // สีวงกลมวันที่เลือก
-              onPrimary: Colors.white, // สีตัวเลขในวงกลม
-              surface: Colors.white, // พื้นหลัง popup
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
-    if (d == null) return;
+    if (!mounted || date == null) return;
 
-    final t = await showTimePicker(
+    final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(init),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Colors.lightBlue, // สีไฮไลต์วงกลมรอบตัวเลข
-              secondary: Colors.lightBlueAccent, // สีเวลาที่เลือก
-              onPrimary: Colors.white, // สีตัวเลขในวงกลม
-              surface: Colors.white,
-              onSurface: Colors.black87, // สีข้อความทั่วไป
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue, // สีปุ่ม Cancel / OK
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      initialTime: TimeOfDay.fromDateTime(initial),
     );
-    if (t == null) return;
+    if (!mounted || time == null) return;
 
     setState(() {
-      _expiresAt = DateTime(d.year, d.month, d.day, t.hour, t.minute);
+      _expiresAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
@@ -124,338 +104,246 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     final body = _bodyCtl.text.trim();
 
     if (title.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('กรอกหัวข้อประกาศ')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a title')),
+      );
       return;
     }
 
     setState(() => _posting = true);
     try {
-      final ann = await AnnouncementService.create(
+      final created = await AnnouncementService.create(
         classId: widget.classId,
         title: title,
         body: body.isEmpty ? null : body,
         pinned: _pinned,
         visible: true,
-        expiresAt:
-            _expiresAt, // ส่งเป็น DateTime? (ให้ service แปลงเป็น ISO8601)
+        expiresAt: _expiresAt,
       );
 
-      // อัปโหลดไฟล์แนบ (ถ้ามี)
-      for (var file in _attachments) {
-        await AnnouncementService.uploadAttachment(ann.announcementId, file);
+      for (final file in _attachments) {
+        await AnnouncementService.uploadAttachment(created.announcementId, file);
       }
 
       if (!mounted) return;
-      // ให้หน้าก่อนหน้ารู้ว่าทำสำเร็จแล้วไป refresh เอง
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('สร้างประกาศไม่สำเร็จ: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create announcement: $e')),
+      );
     } finally {
       if (mounted) setState(() => _posting = false);
     }
   }
 
   @override
-  void initState() {
-    super.initState();
-    // เพิ่ม listener เพื่ออัปเดตตัวอย่างแบบเรียลไทม์
-    _titleCtl.addListener(() => setState(() {}));
-    _bodyCtl.addListener(() => setState(() {}));
-  }
-
-  @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy HH:mm');
+
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.black87,
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFE3F2FD), Color(0xFFFFFFFF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+        title: Text(
+          'Create Announcement - ${widget.className}',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 🔹 หัวข้อใหญ่
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.campaign_outlined,
-                        color: Colors.blueAccent,
-                        size: 28,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: GlassCard(
+                accent: AppColors.primary,
+                radius: 18,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    GlassCard(
+                      accent: const Color(0xFF2563EB),
+                      radius: 14,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'CREATE ANNOUNCEMENT',
+                            style: TextStyle(
+                              fontSize: 12,
+                              letterSpacing: 1.0,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'สร้างประกาศใหม่',
-                        style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _titleCtl,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.article_outlined),
+                        labelText: 'Title',
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 🔹 หัวข้อประกาศ
-                  TextField(
-                    controller: _titleCtl,
-                    textInputAction: TextInputAction.next,
-                    maxLines: 1,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.article_outlined),
-                      labelText: 'หัวข้อ',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _bodyCtl,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: InputDecoration(
+                        labelText: 'Details',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 🔹 รายละเอียดประกาศ
-                  TextField(
-                    controller: _bodyCtl,
-                    maxLines: null,
-                    decoration: InputDecoration(
-                      labelText: 'รายละเอียด',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignLabelWithHint: true,
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Attachments',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 🔹 ส่วนของไฟล์แนบ
-                  const Text(
-                    'ไฟล์แนบ',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_attachments.isNotEmpty)
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _attachments.length,
-                      itemBuilder: (context, index) {
-                        final file = _attachments[index];
+                    const SizedBox(height: 8),
+                    if (_attachments.isNotEmpty)
+                      ..._attachments.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final file = entry.value;
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
-                            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                            title: Text(file.path.split('/').last.split('\\').last),
+                            dense: true,
+                            leading: const Icon(
+                              Icons.attach_file,
+                              color: AppColors.primary,
+                            ),
+                            title: Text(
+                              file.path.split('\\').last,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13),
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: () => _removeAttachment(index),
                             ),
                           ),
                         );
-                      },
-                    ),
-                  OutlinedButton.icon(
-                    onPressed: _pickFiles,
-                    icon: const Icon(Icons.attach_file),
-                    label: const Text('แนบไฟล์ (PDF/เอกสาร/รูปภาพ)'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      }),
+                    OutlinedButton.icon(
+                      onPressed: _pickFiles,
+                      icon: const Icon(Icons.attach_file),
+                      label: const Text('Attach Files'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(40),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 🔹 ตัวเลือกเพิ่มเติม
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade100),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      value: _pinned,
+                      onChanged: (v) => setState(() => _pinned = v ?? false),
+                      title: const Text(
+                        'Pin this announcement',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    child: Column(
-                      children: [
-                        CheckboxListTile(
-                          value: _pinned,
-                          onChanged: (v) =>
-                              setState(() => _pinned = v ?? false),
-                          title: const Text('ปักหมุด (Pinned)'),
-                          controlAffinity: ListTileControlAffinity.leading,
-                          contentPadding: EdgeInsets.zero,
-                          activeColor: Colors.blueAccent, // สีเมื่อถูกเลือก
-                          checkColor: Colors.white,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // 🔹 วันหมดอายุ (ไม่บังคับ)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 6),
+                    GlassCard(
+                      accent: const Color(0xFF0EA5A4),
+                      radius: 12,
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Expire Time (optional)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _expiresAt == null
+                                ? 'No expiration set'
+                                : df.format(_expiresAt!.toLocal()),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              const Text(
-                                'วันหมดอายุ (ไม่บังคับ)',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 14,
-                                ),
+                              OutlinedButton.icon(
+                                onPressed: _pickExpireDateTime,
+                                icon: const Icon(Icons.event, size: 16),
+                                label: const Text('Set Time'),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _expiresAt == null
-                                    ? '— ไม่ตั้งหมดอายุ —'
-                                    : '${df.format(_expiresAt!.toLocal())}  ${TimeOfDay.fromDateTime(_expiresAt!).format(context)}',
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 13,
+                              if (_expiresAt != null)
+                                TextButton.icon(
+                                  onPressed: () => setState(() => _expiresAt = null),
+                                  icon: const Icon(Icons.clear, size: 16),
+                                  label: const Text('Clear'),
                                 ),
-                              ),
                             ],
                           ),
-                        ),
-                        SizedBox(
-                          height: 36, // 🔹 ลดขนาดปุ่มลง
-                          child: OutlinedButton.icon(
-                            icon: const Icon(
-                              color: Colors.grey,
-                              Icons.event,
-                              size: 18,
-                            ),
-                            label: const Text(
-                              'ตั้งเวลา',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 13,
-                              ),
-                            ),
-                            onPressed: _pickExpireDateTime,
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              side: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 🔹 ปุ่มโพสต์
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: _posting ? null : _post,
-                    icon: const Icon(Icons.send_rounded),
-                    label: _posting
-                        ? const Text('กำลังโพสต์...')
-                        : const Text(
-                            'โพสต์ประกาศ',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-
-                  // 🔹 แสดงสถานะการโพสต์
-                  if (_posting)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.blue,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'กำลังโพสต์...',
-                            style: TextStyle(color: Colors.grey),
-                          ),
                         ],
                       ),
                     ),
-
-                  if (_success)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Column(
-                        children: const [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 48,
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'โพสต์สำเร็จ!',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _posting ? null : _post,
+                      icon: const Icon(Icons.send_rounded),
+                      label: Text(
+                        _posting ? 'Posting...' : 'Post Announcement',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(42),
+                        backgroundColor: AppColors.primary,
                       ),
                     ),
-                ],
+                    if (_posting)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Posting...',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

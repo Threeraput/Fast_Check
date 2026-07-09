@@ -10,17 +10,16 @@ class ClassService {
   // ===== Headers =====
   static Future<Map<String, String>> _headers() async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Not authenticated');
+    }
     final headers = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer $token',
     };
 
-    if (token != null) {
-      print('🔐 [_HEADERS] Token loaded: ${token.substring(0, 50)}...');
-    } else {
-      print('⚠️ [_HEADERS] NO TOKEN FOUND!');
-    }
+    print('🔐 [_HEADERS] Token loaded: ${token.substring(0, 50)}...');
 
     return headers;
   }
@@ -211,23 +210,22 @@ class ClassService {
   // 2. เพิ่มฟังก์ชันใหม่สำหรับนักเรียนโดยเฉพาะ (GET /classes/{class_id} ที่ครูใช้กับนักเรียนไม่ได้)
   static Future<Classroom?> getStudentClassroomDetails(String classId) async {
     try {
-      final token = await AuthService.getAccessToken();
-
-      // เปลี่ยน URL ตรงนี้ให้เป็น API เส้นที่นักเรียนมีสิทธิ์เรียกได้ของหลังบ้านคุณ
-      // เช่น /api/v1/student/classes/{classId} หรือ /api/v1/classes/{classId}
-      final response = await http.get(
-        Uri.parse('http://<IP_หลังบ้าน>/api/v1/student/classes/$classId'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 200) {
-        // แปลง JSON กลับเป็น Model Classroom ของคุณ
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final url = Uri.parse('$API_BASE_URL/classes/$classId/members');
+      final res = await http.get(url, headers: await _headers());
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body) as Map<String, dynamic>;
         return Classroom.fromJson(data);
-      } else {
-        print('ดึงข้อมูลคลาสนักเรียนไม่สำเร็จ: ${response.statusCode}');
-        return null;
       }
+
+      // Debug: print response body for investigation (will appear in Flutter log)
+      try {
+        final bodyStr = utf8.decode(res.bodyBytes);
+        print('getStudentClassroomDetails failed: ${res.statusCode} - $bodyStr');
+      } catch (_) {
+        print('getStudentClassroomDetails failed: ${res.statusCode} - <unable to decode body>');
+      }
+
+      return null;
     } catch (e) {
       print('Error getStudentClassroomDetails: $e');
       return null;

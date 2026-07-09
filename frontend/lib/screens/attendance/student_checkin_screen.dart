@@ -1,6 +1,7 @@
 // lib/screens/student_checkin_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/widgets/mock_location_dialog.dart';
 import '../../utils/location_helper.dart';
 import '../../services/attendance_service.dart';
@@ -153,7 +154,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
         await _showOutOfRangeDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     } catch (e) {
@@ -167,7 +168,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
       }
       final msg = _friendlyCheckinError(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+        SnackBar(content: Text(msg), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -200,7 +201,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
               onPressed: () => Navigator.pop(context),
               child: const Text('ตกลง'),
             ),
@@ -220,7 +221,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: FutureBuilder(
@@ -269,7 +270,7 @@ class _StudentCheckinScreenState extends State<StudentCheckinScreen> {
                   height: 54,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),

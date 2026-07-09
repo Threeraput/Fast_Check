@@ -6,6 +6,7 @@ import 'package:frontend/widgets/attendance_status_badge.dart';
 import 'package:intl/intl.dart';
 import '../../models/attendance_report_detail.dart';
 import '../../services/attendance_report_service.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 class StudentReportDetailScreen extends StatefulWidget {
   final String studentId;
@@ -169,6 +170,11 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
     }
   }
 
+  String? _resolveReportImageUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    return UserService.absoluteMediaUrl(rawUrl);
+  }
+
   Map<String, List<AttendanceReportDetail>> _groupByDate(
     List<AttendanceReportDetail> details,
   ) {
@@ -267,213 +273,209 @@ class _StudentReportDetailScreenState extends State<StudentReportDetailScreen> {
               final dateKey = dateKeys[index];
               final dailyItems = groupedDetails[dateKey]!;
 
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: ExpansionTile(
-                  initiallyExpanded: index == 0,
-                  backgroundColor: Colors.blue.shade50.withValues(alpha: 0.2),
-                  title: Text(
-                    'วันที่: $dateKey',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GlassCard(
+                  accent: const Color(0xFF2563EB),
+                  radius: 14,
+                  child: ExpansionTile(
+                    initiallyExpanded: index == 0,
+                    backgroundColor: Colors.blue.shade50.withValues(alpha: 0.2),
+                    title: Text(
+                      'วันที่: $dateKey',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    '${dailyItems.length} คาบเรียน',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  children: dailyItems.map((d) {
-                    return InkWell(
-                      onTap: () => _showOverrideSheet(d),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        padding: const EdgeInsets.all(12.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'ผลการเช็คชื่อ:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                AttendanceStatusBadge(
-                                  status: d.status,
-                                  isManualOverride: d.isManualOverride,
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 16),
-                            Row(
+                    subtitle: Text(
+                      '${dailyItems.length} คาบเรียน',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    children: dailyItems.map((d) {
+                      return InkWell(
+                        onTap: () => _showOverrideSheet(d),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: GlassCard(
+                            accent: const Color(0xFF0EA5A4),
+                            radius: 12,
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    if (d.faceImageUrl != null) {
-                                      final validUrl =
-                                          UserService.absoluteAvatarUrl(
-                                            d.faceImageUrl,
-                                          );
-                                      if (validUrl != null) {
-                                        _showImageDialog(validUrl);
-                                      }
-                                    }
-                                  },
-                                  child: Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(8),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'ผลการเช็คชื่อ:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                    child: d.faceImageUrl != null
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Image.network(
-                                              UserService.absoluteAvatarUrl(
-                                                    d.faceImageUrl,
-                                                  ) ??
-                                                  '',
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
+                                    AttendanceStatusBadge(
+                                      status: d.status,
+                                      isManualOverride: d.isManualOverride,
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (d.faceImageUrl != null) {
+                                          final validUrl =
+                                              _resolveReportImageUrl(d.faceImageUrl);
+                                          if (validUrl != null) {
+                                            _showImageDialog(validUrl);
+                                          }
+                                        }
+                                      },
+                                      child: Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200],
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: d.faceImageUrl != null
+                                            ? ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: Image.network(
+                                                  _resolveReportImageUrl(
+                                                        d.faceImageUrl,
+                                                      ) ??
+                                                      '',
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (
                                                     context,
                                                     error,
                                                     stackTrace,
-                                                  ) => const Icon(
+                                                  ) =>
+                                                      const Icon(
                                                     Icons.person,
                                                     color: Colors.grey,
                                                   ),
+                                                ),
+                                              )
+                                            : const Icon(
+                                                Icons.person,
+                                                color: Colors.grey,
+                                              ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'เช็คชื่อ',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
                                             ),
-                                          )
-                                        : const Icon(
-                                            Icons.person,
-                                            color: Colors.grey,
                                           ),
-                                  ),
+                                          Text(
+                                            'เวลา: ${_formatTime(d.checkInTime)} น.',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
+                                if (d.reverifyImageUrl != null ||
+                                    d.isReverified) ...[
+                                  const SizedBox(height: 12),
+                                  Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        'เช็คชื่อ',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (d.reverifyImageUrl != null) {
+                                            final validUrl = _resolveReportImageUrl(
+                                              d.reverifyImageUrl,
+                                            );
+                                            if (validUrl != null) {
+                                              _showImageDialog(validUrl);
+                                            }
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 50,
+                                          height: 50,
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[50],
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: d.reverifyImageUrl != null
+                                              ? ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    _resolveReportImageUrl(
+                                                          d.reverifyImageUrl,
+                                                        ) ??
+                                                        '',
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) =>
+                                                        const Icon(
+                                                      Icons.verified,
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  Icons.verified,
+                                                  color: Colors.blue,
+                                                ),
                                         ),
                                       ),
-                                      Text(
-                                        'เวลา: ${_formatTime(d.checkInTime)} น.',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 12,
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'เวลา: ${_formatTime(d.reverifyTime)} น.',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
+                                ],
                               ],
                             ),
-                            if (d.reverifyImageUrl != null ||
-                                d.isReverified) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (d.reverifyImageUrl != null) {
-                                        final validUrl =
-                                            UserService.absoluteAvatarUrl(
-                                              d.reverifyImageUrl,
-                                            );
-                                        if (validUrl != null) {
-                                          _showImageDialog(validUrl);
-                                        }
-                                      }
-                                    },
-                                    child: Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: d.reverifyImageUrl != null
-                                          ? ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              child: Image.network(
-                                                UserService.absoluteAvatarUrl(
-                                                      d.reverifyImageUrl,
-                                                    ) ??
-                                                    '',
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => const Icon(
-                                                      Icons.verified,
-                                                      color: Colors.blue,
-                                                    ),
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.verified,
-                                              color: Colors.blue,
-                                            ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Removed 'ตรวจสอบซ้ำ' label as requested
-                                        Text(
-                                          'เวลา: ${_formatTime(d.reverifyTime)} น.',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
               );
             },

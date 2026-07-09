@@ -45,6 +45,7 @@ class ClassworkSubmission {
   final String lastName;
 
   final String? contentUrl; // เช่น "workpdf/<uuid>.pdf"
+  final String? submissionText;
   final DateTime? submittedAt;
 
   final SubmissionLateness submissionStatus;
@@ -62,6 +63,7 @@ class ClassworkSubmission {
     required this.firstName,
     required this.lastName,
     required this.contentUrl,
+    required this.submissionText,
     required this.submittedAt,
     required this.submissionStatus,
     required this.graded,
@@ -84,6 +86,7 @@ class ClassworkSubmission {
       firstName: j['first_name']?.toString() ?? '',
       lastName: j['last_name']?.toString() ?? '',
       contentUrl: j['content_url']?.toString(),
+      submissionText: j['submission_text']?.toString(),
       submittedAt: _parseDt(j['submitted_at']),
       submissionStatus: latenessFromString(j['submission_status']?.toString()),
       graded: j['graded'] == true,
@@ -107,6 +110,7 @@ class ClassworkSubmission {
     'first_name': firstName,
     'last_name': lastName,
     'content_url': contentUrl,
+    'submission_text': submissionText,
     'submitted_at': submittedAt?.toUtc().toIso8601String(),
     'submission_status': latenessToString(submissionStatus),
     'graded': graded,

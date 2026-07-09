@@ -6,6 +6,7 @@ import 'package:frontend/models/admin.dart';
 import 'package:frontend/services/admin_service.dart';
 // ใช้สำหรับ URL รูปโปรไฟล์จริง
 import 'package:frontend/services/user_service.dart';
+import 'package:frontend/utils/app_theme.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -31,8 +32,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _loadingReport = true;
   String? _reportErr;
   SystemSummary? _summary;
-  DateTime? _start;
-  DateTime? _end;
 
   // Approvals tab state (ใช้ของเดิม)
   List<User> _pendingTeachers = [];
@@ -77,7 +76,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _guardErr = null;
     });
     try {
-      final me = await AuthService.getCurrentUserFromLocal();
       final tokenRoles = await AuthService.getTokenRoles();
       final isAdmin = tokenRoles.any((r) => r.toLowerCase() == 'admin');
       if (!isAdmin) {
@@ -148,7 +146,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('ย้ายลงถังขยะ'), // ✏️ เปลี่ยนข้อความปุ่ม
           ),
@@ -261,7 +259,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     title: Text(u.displayName),
                     subtitle: Text('${u.email ?? '-'}  •  $rolesLabel'),
                     trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      icon: const Icon(Icons.delete, color: AppColors.error),
                       onPressed: () => _deleteUser(u),
                       tooltip: 'ย้ายลงถังขยะ', // ✏️ เปลี่ยน tooltip ให้ชัดเจน
                     ),
@@ -281,7 +279,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _reportErr = null;
     });
     try {
-      final s = await AdminService.getSystemSummary(start: _start, end: _end);
+      final s = await AdminService.getSystemSummary();
       setState(() => _summary = s);
     } catch (e) {
       _reportErr = e.toString();
@@ -290,59 +288,96 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
   }
 
-  Future<void> _pickRange() async {
-    final now = DateTime.now();
-    final first = DateTime(now.year - 1, 1, 1);
-    final last = DateTime(now.year + 1, 12, 31);
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: first,
-      lastDate: last,
-      initialDateRange: (_start != null && _end != null)
-          ? DateTimeRange(start: _start!, end: _end!)
-          : null,
-    );
-    if (range != null) {
-      setState(() {
-        _start = DateTime(range.start.year, range.start.month, range.start.day);
-        _end = DateTime(
-          range.end.year,
-          range.end.month,
-          range.end.day,
-          23,
-          59,
-          59,
+  Widget _metricCard({
+    required String title,
+    required int value,
+    required IconData icon,
+    required Color color,
+    required String badge,
+  }) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) {
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 16),
+            child: child,
+          ),
         );
-      });
-      _loadSummary();
-    }
-  }
-
-  Widget _metricCard(String title, int value, {Color? color}) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
+      },
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: 0.24),
+                          color.withValues(alpha: 0.10),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, size: 16, color: color),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value.toString(),
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color ?? Colors.blueAccent,
+              const SizedBox(height: 10),
+              Text(
+                value.toString(),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -362,52 +397,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
           children: [
-            // Expanded(
-            //   child: OutlinedButton.icon(
-            //     onPressed: _pickRange,
-            //     icon: const Icon(Icons.event),
-            //     label: Text(
-            //       (_start != null && _end != null)
-            //           ? '${_start!.toLocal().toString().substring(0, 10)} - ${_end!.toLocal().toString().substring(0, 10)}'
-            //           : 'เลือกช่วงเวลา',
-            //     ),
-            //   ),
-            // ),
-            // const SizedBox(width: 8),
-            // TextButton(
-            //   onPressed: () {
-            //     setState(() {
-            //       _start = null;
-            //       _end = null;
-            //     });
-            //     _loadSummary();
-            //   },
-            //   child: const Text('ล้างช่วงเวลา'),
-            // ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _metricCard('ผู้ใช้ทั้งหมด', s.totalUsers),
-            _metricCard('Admins', s.totalAdmins),
-            _metricCard('Teachers', s.totalTeachers),
-            _metricCard('Students', s.totalStudents),
-            _metricCard('คลาสทั้งหมด', s.totalClasses, color: Colors.teal),
             _metricCard(
-              'เช็คชื่อทั้งหมด',
-              s.totalAttendances,
-              color: Colors.indigo,
+              title: 'ผู้ใช้ทั้งหมด',
+              value: s.totalUsers,
+              icon: Icons.groups_2_outlined,
+              color: const Color(0xFF06B6D4),
+              badge: 'ALL',
             ),
-            // _metricCard(
-            //   'เช็คชื่อในช่วงเวลา',
-            //   s.totalAttendancesInRange,
-            //   color: Colors.purple,
-            // ),
+            _metricCard(
+              title: 'Admins',
+              value: s.totalAdmins,
+              icon: Icons.admin_panel_settings_outlined,
+              color: const Color(0xFF8B5CF6),
+              badge: 'CORE',
+            ),
+            _metricCard(
+              title: 'Teachers',
+              value: s.totalTeachers,
+              icon: Icons.school_outlined,
+              color: const Color(0xFF3B82F6),
+              badge: 'PRO',
+            ),
+            _metricCard(
+              title: 'Students',
+              value: s.totalStudents,
+              icon: Icons.badge_outlined,
+              color: const Color(0xFF14B8A6),
+              badge: 'UNI',
+            ),
+            _metricCard(
+              title: 'คลาสทั้งหมด',
+              value: s.totalClasses,
+              icon: Icons.class_outlined,
+              color: const Color(0xFF0EA5E9),
+              badge: 'ROOM',
+            ),
+            _metricCard(
+              title: 'เช็คชื่อทั้งหมด',
+              value: s.totalAttendances,
+              icon: Icons.fact_check_outlined,
+              color: const Color(0xFF6366F1),
+              badge: 'LIVE',
+            ),
           ],
         ),
       ],
@@ -467,7 +506,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             subtitle: Text('อีเมล: ${user.email ?? '-'}'),
             trailing: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppColors.primary,
               ),
               onPressed: () => _approveTeacher(user.userId),
               child: const Text(
@@ -498,9 +537,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         title: const Text('Admin Dashboard'),
         bottom: TabBar(
           controller: _tab,
-          labelColor: Colors.blueAccent, // สีข้อความตอนเลือก
-          unselectedLabelColor: Colors.grey[220], // สีข้อความตอนยังไม่เลือก
-          indicatorColor: Colors.blue, // สีขีดล่างตอนเลือก
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: AppColors.primary,
+          labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           overlayColor: WidgetStateProperty.all(
             Colors.transparent,
           ), // ปิดสี overlay ตอนกด

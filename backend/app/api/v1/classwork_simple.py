@@ -4,7 +4,7 @@ import io
 import openpyxl
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, Response, UploadFile, File, HTTPException, status, Body, Path
+from fastapi import APIRouter, Depends, Response, UploadFile, File, HTTPException, status, Body, Path, Form
 from app.schemas.classwork_new_schema import CommentCreate, CommentResponse, ToggleSubmissionRequest
 from app.services import classwork_service
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ from app.schemas.classwork_new_schema import (
 from app.models.classwork_enums import SubmissionLateness
 from app.services.simple_classwork_service import (
     create_assignment,
-    submit_pdf,
+    submit_assignment,
     list_assignments_for_student,
     list_submissions_for_teacher,
     grade_submission,
@@ -140,6 +140,7 @@ def list_my_assignments_route(
             computed = sub.submission_status
             mymini = {
                 "content_url": sub.content_url,
+                "submission_text": sub.submission_text,
                 "submitted_at": sub.submitted_at,
                 "submission_status": sub.submission_status,
                 "graded": sub.graded,
@@ -162,16 +163,17 @@ def list_my_assignments_route(
 
 
 # -----------------------------
-# นักเรียน: ส่งไฟล์ PDF
+# นักเรียน: ส่งข้อความ หรือ แนบไฟล์พร้อมข้อความ
 # -----------------------------
 @router.post(
     "/assignments/{assignment_id}/submit",
     response_model=SubmissionResponse,
     dependencies=[Depends(role_required(["student"]))],
 )
-async def submit_assignment_pdf_route(
+async def submit_assignment_route(
     assignment_id: UUID,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    submission_text: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
@@ -189,12 +191,20 @@ async def submit_assignment_pdf_route(
             detail="หมดเวลา หรือ อาจารย์ปิดรับการส่งงานชิ้นนี้แล้ว"
         )
 
-    # --- โค้ดเดิมของคุณ (ปล่อยผ่านด่านมาได้ ค่อยเช็คว่าเป็น PDF ไหม) ---
-    if file.content_type not in {"application/pdf"}:
+    # อนุญาตไฟล์ PDF เท่านั้น (ถ้ามีไฟล์แนบ)
+    if file is not None and file.content_type not in {"application/pdf"}:
         raise HTTPException(status_code=400, detail="Only PDF is allowed")
+
+    clean_text = submission_text.strip() if submission_text else None
+    if file is None and not clean_text:
+        raise HTTPException(status_code=400, detail="กรุณาแนบไฟล์หรือพิมพ์ข้อความคำตอบ")
         
-    sub = await submit_pdf(
-        db, assignment_id=assignment_id, student_id=me.user_id, file=file
+    sub = await submit_assignment(
+        db,
+        assignment_id=assignment_id,
+        student_id=me.user_id,
+        file=file,
+        submission_text=clean_text,
     )
     return sub
 
@@ -226,6 +236,7 @@ def list_submissions_for_teacher_route(
             'first_name': item.student.first_name if item.student else '',
             'last_name': item.student.last_name if item.student else '',
             'content_url': item.content_url,
+            'submission_text': item.submission_text,
             'submitted_at': item.submitted_at,
             'submission_status': item.submission_status,
             'graded': item.graded,
@@ -331,6 +342,7 @@ def get_student_submissions_for_class_route(
             computed = sub.submission_status
             mymini = {
                 "content_url": sub.content_url,
+                "submission_text": sub.submission_text,
                 "submitted_at": sub.submitted_at,
                 "submission_status": sub.submission_status,
                 "graded": sub.graded,

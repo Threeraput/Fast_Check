@@ -48,6 +48,9 @@ class UserService {
   // -------------------------
   static Future<User> fetchMe() async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Not authenticated', statusCode: 401);
+    }
     final res = await http
         .get(
           Uri.parse('$_baseUrl/users/me'),
@@ -74,6 +77,9 @@ class UserService {
     bool? isActive,
   }) async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Not authenticated', statusCode: 401);
+    }
     final body = <String, dynamic>{
       if (username != null && username.trim().isNotEmpty)
         'username': username.trim(),
@@ -106,6 +112,9 @@ class UserService {
   // -------------------------
   static Future<User> uploadAvatar(File file) async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Not authenticated', statusCode: 401);
+    }
     final req =
         http.MultipartRequest('POST', Uri.parse('$_baseUrl/users/me/avatar'))
           ..headers['Authorization'] = 'Bearer $token'
@@ -129,6 +138,9 @@ class UserService {
   // -------------------------
   static Future<User> deleteAvatar() async {
     final token = await AuthService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Not authenticated', statusCode: 401);
+    }
     final res = await http
         .delete(
           Uri.parse('$_baseUrl/users/me/avatar'),
@@ -141,10 +153,10 @@ class UserService {
   }
 
   // -------------------------
-  // ใช้ใน UI เพื่อแปลง avatarUrl -> URL เต็ม (เวอร์ชันป้องกัน IP เก่า)
+  // ใช้ใน UI เพื่อแปลง media path/url -> URL เต็ม (เวอร์ชันป้องกัน IP เก่า)
   // -------------------------
-  static String? absoluteAvatarUrl(String? avatarUrl) {
-    if (avatarUrl == null || avatarUrl.isEmpty) return null;
+  static String? absoluteMediaUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return null;
 
     // 1. หา Root URL ปัจจุบันก่อน (ตัด /api/v1 ออก)
     String rootUrl = _baseUrl.replaceAll('/api/v1', '');
@@ -153,20 +165,23 @@ class UserService {
     }
 
     // 2. ดักจับกรณีที่ DB บันทึกเป็น URL เต็ม (และอาจจะเป็น IP เก่า)
-    if (avatarUrl.startsWith('http')) {
+    if (rawUrl.startsWith('http')) {
       try {
         // แอบดึงเอาแค่ Path ข้างหลังมาใช้ ทิ้ง IP เก่าไปเลย!
-        Uri parsedOldUrl = Uri.parse(avatarUrl);
-        // parsedOldUrl.path จะได้ค่าเช่น /media/profile_upload/...
+        Uri parsedOldUrl = Uri.parse(rawUrl);
         return '$rootUrl${parsedOldUrl.path}';
       } catch (e) {
-        return avatarUrl; // ถ้าพังก็คืนค่าเดิมไปก่อน
+        return rawUrl;
       }
     }
 
     // 3. กรณีที่เป็น Path ปกติ
-    final cleanPath = avatarUrl.startsWith('/') ? avatarUrl : '/$avatarUrl';
+    final cleanPath = rawUrl.startsWith('/') ? rawUrl : '/$rawUrl';
     return '$rootUrl$cleanPath';
+  }
+
+  static String? absoluteAvatarUrl(String? avatarUrl) {
+    return absoluteMediaUrl(avatarUrl);
   }
   // ฟังก์ชันเช็คสถานะก่อนอนุญาตให้เปลี่ยนรูปใบหน้า
   static Future<Map<String, dynamic>> checkCanChangeFace(String token) async {

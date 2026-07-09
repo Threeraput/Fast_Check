@@ -4,9 +4,13 @@ import 'package:frontend/models/attendance_report_detail.dart';
 import 'package:frontend/services/attendance_report_service.dart';
 import 'package:frontend/widgets/attendance_status_badge.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/utils/app_theme.dart';
+import 'package:frontend/models/users.dart';
+import 'package:frontend/services/user_service.dart';
 
 // เพิ่ม: ใช้บริการคลาสเพื่อแปลง classId -> className
 import 'package:frontend/services/class_service.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 class StudentReportTab extends StatefulWidget {
   final String classId;
@@ -23,6 +27,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
 
   List<AttendanceReport> _myReports = [];
   List<AttendanceReportDetail> _myDailyReports = [];
+  User? _me;
 
   // แผนที่ classId -> className เพื่อแสดงชื่อห้องแทน id
   final Map<String, String> _classNameById = {};
@@ -70,6 +75,12 @@ class _StudentReportTabState extends State<StudentReportTab> {
     });
 
     try {
+      try {
+        _me = await UserService.fetchMe();
+      } catch (_) {
+        _me = null;
+      }
+
       final reports = await AttendanceReportService.getMyReports();
       final dailyReports = await AttendanceReportService.getMyDailyReports(
         classId: widget.classId,
@@ -158,7 +169,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
 
     if (_hasError) {
@@ -197,12 +208,12 @@ class _StudentReportTabState extends State<StudentReportTab> {
               const SizedBox(height: 16),
               const Text(
                 'ยังไม่มีรายงานการเข้าเรียน',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
               const Text(
                 'รอครูสร้างรายงานให้ก่อนนะ',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -219,13 +230,20 @@ class _StudentReportTabState extends State<StudentReportTab> {
     return RefreshIndicator(
       onRefresh: _loadMyReports,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
+          _buildRoleDivider(
+            label: 'Student Report',
+            color: const Color(0xFF0EA5A4),
+            icon: Icons.badge_outlined,
+          ),
+          const SizedBox(height: 12),
+
           Text(
             'รายงานการเข้าเรียนของฉัน',
             style: Theme.of(
               context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
 
@@ -253,12 +271,9 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   final day = entry.value.key;
                   final items = entry.value.value;
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    clipBehavior: Clip.antiAlias,
+                  return GlassCard(
+                    accent: const Color(0xFF2563EB),
+                    radius: 14,
                     child: ExpansionTile(
                       initiallyExpanded: i == 0,
                       backgroundColor: Colors.blue.shade50.withValues(
@@ -267,8 +282,8 @@ class _StudentReportTabState extends State<StudentReportTab> {
                       title: Text(
                         'วันที่: $day',
                         style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
                         ),
                       ),
                       subtitle: Text(
@@ -292,33 +307,100 @@ class _StudentReportTabState extends State<StudentReportTab> {
     );
   }
 
+  Widget _buildRoleDivider({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.0), color.withValues(alpha: 0.75)],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.75), color.withValues(alpha: 0.0)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildReportCard(AttendanceReport report) {
     final rate = report.attendanceRate;
     final color = _getAttendanceColor(rate);
     final className = _className(report.classId);
+    final avatarUrl = _me != null ? UserService.absoluteAvatarUrl(_me!.avatarUrl) : null;
+    final initial = _me != null && _me!.displayName.trim().isNotEmpty
+        ? _me!.displayName.trim().substring(0, 1).toUpperCase()
+        : 'S';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        accent: color,
+        radius: 16,
         onTap: () => _showDetailDialog(report),
-        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // หัวข้อวิชา
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.school, color: color, size: 28),
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: color.withValues(alpha: 0.16),
+                    backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                    child: avatarUrl == null || avatarUrl.isEmpty
+                        ? Text(
+                            initial,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -329,8 +411,8 @@ class _StudentReportTabState extends State<StudentReportTab> {
                         Text(
                           'วิชา: $className',
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                         ),
                         Text(
@@ -354,15 +436,15 @@ class _StudentReportTabState extends State<StudentReportTab> {
                     Text(
                       '${rate.toStringAsFixed(1)}%',
                       style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
                         color: color,
                       ),
                     ),
                     Text(
                       _getAttendanceLabel(rate),
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13,
                         color: color,
                         fontWeight: FontWeight.w500,
                       ),
@@ -379,7 +461,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   value: rate / 100,
                   backgroundColor: Colors.grey[200],
                   color: color,
-                  minHeight: 12,
+                  minHeight: 8,
                 ),
               ),
               const SizedBox(height: 16),
@@ -437,6 +519,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Colors.grey,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -462,8 +545,8 @@ class _StudentReportTabState extends State<StudentReportTab> {
         Text(
           value,
           style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
             color: color,
           ),
         ),
@@ -476,11 +559,13 @@ class _StudentReportTabState extends State<StudentReportTab> {
     AttendanceReportDetail detail, {
     bool showDate = true,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        accent: const Color(0xFF0EA5A4),
+        radius: 12,
+        child: Padding(
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -491,14 +576,14 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   Text(
                     'วันที่: ${_formatDateTime(detail.sessionStart ?? detail.checkInTime ?? '').split(' ')[0]}',
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
                     ),
                   )
                 else
                   const Text(
                     'เช็คชื่อ',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 AttendanceStatusBadge(
                   status: detail.status,
@@ -513,7 +598,10 @@ class _StudentReportTabState extends State<StudentReportTab> {
               contentPadding: EdgeInsets.zero,
               leading: GestureDetector(
                 onTap: () => detail.faceImageUrl != null
-                    ? _showImageDialog(detail.faceImageUrl!)
+                  ? _showImageDialog(
+                    UserService.absoluteMediaUrl(detail.faceImageUrl!) ??
+                      detail.faceImageUrl!,
+                    )
                     : null,
                 child: Container(
                   width: 50,
@@ -526,14 +614,15 @@ class _StudentReportTabState extends State<StudentReportTab> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
-                            detail.faceImageUrl!,
+                            UserService.absoluteMediaUrl(detail.faceImageUrl!) ??
+                                detail.faceImageUrl!,
                             fit: BoxFit.cover,
                           ),
                         )
                       : const Icon(Icons.person, color: Colors.grey),
                 ),
               ),
-              title: const Text('เช็คชื่อ', style: TextStyle(fontSize: 14)),
+              title: const Text('เช็คชื่อ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               subtitle: Text(
                 detail.checkInTime != null
                     ? _formatDateTime(detail.checkInTime!)
@@ -548,7 +637,12 @@ class _StudentReportTabState extends State<StudentReportTab> {
                 contentPadding: EdgeInsets.zero,
                 leading: GestureDetector(
                   onTap: () => detail.reverifyImageUrl != null
-                      ? _showImageDialog(detail.reverifyImageUrl!)
+                      ? _showImageDialog(
+                          UserService.absoluteMediaUrl(
+                                detail.reverifyImageUrl!,
+                              ) ??
+                              detail.reverifyImageUrl!,
+                        )
                       : null,
                   child: Container(
                     width: 50,
@@ -561,7 +655,10 @@ class _StudentReportTabState extends State<StudentReportTab> {
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              detail.reverifyImageUrl!,
+                              UserService.absoluteMediaUrl(
+                                    detail.reverifyImageUrl!,
+                                  ) ??
+                                  detail.reverifyImageUrl!,
                               fit: BoxFit.cover,
                             ),
                           )
@@ -570,7 +667,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                 ),
                 title: const Text(
                   'ตรวจสอบซ้ำ',
-                  style: TextStyle(fontSize: 14, color: Colors.blue),
+                  style: TextStyle(fontSize: 13, color: Colors.blue, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
                   detail.reverifyTime != null
@@ -586,6 +683,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -627,9 +725,12 @@ class _StudentReportTabState extends State<StudentReportTab> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        child: GlassCard(
+          accent: _getAttendanceColor(report.attendanceRate),
+          radius: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -643,7 +744,7 @@ class _StudentReportTabState extends State<StudentReportTab> {
                   const SizedBox(width: 12),
                   Text(
                     'รายละเอียดการเข้าเรียน',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                 ],
               ),
@@ -684,15 +785,19 @@ class _StudentReportTabState extends State<StudentReportTab> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                   child: const Text('ปิด'),
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

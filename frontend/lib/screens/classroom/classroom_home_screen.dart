@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:frontend/models/users.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/screens/home/archived_classes_screen.dart';
@@ -10,11 +9,10 @@ import 'class_details_screen.dart';
 import 'create_class_screen.dart';
 import 'join_class_sheet.dart';
 import '../student_class_view.dart';
-import '../face_recognition/camera_screen.dart';
-import '../../services/face_service.dart';
 import 'package:frontend/screens/profile/profile_screen.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:frontend/screens/admin/admin_dashboard_screen.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'dart:async'; // สำหรับใช้งาน Timer (Debounce)
 
 // ใช้ API แอดมินสำหรับดึง/เพิ่ม/ลบคลาสทั้งหมดในระบบ
@@ -244,7 +242,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
             child: const Text(style: TextStyle(color: Colors.grey), 'ยกเลิก'),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             icon: const Icon(Icons.add),
             onPressed: () => Navigator.pop(ctx, true),
             label: const Text('เพิ่ม'),
@@ -293,7 +291,7 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
             child: const Text('ยกเลิก'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('เก็บ'),
           ),
@@ -319,413 +317,334 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
 
   Drawer _buildDrawer() {
     final me = _me;
-
     if (me == null) {
       return const Drawer(
-        child: Center(
-          child: CircularProgressIndicator(
-            color: Color.fromARGB(255, 28, 178, 248),
+        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+    }
+
+    final avatarAbs = UserService.absoluteAvatarUrl(me.avatarUrl);
+
+    Widget sectionLabel(String text) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
           ),
         ),
       );
     }
 
-    final isStudent = _isStudent;
-    final avatarAbs = UserService.absoluteAvatarUrl(me.avatarUrl);
+    Future<void> openArchived() async {
+      Navigator.pop(context);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ArchivedClassesScreen()),
+      );
+    }
+
+    Future<void> doLogout() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('ยืนยันการออกจากระบบ'),
+          content: const Text('คุณต้องเข้าสู่ระบบอีกครั้งเพื่อใช้งานต่อ'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ออกจากระบบ'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        await AuthService.logout();
+        if (context.mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      }
+    }
+
+    Widget menuTile({
+      required IconData icon,
+      required String title,
+      Color iconColor = AppColors.primary,
+      Color? textColor,
+      Future<void> Function()? onTap,
+      EdgeInsetsGeometry margin = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    }) {
+      return Container(
+        margin: margin,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.80),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: ListTile(
+          dense: true,
+          leading: Icon(icon, color: iconColor, size: 20),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: textColor ?? AppColors.textPrimary,
+            ),
+          ),
+          onTap: onTap == null ? null : () async => onTap(),
+        ),
+      );
+    }
 
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              accountName: Text(me.displayName),
-              accountEmail: Text(me.email ?? ''),
-              currentAccountPicture: GestureDetector(
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _openProfile();
-                },
-                child: CircleAvatar(
-                  backgroundColor: Colors.deepOrangeAccent,
-                  backgroundImage: avatarAbs != null
-                      ? NetworkImage(avatarAbs)
-                      : null,
-                  child: avatarAbs == null
-                      ? Text(
-                          (me.username.isNotEmpty ? me.username[0] : '?')
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            color: Colors.white,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blueAccent, Colors.lightBlue],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.class_, color: Colors.blueAccent),
-                    title: Text(
-                      _isAdmin
-                          ? 'คลาสทั้งหมด (แอดมิน)'
-                          : (_isTeacher ? 'คลาสที่สอน' : 'คลาสที่เรียน'),
-                    ),
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  if (_isAdmin) ...[
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        'ADMIN',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.admin_panel_settings,
-                        color: Colors.deepOrange,
-                      ),
-                      title: const Text('Admin Dashboard'),
-                      onTap: () async {
-                        Navigator.pop(context);
-                        await _openAdmin();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.archive),
-                      title: const Text('ชั้นเรียนที่เก็บ'),
-                      onTap: () {
-                        // 1. สั่งปิดแถบเมนูด้านข้างลงไปก่อน
-                        Navigator.pop(context);
-
-                        // 2. นำทางไปหน้าต่างใหม่ (ที่เรากำลังจะสร้าง)
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ArchivedClassesScreen(),
-                          ),
-                        );
-                      },
-                    ),
+      child: Container(
+        decoration: const BoxDecoration(gradient: AppGradients.classroomBackground),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.86),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: const [
+                    BoxShadow(color: AppColors.shadow, blurRadius: 10, offset: Offset(0, 3)),
                   ],
-                  const Divider(),
-
-                  if (_isTeacher && !_isAdmin)
-                    ListTile(
-                      leading: const Icon(Icons.add_circle_outline),
-                      title: const Text('สร้างคลาสใหม่'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _openCreate();
-                      },
-                    ),
-
-                  if (_isTeacher && !_isAdmin)
-                    ListTile(
-                      leading: const Icon(Icons.all_inbox),
-                      title: const Text('ชั้นเรียนที่เก็บ'),
-                      onTap: () {
-                        // 1. สั่งปิดแถบเมนูด้านข้างลงไปก่อน
-                        Navigator.pop(context);
-
-                        // 2. นำทางไปหน้าต่างใหม่ (ที่เรากำลังจะสร้าง)
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ArchivedClassesScreen(),
-                          ),
-                        );
-                      },
-                    ),
-
-                  if (_isTeacher && !_isAdmin) ...[
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.swap_horiz, color: Colors.blue),
-                      title: const Text('ใช้งานในมุมมองนักเรียน'),
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
                       onTap: () async {
-                        // ปิด Drawer ก่อน
                         Navigator.pop(context);
-
-                        // โชว์ Loading
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.blueAccent,
+                        await _openProfile();
+                      },
+                      child: CircleAvatar(
+                        radius: 23,
+                        backgroundColor: AppColors.primaryLight,
+                        backgroundImage: avatarAbs != null ? NetworkImage(avatarAbs) : null,
+                        child: avatarAbs == null
+                            ? Text(
+                                (me.username.isNotEmpty ? me.username[0] : '?').toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            me.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
                             ),
                           ),
-                        );
-
-                        // เรียกใช้งานฟังก์ชันสลับร่าง
-                        final success = await AuthService.switchRole('student');
-
-                        // ปิด Loading
-                        if (context.mounted) Navigator.pop(context);
-
-                        if (success) {
-                          // ถ้าสำเร็จ ต้อง "เตะ" ผู้ใช้กลับไปหน้า Classroom ใหม่
-                          // เพื่อให้แอปล้าง state เดิม และโหลด UI ใหม่ตาม Role ใน Token ล่าสุด
-                          if (context.mounted) {
+                          const SizedBox(height: 2),
+                          Text(
+                            me.email ?? '-',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 5),
+                          AppBadge(
+                            _isAdmin ? 'ADMIN' : (_isTeacher ? 'TEACHER' : 'STUDENT'),
+                            color: AppColors.primaryLight,
+                            textColor: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  children: [
+                    menuTile(
+                      icon: Icons.class_,
+                      title: _isAdmin
+                          ? 'คลาสทั้งหมด (แอดมิน)'
+                          : (_isTeacher ? 'คลาสที่สอน' : 'คลาสที่เรียน'),
+                      onTap: () async => Navigator.pop(context),
+                    ),
+                    if (_isAdmin) ...[
+                      sectionLabel('ADMIN'),
+                      menuTile(
+                        icon: Icons.admin_panel_settings,
+                        iconColor: AppColors.warning,
+                        title: 'Admin Dashboard',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _openAdmin();
+                        },
+                      ),
+                      menuTile(
+                        icon: Icons.archive_outlined,
+                        iconColor: AppColors.textSecondary,
+                        title: 'ชั้นเรียนที่เก็บ',
+                        onTap: openArchived,
+                      ),
+                    ],
+                    if (_isTeacher && !_isAdmin) ...[
+                      sectionLabel('CLASSROOM'),
+                      menuTile(
+                        icon: Icons.add_circle_outline,
+                        title: 'สร้างคลาสใหม่',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _openCreate();
+                        },
+                      ),
+                      menuTile(
+                        icon: Icons.inbox_outlined,
+                        iconColor: AppColors.textSecondary,
+                        title: 'ชั้นเรียนที่เก็บ',
+                        onTap: openArchived,
+                      ),
+                      menuTile(
+                        icon: Icons.swap_horiz,
+                        iconColor: AppColors.primary,
+                        title: 'ใช้งานในมุมมองนักเรียน',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(
+                              child: CircularProgressIndicator(color: AppColors.primary),
+                            ),
+                          );
+                          final success = await AuthService.switchRole('student');
+                          if (context.mounted) Navigator.pop(context);
+                          if (success && context.mounted) {
                             Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (_) => const ClassroomHomeScreen(),
-                              ),
+                              MaterialPageRoute(builder: (_) => const ClassroomHomeScreen()),
                               (route) => false,
                             );
-                          }
-                        } else {
-                          // โชว์ SnackBar ว่า Error
-                          if (context.mounted) {
+                          } else if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('สลับร่างไม่สำเร็จ'),
-                                backgroundColor: Colors.redAccent,
+                                backgroundColor: AppColors.error,
                               ),
                             );
                           }
-                        }
-                      },
-                    ),
-                  ],
-
-                  if (!_isTeacher && !_isAdmin)
-                    ListTile(
-                      leading: const Icon(Icons.group_add),
-                      title: const Text('เข้าร่วมคลาส'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _openJoin();
-                      },
-                    ),
-
-                  if (_isSwapped) ...[
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.swap_horiz, color: Colors.red),
-                      title: const Text(
-                        'กลับสู่โหมดอาจารย์',
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        },
                       ),
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final success = await AuthService.switchRole('teacher');
-                        if (success && context.mounted) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (_) => const ClassroomHomeScreen(),
+                    ],
+                    if (!_isTeacher && !_isAdmin) ...[
+                      sectionLabel('STUDENT'),
+                      menuTile(
+                        icon: Icons.group_add,
+                        title: 'เข้าร่วมคลาส',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _openJoin();
+                        },
+                      ),
+                    ],
+                    if (_isSwapped)
+                      menuTile(
+                        icon: Icons.swap_horiz,
+                        iconColor: AppColors.error,
+                        textColor: AppColors.error,
+                        title: 'กลับสู่โหมดอาจารย์',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final success = await AuthService.switchRole('teacher');
+                          if (success && context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const ClassroomHomeScreen()),
+                              (route) => false,
+                            );
+                          }
+                        },
+                      ),
+                    if (_isStudent)
+                      menuTile(
+                        icon: Icons.face_retouching_natural,
+                        title: 'ลงทะเบียน/เปลี่ยนใบหน้า',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(
+                              child: CircularProgressIndicator(color: AppColors.primary),
                             ),
-                            (route) => false,
                           );
-                        }
-                      },
-                    ),
-                  ],
-
-                  if (isStudent) ...[
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.face_retouching_natural),
-                      title: const Text('ลงทะเบียน/เปลี่ยนใบหน้า'),
-                      onTap: () async {
-                        // 1️ ปิดหน้าต่าง Drawer ก่อน
-                        Navigator.pop(context);
-
-                        // 2️ โชว์ Loading หมุนๆ บล็อกหน้าจอไว้
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.blueAccent,
-                            ),
-                          ),
-                        );
-
-                        try {
-                          // ดึง Token (🚨 อย่าลืม import 'package:shared_preferences/shared_preferences.dart'; ไว้บนสุด)
-                          final prefs = await SharedPreferences.getInstance();
-                          final token = prefs.getString('accessToken') ?? '';
-
-                          // 3️ ยิง API เช็คสถานะ (🚨 เปลี่ยน UserService เป็นชื่อ Service ที่คุณเอาฟังก์ชันไปใส่ไว้)
-                          final result = await UserService.checkCanChangeFace(
-                            token,
-                          );
-
-                          // 4️ ปิด Loading หมุนๆ
-                          if (context.mounted) Navigator.pop(context);
-
-                          // 5️ ตรวจสอบเงื่อนไข
-                          if (result['can_change_face'] == true) {
-                            // อนุญาต -> พาไปหน้าอัปโหลดรูป
-                            if (context.mounted) {
-                              Navigator.pushNamed(context, '/upload-face');
-                            }
-                          } else {
-                            // ไม่อนุญาต -> โชว์แจ้งเตือน
-                            if (context.mounted) {
+                          try {
+                            final prefs = await SharedPreferences.getInstance();
+                            final token = prefs.getString('accessToken') ?? '';
+                            final result = await UserService.checkCanChangeFace(token);
+                            if (context.mounted) Navigator.pop(context);
+                            if (result['can_change_face'] == true) {
+                              if (context.mounted) {
+                                Navigator.pushNamed(context, '/upload-face');
+                              }
+                            } else if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    result['message'] ??
-                                        'ไม่สามารถเปลี่ยนใบหน้าได้ในขณะนี้',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    result['message'] ?? 'ไม่สามารถเปลี่ยนใบหน้าได้ในขณะนี้',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
-                                  backgroundColor: Colors.redAccent,
+                                  backgroundColor: AppColors.error,
                                   duration: const Duration(seconds: 4),
                                 ),
                               );
                             }
+                          } catch (e) {
+                            if (context.mounted) Navigator.pop(context);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('เกิดข้อผิดพลาด: $e'),
+                                  backgroundColor: AppColors.warning,
+                                ),
+                              );
+                            }
                           }
-                        } catch (e) {
-                          // ปิด Loading กรณีเกิด Error
-                          if (context.mounted) Navigator.pop(context);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('เกิดข้อผิดพลาด: $e'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                    ),
-
-                    // ListTile(
-                    //   leading: const Icon(Icons.delete_forever),
-                    //   title: const Text('ลบใบหน้า'),
-                    //   onTap: () async {
-                    //     Navigator.pop(context);
-                    //     final confirmed = await showDialog<bool>(
-                    //       context: context,
-                    //       builder: (ctx) => AlertDialog(
-                    //         title: const Text('ยืนยันการลบข้อมูลใบหน้า'),
-                    //         content: const Text(
-                    //           'การกระทำนี้ไม่สามารถกู้คืนได้',
-                    //         ),
-                    //         actions: [
-                    //           TextButton(
-                    //             onPressed: () => Navigator.pop(ctx, false),
-                    //             child: const Text(
-                    //               style: TextStyle(color: Colors.grey),
-                    //               'ยกเลิก'),
-                    //           ),
-                    //           FilledButton(
-                    //             style: FilledButton.styleFrom(
-                    //               backgroundColor: Colors.redAccent,
-                    //             ),
-                    //             onPressed: () => Navigator.pop(ctx, true),
-                    //             child: const Text('ลบ'),
-                    //           ),
-                    //         ],
-                    //       ),
-                    //     );
-                    //     if (confirmed == true) {
-                    //       try {
-                    //         await FaceService.deleteFace();
-                    //         if (!mounted) return;
-                    //         ScaffoldMessenger.of(context).showSnackBar(
-                    //           const SnackBar(
-                    //             content: Text('ลบข้อมูลใบหน้าสำเร็จ'),
-                    //           ),
-                    //         );
-                    //       } catch (e) {
-                    //         if (!mounted) return;
-                    //         ScaffoldMessenger.of(context).showSnackBar(
-                    //           SnackBar(
-                    //             content: Text('ลบข้อมูลใบหน้าไม่สำเร็จ: $e'),
-                    //           ),
-                    //         );
-                    //       }
-                    //     }
-                    //   },
-                    // ),
-                  ],
-                ],
-              ),
-            ),
-
-            const Divider(),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12.0,
-                vertical: 8.0,
-              ),
-              child: ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text(
-                  'ออกจากระบบ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                onTap: () async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('ยืนยันการออกจากระบบ'),
-                      content: const Text(
-                        'คุณต้องเข้าสู่ระบบอีกครั้งเพื่อใช้งานต่อ',
+                        },
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text(
-                            style: TextStyle(color: Colors.grey),
-                            'ยกเลิก',
-                          ),
-                        ),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                          ),
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('ออกจากระบบ'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirmed == true) {
-                    await AuthService.logout();
-                    if (context.mounted) {
-                      Navigator.of(
-                        context,
-                      ).pushNamedAndRemoveUntil('/login', (route) => false);
-                    }
-                  }
-                },
+                  ],
+                ),
               ),
-            ),
-          ],
+              const Divider(),
+              menuTile(
+                icon: Icons.logout,
+                iconColor: AppColors.error,
+                textColor: AppColors.error,
+                title: 'ออกจากระบบ',
+                margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+                onTap: doLogout,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -739,9 +658,35 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
         : null;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(_isAdmin ? 'All Classes (Admin)' : 'Classroom'),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _isAdmin ? 'All Classes' : 'Classroom',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 22,
+                color: AppColors.primaryDark,
+              ),
+            ),
+            Text(
+              _isAdmin
+                  ? 'Admin overview'
+                  : (_isTeacher ? 'Teaching workspace' : 'Learning workspace'),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -749,12 +694,12 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
               onTap: _openProfile,
               child: CircleAvatar(
                 radius: 16,
-                backgroundColor: Colors.grey.shade300,
+                backgroundColor: AppColors.primaryLight,
                 backgroundImage: (avatarAbs != null)
                     ? NetworkImage(avatarAbs)
                     : null,
                 child: (avatarAbs == null)
-                    ? Icon(Icons.person, color: Colors.grey.shade700)
+                    ? const Icon(Icons.person, color: AppColors.primary)
                     : null,
               ),
             ),
@@ -766,7 +711,8 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
       floatingActionButton: _isAdmin
           ? FloatingActionButton.extended(
               onPressed: _adminCreateClass,
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: AppColors.primary,
+              elevation: 0,
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text(
                 'เพิ่มคลาส',
@@ -776,87 +722,178 @@ class _ClassroomHomeScreenState extends State<ClassroomHomeScreen> {
           : FloatingActionButton(
               onPressed: _isTeacher ? _openCreate : _openJoin,
               tooltip: _isTeacher ? 'สร้างคลาสใหม่' : 'เข้าร่วมคลาส',
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: AppColors.primary,
+              elevation: 0,
               child: const Icon(Icons.add, color: Colors.white),
             ),
-      body: me == null
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: Color.fromARGB(255, 28, 178, 248),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: AppGradients.classroomBackground,
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -120,
+              right: -90,
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF67A8FF).withOpacity(0.20),
+                ),
               ),
-            )
-          : _isAdmin
-          // --- ส่วนที่เปลี่ยนสำหรับหน้า Admin ---
-          ? Column(
-              children: [
-                // กล่องค้นหา
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'ค้นหาชื่อคลาส',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                _onSearchChanged(''); // ล้างค่าแล้วโหลดใหม่
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
-                      ),
+            ),
+            Positioned(
+              top: 170,
+              left: -90,
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF4F8EF7).withOpacity(0.14),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -130,
+              right: -60,
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7A93FF).withOpacity(0.18),
+                ),
+              ),
+            ),
+            me == null
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
                     ),
-                  ),
-                ),
-                // 💡 เพิ่มข้อความบอกสถานะตรงนี้
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 4,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _searchQuery.trim().isEmpty
-                          ? 'คลาสล่าสุด'
-                          : '🔍 ผลการค้นหาสำหรับ "$_searchQuery"',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                ),
-                // ลิสต์รายการคลาส
-                Expanded(
-                  child: _AdminClasses(
-                    futureAll: _futureAllClasses,
-                    onArchive: _adminArchiveClass,
-                    onRefresh: _refresh,
-                  ),
-                ),
-              ],
-            )
-          // ---------------------------------
-          : (_isTeacher
-                ? _TeacherClasses(
-                    futureTaught: _futureTaught,
-                    onRefresh: _refresh,
                   )
-                : _StudentClasses(
-                    futureJoined: _futureJoined,
-                    onRefresh: _refresh,
-                  )),
+                : _isAdmin
+                // --- ส่วนที่เปลี่ยนสำหรับหน้า Admin ---
+                ? Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            color: Colors.white.withOpacity(0.72),
+                            border: Border.all(
+                              color: const Color(0xFF95B1DF),
+                              width: 1,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x14243B63),
+                                blurRadius: 16,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _searchCtrl,
+                                  onChanged: _onSearchChanged,
+                                  decoration: InputDecoration(
+                                    hintText: 'ค้นหาชื่อคลาส',
+                                    hintStyle: const TextStyle(
+                                      color: Color(0xFF6B7FA8),
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.search,
+                                      color: Color(0xFF325DAB),
+                                    ),
+                                    suffixIcon: _searchQuery.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(
+                                              Icons.clear,
+                                              color: Color(0xFF325DAB),
+                                            ),
+                                            onPressed: () {
+                                              _searchCtrl.clear();
+                                              _onSearchChanged('');
+                                            },
+                                          )
+                                        : null,
+                                    filled: true,
+                                    fillColor: const Color(0xFFFFFFFF),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                      horizontal: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF9EB8E7),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF9EB8E7),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.primary,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    _searchQuery.trim().isEmpty
+                                        ? 'คลาสล่าสุด'
+                                        : 'ผลการค้นหาสำหรับ "$_searchQuery"',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF213A63),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _AdminClasses(
+                          futureAll: _futureAllClasses,
+                          onArchive: _adminArchiveClass,
+                          onRefresh: _refresh,
+                        ),
+                      ),
+                    ],
+                  )
+                // ---------------------------------
+                : (_isTeacher
+                      ? _TeacherClasses(
+                          futureTaught: _futureTaught,
+                          onRefresh: _refresh,
+                        )
+                      : _StudentClasses(
+                          futureJoined: _futureJoined,
+                          onRefresh: _refresh,
+                        )),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -987,32 +1024,44 @@ class _AdminClasses extends StatelessWidget {
               return Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: color.withOpacity(0.35), width: 1),
                 ),
                 elevation: 3,
-                color: color,
+                shadowColor: const Color(0x1A2F4A78),
+                color: Colors.white.withOpacity(0.94),
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
+                  leading: CircleAvatar(
+                    backgroundColor: color.withOpacity(0.30),
+                    child: Icon(
+                      Icons.class_,
+                      color: Color.alphaBlend(const Color(0x33000000), color),
+                    ),
+                  ),
                   title: Text(
                     it.name,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                      color: Color(0xFF1C2C47),
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   subtitle: Text(
                     'Teacher: ${it.teacherName}  •  Students: ${it.studentCount}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.92)),
+                    style: const TextStyle(color: Color(0xFF334155)),
                   ),
                   // แอดมิน: มีปุ่มเก็บคลาสเท่านั้น
                   trailing: IconButton(
                     tooltip: 'เก็บคลาส',
                     onPressed: () => onArchive(it.classId, it.name),
-                    icon: const Icon(Icons.archive, color: Colors.white70),
+                    icon: const Icon(
+                      Icons.archive_outlined,
+                      color: Color(0xFF415A84),
+                    ),
                   ),
                   // ❌ ไม่พาเข้า class details สำหรับแอดมินในหน้านี้
                   onTap: null,
@@ -1039,7 +1088,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.class_, size: 64, color: Colors.blueAccent),
+            const Icon(Icons.class_, size: 64, color: AppColors.primary),
             const SizedBox(height: 12),
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
@@ -1083,13 +1132,15 @@ class _ClassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = getClassColor(c.name);
+    final deepColor = Color.alphaBlend(const Color(0x22000000), color);
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 4,
-      color: color,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 6,
+      shadowColor: const Color(0x24243B63),
       margin: const EdgeInsets.symmetric(vertical: 8),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           if (isTeacher) {
             Navigator.push(
@@ -1114,6 +1165,34 @@ class _ClassCard extends StatelessWidget {
         },
         child: Stack(
           children: [
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      deepColor.withOpacity(0.95),
+                      deepColor.withOpacity(0.78),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withOpacity(0.06),
+                      Colors.black.withOpacity(0.18),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             Positioned(
               top: 4,
               right: 4,
@@ -1126,7 +1205,14 @@ class _ClassCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                icon: const Icon(Icons.more_vert, color: Colors.white),
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.more_vert, color: Colors.white),
+                ),
                 onSelected: (value) async {
                   if (value == 'edit') {
                     final updated = await Navigator.push(
@@ -1167,7 +1253,7 @@ class _ClassCard extends StatelessWidget {
                           ),
                           FilledButton(
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.blueAccent,
+                              backgroundColor: AppColors.primary,
                             ),
                             onPressed: () => Navigator.pop(context, true),
                             child: const Text('เก็บ'),
@@ -1206,7 +1292,7 @@ class _ClassCard extends StatelessWidget {
                           ),
                           FilledButton(
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
+                              backgroundColor: AppColors.error,
                             ),
                             onPressed: () => Navigator.pop(context, true),
                             child: const Text('ออกจากคลาส'),
@@ -1269,13 +1355,51 @@ class _ClassCard extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    c.teacher?.username ?? c.teacher?.email ?? '',
-                    style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 14,
+                        color: Colors.white.withOpacity(0.90),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          c.teacher?.username ?? c.teacher?.email ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.92),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      isTeacher ? 'Teacher Class' : 'Joined Class',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -15,6 +15,7 @@ from app.api.v1 import (
     classes,
     attendance,
     sessions,
+    chat,
 )
 from app.services.db_service import initialize_roles_permissions
 from fastapi.staticfiles import StaticFiles
@@ -154,6 +155,7 @@ app.include_router(classwork_simple.router, prefix="/api/v1")
 app.include_router(announcements_router.router, prefix="/api/v1")
 app.include_router(attendance_report.router, prefix="/api/v1")
 app.include_router(attendance_report_detail.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 
 @app.get("/")

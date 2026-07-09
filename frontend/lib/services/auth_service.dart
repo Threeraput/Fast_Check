@@ -65,7 +65,21 @@ class AuthService {
 
   static Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('accessToken');
+    final token = prefs.getString('accessToken');
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      if (JwtDecoder.isExpired(token)) {
+        await prefs.remove('accessToken');
+        await prefs.remove('currentUser');
+        return null;
+      }
+      return token;
+    } catch (_) {
+      await prefs.remove('accessToken');
+      await prefs.remove('currentUser');
+      return null;
+    }
   }
 
   static Future<Map<String, dynamic>> getTokenPayload() async {

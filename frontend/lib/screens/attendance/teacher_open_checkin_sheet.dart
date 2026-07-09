@@ -1,8 +1,7 @@
 // lib/screens/teacher_open_checkin_sheet.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:flutter/services.dart'; // เพิ่มบรรทัดนี้
-// ใช้ SessionsService ให้ตรงกับส่วนอื่นของแอป
-import 'package:frontend/services/sessions_service.dart';
 import 'package:numberpicker/numberpicker.dart';
 import '../../utils/location_helper.dart';
 import 'package:frontend/services/attendance_service.dart';
@@ -49,6 +48,49 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
       return 'ต้องไม่เกินเวลาหมดอายุ (${minutes} นาที)';
     }
     return null;
+  }
+
+  Future<int?> _pickMinutesDialog({
+    required String title,
+    required int initialValue,
+    required int minValue,
+    required int maxValue,
+  }) async {
+    int tempValue = initialValue.clamp(minValue, maxValue);
+
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: StatefulBuilder(
+            builder: (context, setModalState) {
+              return SizedBox(
+                height: 180,
+                width: 220,
+                child: NumberPicker(
+                  value: tempValue,
+                  minValue: minValue,
+                  maxValue: maxValue,
+                  onChanged: (val) => setModalState(() => tempValue = val),
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(tempValue),
+              child: const Text('ตกลง'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _open() async {
@@ -154,80 +196,22 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
                 suffixIcon: Icon(Icons.timer_outlined),
               ),
               onTap: () async {
-                int currentValue = int.tryParse(_minCtl.text) ?? 15;
-                int tempValue = currentValue;
-
-                await showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  builder: (context) {
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom,
-                        top: 16,
-                        left: 16,
-                        right: 16,
-                      ),
-                      child: StatefulBuilder(
-                        builder: (context, setModalState) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'เลือกเวลาหมดอายุ (นาที)',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 180,
-                                child: NumberPicker(
-                                  value: tempValue,
-                                  minValue: 1,
-                                  maxValue: 240,
-                                  onChanged: (val) =>
-                                      setModalState(() => tempValue = val),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text(
-                                      style: TextStyle(color: Colors.grey),
-                                      'ยกเลิก',
-                                    ),
-                                  ),
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.blueAccent,
-                                    ),
-                                    onPressed: () {
-                                      setState(
-                                        () =>
-                                            _minCtl.text = tempValue.toString(),
-                                      );
-                                      Navigator.pop(context);
-                                    },
-                                    child: const Text('ตกลง'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                          );
-                        },
-                      ),
-                    );
-                  },
+                final currentValue = int.tryParse(_minCtl.text) ?? 15;
+                final picked = await _pickMinutesDialog(
+                  title: 'เลือกเวลาหมดอายุ (นาที)',
+                  initialValue: currentValue,
+                  minValue: 1,
+                  maxValue: 240,
                 );
+
+                if (!mounted || picked == null) return;
+                setState(() {
+                  _minCtl.text = picked.toString();
+                  final late = int.tryParse(_lateCtl.text);
+                  if (late != null && late > picked) {
+                    _lateCtl.text = picked.toString();
+                  }
+                });
               },
               validator: (v) => _requiredInt(v, min: 1, max: 240),
             ),
@@ -246,81 +230,17 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
                 suffixIcon: Icon(Icons.timer_off_outlined),
               ),
               onTap: () async {
-                int currentValue = int.tryParse(_lateCtl.text) ?? 15;
-                int tempValue = currentValue;
-
-                await showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  builder: (context) {
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom,
-                        top: 16,
-                        left: 16,
-                        right: 16,
-                      ),
-                      child: StatefulBuilder(
-                        builder: (context, setModalState) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'เลือกเวลาหมดอายุ (นาที)',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 180,
-                                child: NumberPicker(
-                                  value: tempValue,
-                                  minValue: 1,
-                                  maxValue: 240,
-                                  onChanged: (val) =>
-                                      setModalState(() => tempValue = val),
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text(
-                                      style: TextStyle(color: Colors.grey),
-                                      'ยกเลิก',
-                                    ),
-                                  ),
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.blueAccent,
-                                    ),
-                                    onPressed: () {
-                                      setState(
-                                        () => _lateCtl.text = tempValue
-                                            .toString(),
-                                      );
-                                      Navigator.pop(context);
-                                    },
-                                    child: const Text('ตกลง'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                          );
-                        },
-                      ),
-                    );
-                  },
+                final maxCutoff = int.tryParse(_minCtl.text) ?? 240;
+                final currentValue = int.tryParse(_lateCtl.text) ?? 10;
+                final picked = await _pickMinutesDialog(
+                  title: 'เลือกเวลาตัดสาย (นาที)',
+                  initialValue: currentValue,
+                  minValue: 1,
+                  maxValue: maxCutoff.clamp(1, 240),
                 );
+
+                if (!mounted || picked == null) return;
+                setState(() => _lateCtl.text = picked.toString());
               },
               validator: (v) => _lateCutoffValidator(v),
             ),
@@ -352,7 +272,7 @@ class _TeacherOpenCheckinSheetState extends State<TeacherOpenCheckinSheet> {
                   ? const Text('กำลังเปิด...')
                   : const Text('เริ่มเช็คชื่อ'),
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppColors.primary,
                 minimumSize: const Size.fromHeight(44),
               ),
             ),

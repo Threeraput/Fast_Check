@@ -1,5 +1,6 @@
 // lib/screens/grading_screen.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/config.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/classwork.dart';
@@ -190,7 +191,7 @@ class _GradingScreenState extends State<GradingScreen> {
             Text(widget.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
           ],
         ),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         
         // เติมปุ่มดาวน์โหลดรายงานเข้าไปใน AppBar
@@ -219,7 +220,7 @@ class _GradingScreenState extends State<GradingScreen> {
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
+              return const Center(child: CircularProgressIndicator(color: AppColors.primary));
             }
             if (snap.hasError) {
               return Center(child: Text('โหลดข้อมูลไม่สำเร็จ: ${snap.error}'));
@@ -234,6 +235,7 @@ class _GradingScreenState extends State<GradingScreen> {
               itemCount: subs.length,
               itemBuilder: (context, i) {
                 final s = subs[i];
+                final submissionText = s.submissionText?.trim();
                 final c = _scoreControllers.putIfAbsent(
                   s.submissionId ?? s.studentId, // กันเหนียวเผื่อ ID เป็น null
                   () => TextEditingController(text: s.score?.toString() ?? ''),
@@ -282,11 +284,18 @@ class _GradingScreenState extends State<GradingScreen> {
                             ],
                           ),
                         ),
+                        if (submissionText != null && submissionText.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'คำตอบที่ส่ง: $submissionText',
+                            style: const TextStyle(color: Colors.black87),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         if (s.contentUrl != null) ...[
                           FilledButton.tonalIcon(
                             onPressed: () => _openSubmissionFile(s.contentUrl!),
-                            icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                            icon: const Icon(Icons.picture_as_pdf, color: AppColors.error),
                             label: const Text('เปิดไฟล์ PDF ที่ส่ง'),
                           ),
                           const SizedBox(height: 12),
@@ -307,7 +316,7 @@ class _GradingScreenState extends State<GradingScreen> {
                             ),
                             const SizedBox(width: 12),
                             FilledButton(
-                              style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+                              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
                               onPressed: () {
                                 _saveScore(
                                   assignmentId: widget.assignmentId,

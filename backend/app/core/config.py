@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # JWT Authentication Settings
     SECRET_KEY: str
+    CONTENT_ENCRYPTION_KEY: Optional[str] = None
     ALGORITHM: str = "HS256" # ค่าเริ่มต้นถ้าไม่ระบุใน .env
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30 # ค่าเริ่มต้นถ้าไม่ระบุใน .env
 

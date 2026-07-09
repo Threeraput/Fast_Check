@@ -75,12 +75,13 @@ def create_assignment(
     db.refresh(obj)
     return obj
 
-async def submit_pdf(
+async def submit_assignment(
     db: Session,
     *,
     assignment_id: UUID,
     student_id: UUID,
-    file,  # UploadFile
+    file=None,  # UploadFile | None
+    submission_text: Optional[str] = None,
 ) -> ClassworkSubmission:
     asg = db.query(ClassworkAssignment).filter(
         ClassworkAssignment.assignment_id == assignment_id
@@ -91,8 +92,14 @@ async def submit_pdf(
     # ต้องเป็นนักเรียนในคลาสนั้น
     _ensure_student_in_class(db, student_id, asg.class_id)
 
-    # บันทึกไฟล์ PDF
-    stored_path = await save_pdf(file)  # คืนเช่น "workpdf/<uuid>.pdf"
+    cleaned_text = submission_text.strip() if submission_text else None
+    if not file and not cleaned_text:
+        raise ApiException(400, "Please provide a file or submission text")
+
+    stored_path = None
+    if file:
+        # บันทึกไฟล์ PDF
+        stored_path = await save_pdf(file)  # คืนเช่น "workpdf/<uuid>.pdf"
 
     # หา/สร้าง submission (1 คน ต่อ 1 assignment เท่านั้น - unique)
     sub = db.query(ClassworkSubmission).filter(
@@ -108,7 +115,9 @@ async def submit_pdf(
         status = SubmissionLateness.LATE
 
     if sub:
-        sub.content_url = stored_path
+        if stored_path:
+            sub.content_url = stored_path
+        sub.submission_text = cleaned_text
         sub.submitted_at = now
         sub.submission_status = status
         sub.updated_at = now
@@ -117,6 +126,7 @@ async def submit_pdf(
             assignment_id=assignment_id,
             student_id=student_id,
             content_url=stored_path,
+            submission_text=cleaned_text,
             submitted_at=now,
             submission_status=status,
             graded=False,

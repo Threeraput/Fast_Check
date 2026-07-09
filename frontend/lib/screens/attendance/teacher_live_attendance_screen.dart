@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:intl/intl.dart';
 
 import 'package:frontend/services/live_attendance_ws_service.dart';
@@ -42,6 +43,7 @@ class _TeacherLiveAttendanceScreenState
   int _waitingCount = 0;
   int _presentCount = 0;
   int _lateCount = 0;
+  int _absentCount = 0;
 
   List<Map<String, dynamic>> _attendees = const [];
 
@@ -119,6 +121,7 @@ class _TeacherLiveAttendanceScreenState
         final summary = _asMap(event['summary']);
         _presentCount = _toInt(summary['present']);
         _lateCount = _toInt(summary['late']);
+        _absentCount = _toInt(summary['absent']);
 
         _attendees = _asList(event['attendees']);
       });
@@ -137,6 +140,7 @@ class _TeacherLiveAttendanceScreenState
         final summary = _asMap(event['summary']);
         _presentCount = _toInt(summary['present']);
         _lateCount = _toInt(summary['late']);
+        _absentCount = _toInt(summary['absent']);
 
         final item = _asMap(event['item']);
         if (item.isNotEmpty) {
@@ -388,29 +392,19 @@ class _TeacherLiveAttendanceScreenState
                     runSpacing: 8,
                     children: [
                       _StatChip(
-                        label: 'ทั้งหมด',
-                        value: _totalStudents,
-                        color: Colors.blue,
-                      ),
-                      _StatChip(
                         label: 'เช็คชื่อแล้ว',
                         value: _checkedInCount,
                         color: Colors.indigo,
                       ),
                       _StatChip(
-                        label: 'เข้าเรียน',
-                        value: _presentCount,
-                        color: Colors.green,
+                        label: 'ขาด',
+                        value: _absentCount,
+                        color: Colors.red,
                       ),
                       _StatChip(
-                        label: 'สาย',
+                        label: 'มาสาย',
                         value: _lateCount,
                         color: Colors.orange,
-                      ),
-                      _StatChip(
-                        label: 'ยังไม่เช็คชื่อ',
-                        value: _waitingCount,
-                        color: Colors.redAccent,
                       ),
                     ],
                   ),
@@ -433,7 +427,7 @@ class _TeacherLiveAttendanceScreenState
                         (a['check_in_time'] ?? '').toString(),
                       );
                       final status = (a['status'] ?? '').toString();
-                      final imageUrl = UserService.absoluteAvatarUrl(
+                      final imageUrl = UserService.absoluteMediaUrl(
                         a['face_image_path']?.toString(),
                       );
                       return Card(

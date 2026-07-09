@@ -6,6 +6,7 @@ import 'package:frontend/screens/classroom/classroom_home_screen.dart';
 import 'package:frontend/screens/assignment/create_assignment_screen.dart';
 import 'package:frontend/screens/announcement/edit_announcement_screen.dart';
 import 'package:frontend/screens/face_recognition/verify_face_route.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -120,27 +121,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Face Attendance App',
-      theme: ThemeData(
-        textSelectionTheme: TextSelectionThemeData(
-          selectionHandleColor: Colors.blue, // สีจุดจับ
-          selectionColor: Colors.blue.shade200, // สีพื้นหลังตอนเลือกข้อความ
-          cursorColor: Color.fromARGB(209, 35, 35, 35), // สีเคอร์เซอร์
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: Color.fromARGB(212, 134, 134, 134), // สีกรอบเวลาพิมพ์
-              width: 2,
-            ),
-          ),
-          floatingLabelStyle: const TextStyle(
-            color: Color.fromARGB(255, 134, 134, 134), // สี label ตอนโฟกัส
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        primarySwatch: Colors.blue,
-      ),
+      theme: AppTheme.light,
+      builder: (context, child) {
+        return AppWorkspaceBackdrop(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       initialRoute: initialRoute,
       onGenerateRoute: _onGenerateRoute,
       routes: {

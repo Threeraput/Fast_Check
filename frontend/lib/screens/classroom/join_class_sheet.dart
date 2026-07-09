@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/services/class_service.dart';
 import 'package:flutter/services.dart';
 
@@ -160,7 +161,7 @@ class _JoinClassSheetState extends State<JoinClassSheet> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
               icon: _loading
                   ? const SizedBox(
                       width: 18,

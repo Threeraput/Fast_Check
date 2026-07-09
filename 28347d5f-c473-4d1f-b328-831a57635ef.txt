@@ -84,3 +84,22 @@ VALUES (
 
 
 
+Glassmorphism เลย! ออกแบบ stream cards ใหม่ด้วย frosted glass, blur, และ gradient สวยๆ
+
+เสร็จแล้วครับ! นี่คือสิ่งที่เพิ่มใน Glassmorphism version:
+
+Glass effect:
+
+การ์ดใช้ backdrop-filter: blur(20px) saturate(180%) + rgba(255,255,255,0.62) ให้ดูเหมือนกระจกฝ้า
+inset 0 1px 0 rgba(255,255,255,0.9) — แสงขอบบนการ์ดทำให้ดู 3D
+Border rgba(255,255,255,0.75) เส้นขอบแก้วใส
+มิติและแสง:
+
+Radial gradient backdrop รวม 3 สี blend กัน (สีคลาส + น้ำเงิน + ม่วง)
+Left accent strip แทน top bar — ดูสะอาดกว่า
+Icon badge มี inner glow + inset highlight
+Inner color wash จาก accent ที่มุมบนซ้ายของการ์ด
+Typography:
+
+Font weight 800 + letter-spacing ลบ — ดู premium ขึ้นชัดเจน
+Label เป็น UPPERCASE tiny type

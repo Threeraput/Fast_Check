@@ -6,6 +6,7 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 from sqlalchemy import Enum as SAEnum
 from app.models.classwork_enums import SubmissionLateness  # ใช้ enum เดิมของคุณ
+from app.core.field_encryption import EncryptedText
 
 class ClassworkSubmission(Base):
     """
@@ -26,6 +27,7 @@ class ClassworkSubmission(Base):
     )
 
     content_url = Column(String(512), nullable=True)   # เช่น workpdf/<uuid>.pdf
+    submission_text = Column(EncryptedText(), nullable=True)
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
     submission_status = Column(

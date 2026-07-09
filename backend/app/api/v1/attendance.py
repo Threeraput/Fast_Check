@@ -466,6 +466,15 @@ async def override_attendance_status(
             new_status=override_data.status,
             recorded_by_user_id=current_user.user_id,
         )
+
+        # Push a fresh snapshot so counters/statuses on Live screen stay consistent.
+        payload = get_live_session_payload(db, record.session_id)
+        if payload:
+            await live_attendance_ws_manager.broadcast(
+                str(record.session_id),
+                {"event": "snapshot", **payload},
+            )
+
         try:
             return AttendanceResponse.model_validate(record, from_attributes=True)
         except Exception:
@@ -514,6 +523,15 @@ async def manual_create_or_override(
             new_status=data.status,
             recorded_by_user_id=current_user.user_id,
         )
+
+        # Push a fresh snapshot so counters/statuses on Live screen stay consistent.
+        payload = get_live_session_payload(db, record.session_id)
+        if payload:
+            await live_attendance_ws_manager.broadcast(
+                str(record.session_id),
+                {"event": "snapshot", **payload},
+            )
+
         return record
     except HTTPException:
         raise

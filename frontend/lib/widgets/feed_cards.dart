@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:frontend/screens/announcement/announcement_detail_screen.dart';
 import 'package:frontend/screens/announcement/edit_announcement_screen.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +8,7 @@ import '../screens/attendance/student_checkin_screen.dart';
 import 'package:frontend/services/attendance_service.dart';
 import 'package:frontend/services/announcement_service.dart';
 import 'package:frontend/screens/attendance/teacher_live_attendance_screen.dart';
+import 'package:frontend/utils/app_theme.dart';
 
 // ✅ การ์ด assignment
 import 'package:frontend/widgets/assignment_card.dart';
@@ -28,16 +30,29 @@ class FeedList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return Card(
-        margin: const EdgeInsets.only(top: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'No announcements yet.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+      return AppCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.inbox_outlined, size: 18, color: AppColors.primary),
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'No announcements yet.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -53,17 +68,17 @@ class FeedList extends StatelessWidget {
         final aIsCheckin = a.type == FeedType.checkin || aKind == 'checkin';
         final bIsCheckin = b.type == FeedType.checkin || bKind == 'checkin';
 
-        //  เช็คชื่อทั้งหมดอยู่บนสุด
+        // เช็คชื่อทั้งหมดอยู่บนสุด
         if (aIsCheckin != bIsCheckin) return aIsCheckin ? -1 : 1;
 
-        //  ถ้าเป็นเช็คชื่อทั้งคู่ — ยังไม่หมดเวลาอยู่ก่อน
+        // ถ้าเป็นเช็คชื่อทั้งคู่ — ยังไม่หมดเวลาอยู่ก่อน
         if (aIsCheckin && bIsCheckin) {
           final aExpired = a.expiresAt != null && a.expiresAt!.isBefore(now);
           final bExpired = b.expiresAt != null && b.expiresAt!.isBefore(now);
           if (aExpired != bExpired) return aExpired ? 1 : -1;
         }
 
-        //  ถ้าเป็นประกาศทั้งคู่ → pinned มาก่อน
+        // ถ้าเป็นประกาศทั้งคู่ → pinned มาก่อน
         final aIsAnn = aKind == 'announcement';
         final bIsAnn = bKind == 'announcement';
         if (aIsAnn && bIsAnn) {
@@ -72,22 +87,28 @@ class FeedList extends StatelessWidget {
           if (ap != bp) return bp ? 1 : -1;
         }
 
-        //  สุดท้ายเรียงตามเวลาใหม่สุด
+        // สุดท้ายเรียงตามเวลาใหม่สุด
         return b.postedAt.compareTo(a.postedAt);
       });
 
-    //  วนลูปสร้างการ์ดตามลำดับใหม่
+    // วนลูปสร้างการ์ดตามลำดับใหม่
     return Column(
-      children: sortedItems
-          .map(
-            (e) => _FeedCard(
+      children: sortedItems.asMap().entries.map((entry) {
+        final i = entry.key;
+        final e = entry.value;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _AnimatedFeedItem(
+            index: i,
+            child: _FeedCard(
               item: e,
               isTeacher: isTeacher,
               classId: classId,
               onChanged: onChanged,
             ),
-          )
-          .toList(),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -108,7 +129,6 @@ class _FeedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final extra = Map<String, dynamic>.from(item.extra);
-
     final kind = (extra['kind']?.toString().toLowerCase() ?? '');
 
     // ✅ ถ้า backend ยังไม่ใส่ kind ให้ใช้ item.type เป็น fallback
@@ -129,9 +149,8 @@ class _FeedCard extends StatelessWidget {
           isTeacher: isTeacher,
           onChanged: onChanged,
         );
-      // ✅ สามารถขยายในอนาคต เช่น case 'announcement', 'quiz' ได้
       case 'announcement':
-        // 🔹 strip prefix "ann:" ออก ถ้ามี
+        // strip prefix "ann:" ออก ถ้ามี
         final rawId = item.id;
         final annId = rawId.startsWith('ann:') ? rawId.split(':').last : rawId;
 
@@ -142,8 +161,8 @@ class _FeedCard extends StatelessWidget {
           pinned: extra['pinned'] == true,
           author: (extra['author_name'] ?? '') as String,
           expiresAt: item.expiresAt,
-          announcementId: annId, //  ส่ง UUID แบบเพียว ๆ
-          attachments: extra['attachments'] as List?, // 👈 เพิ่มบรรทัดนี้
+          announcementId: annId, // ส่ง UUID แบบเพียว ๆ
+          attachments: extra['attachments'] as List?, 
           isTeacher: isTeacher,
           onChanged: onChanged,
         );
@@ -161,7 +180,6 @@ class _FeedCard extends StatelessWidget {
         ? 'หมดอายุ: ${dfTime.format(item.expiresAt!.toLocal())}'
         : 'กำลังเปิดอยู่';
 
-    // เพิ่มการดึงเวลาสาย
     final lateStr = item.extra['late_cutoff_time']?.toString();
     final late = lateStr != null ? DateTime.tryParse(lateStr) : null;
     final lateTxt = late != null
@@ -174,13 +192,12 @@ class _FeedCard extends StatelessWidget {
 
     final sessionId = item.extra['session_id']?.toString();
 
-    // ไม่มี sessionId → แสดงการ์ดพื้นฐาน
     if (sessionId == null || sessionId.isEmpty) {
       return _baseCard(
         context: context,
         title: 'เช็คชื่อ',
         expText: expText,
-        lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
+        lateTxt: lateTxt,
         radius: radius,
         lat: isTeacher ? lat : null,
         lon: isTeacher ? lon : null,
@@ -192,7 +209,6 @@ class _FeedCard extends StatelessWidget {
       );
     }
 
-    // มี sessionId → โหลดสถานะนักเรียน
     return FutureBuilder<Map<String, dynamic>>(
       future: AttendanceService.getMyStatusForSession(sessionId),
       builder: (context, snap) {
@@ -210,7 +226,7 @@ class _FeedCard extends StatelessWidget {
           context: context,
           title: 'เช็คชื่อ',
           expText: expText,
-          lateTxt: lateTxt, // ส่งเวลาสายไปแสดง
+          lateTxt: lateTxt,
           radius: radius,
           lat: isTeacher ? lat : null,
           lon: isTeacher ? lon : null,
@@ -237,71 +253,68 @@ class _FeedCard extends StatelessWidget {
   }) {
     final dfTime = DateFormat('d MMM, HH:mm');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _HeaderRow(
-              icon: Icons.access_time,
-              iconColor: Colors.blueAccent,
-              title: title,
-              dateText: dfTime.format(item.postedAt.toLocal()),
-            ),
-            const SizedBox(height: 8),
-
-            // RichText สำหรับ expText และ radius
-            RichText(
-              text: TextSpan(
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(fontSize: 14),
-                children: [
-                  TextSpan(text: '$expText · '),
-                  const TextSpan(
-                    text: 'รัศมี ',
-                    style: TextStyle(fontSize: 15),
-                  ),
-                  TextSpan(
-                    text: '${radius ?? '-'} m',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+    return _GlassFeedShell(
+      accent: Colors.blueAccent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeaderRow(
+            icon: Icons.access_time,
+            iconColor: Colors.blueAccent,
+            title: title,
+            dateText: dfTime.format(item.postedAt.toLocal()),
+            label: 'CHECK-IN',
+          ),
+          const SizedBox(height: 8),
+          RichText(
+            text: TextSpan(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontSize: 12,
+                color: const Color(0xFF1A365D),
+                fontWeight: FontWeight.w600,
               ),
-            ),
-
-            if (lateTxt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'สายหลังจาก: $lateTxt น.',
+              children: [
+                TextSpan(text: '$expText · '),
+                const TextSpan(
+                  text: 'รัศมี ',
+                  style: TextStyle(fontSize: 12),
+                ),
+                TextSpan(
+                  text: '${radius ?? '-'} m',
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
+              ],
+            ),
+          ),
+          if (lateTxt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                'สายหลังจาก: $lateTxt น.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF0B3A7A),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-
-            const SizedBox(height: 3),
-
-            // แสดง Anchor
-            if (lat != null && lon != null)
-              Text(
-                'Anchor: $lat, $lon',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-
-            const SizedBox(height: 8),
-
-            Row(children: [trailing]),
-          ],
-        ),
+            ),
+          const SizedBox(height: 3),
+          if (lat != null && lon != null)
+            Text(
+              'Anchor: $lat, $lon',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF2D4A73)),
+            ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: trailing,
+          ),
+        ],
       ),
     );
   }
@@ -318,7 +331,11 @@ class _FeedCard extends StatelessWidget {
       }
 
       return FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: Colors.blueAccent),
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          minimumSize: const Size(0, 38),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
         onPressed: () {
           Navigator.push(
             context,
@@ -339,11 +356,14 @@ class _FeedCard extends StatelessWidget {
 
     final buttons = <Widget>[];
 
-    // ปุ่มเช็คชื่อ
     if (!hasCheckedIn) {
       buttons.add(
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: Colors.blue),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            minimumSize: const Size(0, 36),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
           onPressed: () async {
             final ok = await Navigator.push(
               context,
@@ -360,38 +380,246 @@ class _FeedCard extends StatelessWidget {
       buttons.add(const SizedBox(width: 12));
     }
 
-    return Row(children: buttons);
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      children: buttons,
+    );
   }
 }
 
 class _HeaderRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String dateText;
+  final String? dateText; 
   final Color iconColor;
+  final String? label;
 
   const _HeaderRow({
     required this.icon,
     required this.title,
-    required this.dateText,
+    this.dateText, 
     required this.iconColor,
+    this.label,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start, 
       children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: iconColor.withValues(alpha: 30),
-          child: Icon(icon, size: 18, color: iconColor),
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                iconColor.withValues(alpha: 0.95),
+                iconColor.withValues(alpha: 0.65),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: iconColor.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.75),
+              width: 1,
+            ),
+          ),
+          child: Icon(icon, size: 16, color: Colors.white),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (label != null && label!.isNotEmpty)
+                Text(
+                  label!,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.05,
+                    color: iconColor.withValues(alpha: 0.95),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(right: 32.0), // กันระยะไว้สำหรับปุ่มเมนูขวาบน
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                    color: const Color(0xFF0F2547),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        Text(dateText, style: Theme.of(context).textTheme.bodySmall),
+        if (dateText != null && dateText!.isNotEmpty)
+          Text(
+            dateText!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 10,
+              color: const Color(0xFF38567D),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _GlassFeedShell extends StatelessWidget {
+  final Color accent;
+  final Widget child;
+  final VoidCallback? onTap;
+  final Widget? overlayAction;
+
+  const _GlassFeedShell({
+    required this.accent,
+    required this.child,
+    this.onTap,
+    this.overlayAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: child,
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-0.85, -0.75),
+                  radius: 1.45,
+                  colors: [
+                    accent.withValues(alpha: 0.28),
+                    const Color(0xFF4A90E2).withValues(alpha: 0.14),
+                    const Color(0xFF7C8CFF).withValues(alpha: 0.10),
+                    Colors.white.withValues(alpha: 0.08),
+                  ],
+                  stops: const [0.0, 0.33, 0.67, 1.0],
+                ),
+              ),
+            ),
+          ),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  width: 1.05,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF13325B).withValues(alpha: 0.14),
+                    blurRadius: 22,
+                    spreadRadius: -6,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: -30,
+                    top: -34,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 170,
+                        height: 170,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              accent.withValues(alpha: 0.26),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.90),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            accent.withValues(alpha: 0.95),
+                            accent.withValues(alpha: 0.45),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: onTap == null
+                            ? body
+                            : Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: onTap,
+                                  splashColor: accent.withValues(alpha: 0.14),
+                                  highlightColor: Colors.white.withValues(
+                                    alpha: 0.08,
+                                  ),
+                                  child: body,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (overlayAction != null)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: overlayAction!,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -404,7 +632,7 @@ class _AnnouncementCard extends StatelessWidget {
   final bool pinned;
   final String author;
   final String announcementId;
-  final List? attachments; // 👈 เพิ่มตัวนี้
+  final List? attachments; 
   final bool isTeacher;
   final VoidCallback? onChanged;
 
@@ -415,7 +643,7 @@ class _AnnouncementCard extends StatelessWidget {
     required this.pinned,
     required this.author,
     required this.announcementId,
-    this.attachments, // 👈 เพิ่มตัวนี้
+    this.attachments, 
     required this.isTeacher,
     this.expiresAt,
     this.onChanged,
@@ -425,175 +653,220 @@ class _AnnouncementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM, HH:mm');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          // 👈 3. พอกดแล้วให้เด้งไปหน้า AnnouncementDetailScreen
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AnnouncementDetailScreen(
-                announcementId: announcementId, // ต้องส่ง ID ประกาศไป
-                title: title, // ส่งชื่อเรื่อง
-                body: body, // ส่งเนื้อหา
-                postedAt: postedAt, // ส่งเวลา
-                pinned: pinned,
-                attachments: attachments, // 👈 เพิ่มตัวนี้
-              ),
+    return _GlassFeedShell(
+      accent: pinned ? Colors.red.shade600 : Colors.blue.shade600,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AnnouncementDetailScreen(
+              announcementId: announcementId, 
+              title: title, 
+              body: body, 
+              postedAt: postedAt, 
+              pinned: pinned,
+              attachments: attachments, 
             ),
-          ).then((_) {
-            // ถ้ารีเฟรชได้ ให้เรียกตรงนี้ครับ
-            onChanged?.call();
-          });
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _HeaderRow(
-                icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
-                iconColor: pinned ? Colors.red.shade700 : Colors.blue.shade700,
-                title: pinned ? '[ปักหมุด] $title' : title,
-                dateText: df.format(postedAt.toLocal()),
+          ),
+        ).then((_) {
+          onChanged?.call();
+        });
+      },      
+      // ✨ ใช้ PopupMenu ธรรมดาตามเดิม แต่แต่งสไตล์กล่องให้มีความเป็นกระจกใสพรีเมียมคุมโทน
+      overlayAction: isTeacher
+          ? PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                Icons.more_vert,
+                color: (pinned ? Colors.red.shade600 : Colors.blue.shade700).withValues(alpha: 0.85),
+                size: 20,
               ),
-              if (author.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'โดย: $author',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+              // 🔮 แต่งหน้าตาตัวเลือกให้เป็นกระจกโปร่งแสง (Translucent Glass Popup)
+              color: Colors.white.withValues(alpha: 0.78), 
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  width: 1.2,
                 ),
-              if (body.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(body),
+              ),
+              itemBuilder: (_) => [
+                PopupMenuItem<String>(
+                  value: 'edit',
+                  height: 38,
+                  child: Row(children: [
+                    Icon(Icons.edit_outlined, size: 17, color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'แก้ไข', 
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F2547)),
+                    ),
+                  ]),
                 ),
-              if (expiresAt != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'หมดอายุ: ${df.format(expiresAt!.toLocal())}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  height: 38,
+                  child: Row(children: [
+                    Icon(Icons.delete_outline, size: 17, color: const Color(0xFFE11D48)),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ลบ', 
+                      style: TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ]),
                 ),
-
-              // 🔹 เพิ่มเมนู 3 จุด สำหรับครูเท่านั้น
-              if (isTeacher)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, color: Colors.grey),
-                      onSelected: (value) async {
-                        if (value == 'edit') {
-                          // ---------- ไปหน้าแก้ไข ----------
-                          final ok = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EditAnnouncementScreen(
-                                announcementId: announcementId,
-                                title: title,
-                                body: body,
-                              ),
-                            ),
-                          );
-
-                          if (ok == true) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('อัปเดตประกาศสำเร็จ'),
-                                ),
-                              );
-                            }
-                            onChanged?.call();
-                          }
-                        } else if (value == 'delete') {
-                          // ---------- ฟังก์ชันลบ ----------
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('ยืนยันการลบ'),
-                              content: const Text(
-                                'คุณแน่ใจหรือไม่ว่าจะลบประกาศนี้?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text(
-                                    'ยกเลิก',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                  ),
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text(
-                                    'ลบ',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (ok == true) {
-                            try {
-                              await AnnouncementService.delete(announcementId);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('ลบประกาศสำเร็จ'),
-                                  ),
-                                );
-                              }
-                              onChanged?.call();
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
-                                );
-                              }
-                            }
-                          }
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem<String>(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, color: Colors.blueAccent),
-                              SizedBox(width: 8),
-                              Text('แก้ไข'),
-                            ],
-                          ),
+              ],
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  final ok = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditAnnouncementScreen(
+                        announcementId: announcementId,
+                        title: title,
+                        body: body,
+                      ),
+                    ),
+                  );
+                  if (ok == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('อัปเดตประกาศสำเร็จ')),
+                    );
+                    onChanged?.call();
+                  }
+                } else if (value == 'delete') {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('ยืนยันการลบ'),
+                      content: const Text('คุณแน่ใจหรือไม่ว่าจะลบประกาศนี้?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('ยกเลิก'),
                         ),
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('ลบ'),
-                            ],
-                          ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48)),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('ลบ'),
                         ),
                       ],
                     ),
-                  ),
-                ),
-            ],
+                  );
+                  if (ok == true) {
+                    try {
+                      await AnnouncementService.delete(announcementId);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('ลบประกาศสำเร็จ')),
+                        );
+                      }
+                      onChanged?.call();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
+                        );
+                      }
+                    }
+                  }
+                }
+              },
+            )
+          : null,      
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeaderRow(
+            icon: pinned ? Icons.push_pin : Icons.campaign_outlined,
+            iconColor: pinned ? Colors.red.shade700 : Colors.blue.shade700,
+            title: pinned ? '[ปักหมุด] $title' : title,
+            dateText: null, // 👈 ซ่อนวันที่ด้านบน เพื่อเลี่ยงการทับซ้อนกับปุ่ม 3 จุด
+            label: pinned ? 'PINNED ANNOUNCEMENT' : 'ANNOUNCEMENT',
           ),
-        ),
+          if (author.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'โดย: $author',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
+                  color: const Color(0xFF28466D),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          if (body.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                body,
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Color(0xFF0E2B50),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          if (expiresAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'หมดอายุ: ${df.format(expiresAt!.toLocal())}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF38567D),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          
+          // 👈 ย้ายเวลาโพสต์มาอยู่ขอบล่างขวาตรงนี้อย่างถาวร ปลอดภัยจากการทับกัน 100%
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'โพสต์เมื่อ ${df.format(postedAt.toLocal())}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontSize: 10,
+                color: const Color(0xFF38567D).withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _AnimatedFeedItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _AnimatedFeedItem({
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final delay = (index.clamp(0, 8)) * 40;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + delay),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, c) {
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 12),
+            child: c,
+          ),
+        );
+      },
+      child: child,
     );
   }
 }

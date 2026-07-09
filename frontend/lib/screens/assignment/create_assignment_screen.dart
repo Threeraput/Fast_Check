@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
+import 'package:frontend/widgets/glass_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
@@ -195,180 +197,233 @@ class _CreateAssignmentScreenState extends State<CreateAssignmentScreen> {
     final df = DateFormat('d MMM yyyy, HH:mm');
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(title: const Text('สร้างงานใหม่')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(
-              maxWidth: 500,
-            ), // จำกัดความกว้างให้อยู่กลางจอ
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20), // มุมโค้งมน
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  const Text(
-                    'สร้างงานใหม่',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ช่องกรอกชื่องาน
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: 'ชื่องาน',
-                      prefixIcon: const Icon(Icons.assignment_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'กรุณากรอกชื่องาน' : null,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ช่องกรอกคะแนนเต็ม
-                  TextFormField(
-                    controller: _maxScoreController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'คะแนนเต็ม',
-                      prefixIcon: const Icon(Icons.score_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // วันที่กำหนดส่ง
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      title: const Text('กำหนดส่ง'),
-                      subtitle: Text(
-                        _dueDate == null
-                            ? 'ยังไม่ได้เลือก'
-                            : df.format(_dueDate!),
-                        style: TextStyle(
-                          color: _dueDate == null
-                              ? Colors.white
-                              : Colors.black87,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: GlassCard(
+                accent: AppColors.primary,
+                radius: 18,
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      GlassCard(
+                        accent: const Color(0xFF2563EB),
+                        radius: 14,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.calendar_today_outlined),
-                        onPressed: _pickDueDate,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: const Row(
                           children: [
-                            const Text(
-                              'ไฟล์แนบงาน',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            Icon(
+                              Icons.assignment_outlined,
+                              color: AppColors.primary,
+                              size: 20,
                             ),
-                            TextButton.icon(
-                              onPressed: _submitting
-                                  ? null
-                                  : _pickAttachmentFiles,
-                              icon: const Icon(Icons.attach_file),
-                              label: const Text('เพิ่มไฟล์'),
+                            SizedBox(width: 8),
+                            Text(
+                              'CREATE ASSIGNMENT',
+                              style: TextStyle(
+                                fontSize: 12,
+                                letterSpacing: 1.0,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ],
                         ),
-                        if (_attachmentFiles.isEmpty)
-                          Text(
-                            'ยังไม่ได้เลือกไฟล์แนบ',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          )
-                        else
-                          ..._attachmentFiles.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final file = entry.value;
-                            final name = file.path.split(RegExp(r'[\\/]')).last;
-                            return ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(
-                                Icons.insert_drive_file_outlined,
-                              ),
-                              title: Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: IconButton(
-                                onPressed: _submitting
-                                    ? null
-                                    : () => _removeAttachmentAt(idx),
-                                icon: const Icon(Icons.close),
-                              ),
-                            );
-                          }),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ปุ่มบันทึก
-                  ElevatedButton.icon(
-                    onPressed: _submitting ? null : _submit,
-                    icon: Icon(color: Colors.white, Icons.save_outlined),
-                    label: Text(
-                      _submitting ? 'กำลังบันทึก...' : 'บันทึกงาน',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      minimumSize: const Size.fromHeight(50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+
+                      // ช่องกรอกชื่องาน
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: InputDecoration(
+                          labelText: 'ชื่องาน',
+                          prefixIcon: const Icon(Icons.assignment_outlined),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'กรุณากรอกชื่องาน'
+                            : null,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ช่องกรอกคะแนนเต็ม
+                      TextFormField(
+                        controller: _maxScoreController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'คะแนนเต็ม',
+                          prefixIcon: const Icon(Icons.score_outlined),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // วันที่กำหนดส่ง
+                      GlassCard(
+                        accent: const Color(0xFF0EA5A4),
+                        radius: 12,
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'กำหนดส่ง',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _dueDate == null
+                                        ? 'ยังไม่ได้เลือก'
+                                        : df.format(_dueDate!),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _dueDate == null
+                                          ? Colors.black54
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.calendar_today_outlined),
+                              onPressed: _pickDueDate,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // ไฟล์แนบงาน
+                      GlassCard(
+                        accent: const Color(0xFF0EA5A4),
+                        radius: 12,
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'ไฟล์แนบงาน',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: _submitting
+                                      ? null
+                                      : _pickAttachmentFiles,
+                                  icon: const Icon(Icons.attach_file),
+                                  label: const Text('เพิ่มไฟล์'),
+                                ),
+                              ],
+                            ),
+                            if (_attachmentFiles.isEmpty)
+                              Text(
+                                'ยังไม่ได้เลือกไฟล์แนบ',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              )
+                            else
+                              ..._attachmentFiles.asMap().entries.map((entry) {
+                                final idx = entry.key;
+                                final file = entry.value;
+                                final name = file.path
+                                    .split(RegExp(r'[\\/]'))
+                                    .last;
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Icons.insert_drive_file_outlined,
+                                  ),
+                                  title: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: IconButton(
+                                    onPressed: _submitting
+                                        ? null
+                                        : () => _removeAttachmentAt(idx),
+                                    icon: const Icon(Icons.close),
+                                  ),
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ปุ่มบันทึก
+                      FilledButton.icon(
+                        onPressed: _submitting ? null : _submit,
+                        icon: const Icon(Icons.save_outlined),
+                        label: Text(
+                          _submitting ? 'กำลังบันทึก...' : 'บันทึกงาน',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                      ),
+                      if (_submitting)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'กำลังบันทึก...',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

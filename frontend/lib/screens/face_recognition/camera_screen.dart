@@ -1,6 +1,7 @@
 // lib/screens/camera_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:camera/camera.dart';
 import '../../utils/image_utils.dart';
 import '../../services/face_service.dart';
@@ -154,7 +155,7 @@ class _CameraScreenState extends State<CameraScreen>
                   text: 'ยินยอม',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent,
+                    color: AppColors.primary,
                   ),
                 ),
                 TextSpan(text: ' ให้ระบบบันทึกข้อมูลนี้หรือไม่?'),
@@ -189,7 +190,7 @@ class _CameraScreenState extends State<CameraScreen>
             FilledButton(
               style: ButtonStyle(
                 backgroundColor: MaterialStateProperty.all<Color>(
-                  Colors.blueAccent,
+                  AppColors.primary,
                 ),
                 padding: MaterialStateProperty.all<EdgeInsets>(
                   EdgeInsets.symmetric(
@@ -429,7 +430,7 @@ Future<void> _captureAndProcess() async {
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 32),
                         child: FloatingActionButton(
-                          backgroundColor: Colors.blueAccent, 
+                          backgroundColor: AppColors.primary, 
                           onPressed: (_isProcessing || _isCapturing)
                               ? null
                               : _captureAndProcess,

@@ -67,6 +67,7 @@ class SubmissionCreateOrUpdate(BaseModel):
     """
     # เผื่ออนาคตถ้าจะให้ส่งลิงก์ไฟล์แทนการอัปโหลด
     content_url: Optional[str] = None
+    submission_text: Optional[str] = None
 
 class GradeSubmission(BaseModel):
     """ครูให้คะแนนการส่งของนักเรียนคนหนึ่ง"""
@@ -82,6 +83,7 @@ class SubmissionResponse(BaseModel):
     first_name: str = ""
     last_name: str = ""
     content_url: Optional[str] = None
+    submission_text: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness   # On_Time / Late / Not_Submitted
     graded: bool
@@ -99,6 +101,7 @@ class SubmissionResponse(BaseModel):
 class MySubmissionMini(BaseModel):
     """ย่อ: สำหรับแสดงงานของฉันต่อ assignment หนึ่ง"""
     content_url: Optional[str] = None
+    submission_text: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness
     graded: bool
@@ -129,6 +132,7 @@ class SubmissionRowForTeacher(BaseModel):
     student_id: UUID
     student_name: Optional[str] = None
     content_url: Optional[str] = None
+    submission_text: Optional[str] = None
     submitted_at: Optional[datetime] = None
     submission_status: SubmissionLateness
     graded: bool

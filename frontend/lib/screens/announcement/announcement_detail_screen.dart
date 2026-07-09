@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/models/comment_model.dart';
@@ -6,6 +7,7 @@ import 'package:frontend/services/announcement_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart'; // 👈 เพิ่มตัวนี้
 import 'package:url_launcher/url_launcher.dart';
 import 'package:frontend/config.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 class AnnouncementDetailScreen extends StatefulWidget {
   final String announcementId;
@@ -112,6 +114,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
     }
   }
 
+  BoxDecoration _panelBox({double radius = 14}) {
+    return BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.46),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.62)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy, HH:mm');
@@ -124,13 +134,34 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
         : widget.title;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('รายละเอียดประกาศ'),
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD6E4FF)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ),
+        title: const Text('รายละเอียดประกาศ', style: TextStyle(fontWeight: FontWeight.w800)),
         // หน้าประกาศไม่มีการให้คะแนน เลยไม่ต้องมีปุ่มตรวจงาน
       ),
-      body: Column(
-        children: [
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+        child: GlassCard(
+          accent: widget.pinned ? Colors.red.shade600 : Colors.blue.shade600,
+          radius: 18,
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
           // 1. พื้นที่เลื่อนได้ (รวมรายละเอียดประกาศ + คอมเมนต์)
           Expanded(
             child: RefreshIndicator(
@@ -141,16 +172,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                 itemBuilder: (context, index) {
                   // ====== ส่วนที่ 1: รายละเอียดประกาศ (อยู่บนสุดเสมอ) ======
                   if (index == 0) {
-                    return Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade300),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: _panelBox(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                           Row(
                             children: [
                               Container(
@@ -217,34 +246,32 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               ),
                             ),
                             ..._attachmentDtos.map(
-                              (att) => Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.grey.shade200),
-                                ),
-                                child: ListTile(
-                                  leading: Icon(
-                                    att.mimeType.contains('image')
-                                        ? Icons.image_outlined
-                                        : Icons.description_outlined,
-                                    color: Colors.blueAccent,
+                              (att) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Container(
+                                  decoration: _panelBox(radius: 12),
+                                  child: ListTile(
+                                    leading: Icon(
+                                      att.mimeType.contains('image')
+                                          ? Icons.image_outlined
+                                          : Icons.description_outlined,
+                                      color: AppColors.primary,
+                                    ),
+                                    title: Text(
+                                      att.fileName,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    subtitle: Text(
+                                      '${(att.sizeBytes / 1024).toStringAsFixed(1)} KB',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.open_in_new,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
+                                    onTap: () => _openAttachment(att),
                                   ),
-                                  title: Text(
-                                    att.fileName,
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                  subtitle: Text(
-                                    '${(att.sizeBytes / 1024).toStringAsFixed(1)} KB',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  trailing: const Icon(
-                                    Icons.open_in_new,
-                                    size: 20,
-                                    color: Colors.grey,
-                                  ),
-                                  onTap: () => _openAttachment(att),
                                 ),
                               ),
                             ),
@@ -263,7 +290,8 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               ),
                             ),
                           ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   }
@@ -295,7 +323,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    child: Row(
+                    child: Container(
+                      decoration: _panelBox(radius: 12),
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // 🚨 3. วาด Avatar โดยเช็คว่ามี URL ไหม
@@ -352,6 +383,7 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                         ),
                       ],
                     ),
+                    ),
                   );
                 },
               ),
@@ -359,21 +391,14 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
           ),
 
           // 2. ส่วนที่เกาะอยู่ล่างสุด: ช่องพิมพ์คอมเมนต์
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  offset: const Offset(0, -2),
-                  blurRadius: 5,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: _panelBox(radius: 12),
+              child: SafeArea(
+                child: Row(
+                  children: [
                   Expanded(
                     child: TextField(
                       controller: _commentController,
@@ -381,11 +406,10 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                       maxLines: 4,
                       decoration: InputDecoration(
                         hintText: "เพิ่มความคิดเห็นในชั้นเรียน...",
-                        hintStyle: TextStyle(color: Colors.grey.shade500),
                         filled: true,
-                        fillColor: Colors.grey.shade100,
+                        fillColor: Colors.white.withValues(alpha: 0.55),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -396,25 +420,29 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.blueAccent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                        size: 20,
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(42, 42),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      onPressed: _sendComment,
+                      padding: EdgeInsets.zero,
+                    ),
+                    onPressed: _sendComment,
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

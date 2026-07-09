@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/comment_model.dart';
@@ -7,6 +8,7 @@ import 'package:frontend/services/classwork_simple_service.dart';
 import 'package:frontend/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/screens/assignment/grading_screen.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 class AssignmentDetailScreen extends StatefulWidget {
   final String assignmentId;
@@ -200,6 +202,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     final my = _mySubmission;
     final submittedAt = my?.submittedAt;
     final submittedFileName = _fileNameFromStoragePath(my?.contentUrl);
+    final submittedText = my?.submissionText?.trim();
+    final hasSubmittedFile =
+      my?.contentUrl != null && my!.contentUrl!.trim().isNotEmpty;
     final submittedAtText = submittedAt != null
         ? DateFormat('dd MMM yyyy, HH:mm').format(submittedAt)
         : '-';
@@ -231,31 +236,35 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               )
             else ...[
               Text('สถานะ: ${_statusLabel(my.submissionStatus)}'),
+              if (submittedText != null && submittedText.isNotEmpty)
+                Text('คำตอบที่ส่ง: $submittedText'),
               Text('ไฟล์ที่ส่ง: $submittedFileName'),
               Text('เวลาส่ง: $submittedAtText'),
               if (my.score != null) Text('คะแนนที่ได้: ${my.score}'),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
-                  foregroundColor: Colors.white,
+              if (hasSubmittedFile) ...[
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _busyMySubmissionAction
+                      ? null
+                      : _openMySubmissionFile,
+                  icon: _busyMySubmissionAction
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.open_in_new),
+                  label: Text(
+                    _busyMySubmissionAction
+                        ? 'กำลังเปิดไฟล์...'
+                        : 'ดูไฟล์ที่ส่งแล้ว',
+                  ),
                 ),
-                onPressed: _busyMySubmissionAction
-                    ? null
-                    : _openMySubmissionFile,
-                icon: _busyMySubmissionAction
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.open_in_new),
-                label: Text(
-                  _busyMySubmissionAction
-                      ? 'กำลังเปิดไฟล์...'
-                      : 'ดูไฟล์ที่ส่งแล้ว',
-                ),
-              ),
+              ],
             ],
           ],
         ),
@@ -383,24 +392,43 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     }
   }
 
+  BoxDecoration _panelBox({double radius = 14}) {
+    return BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.46),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.62)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD6E4FF)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ),
         title: Text(
           widget.title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         // เพิ่ม TabBar ไว้ด้านล่างของ AppBar
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.blueAccent,
-          unselectedLabelColor: Colors.grey.shade600,
-          indicatorColor: Colors.blueAccent,
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          indicatorPadding: EdgeInsets.zero,
           tabs: [
             const Tab(text: 'Instructions'),
             if (widget.isTeacher) const Tab(text: 'Student Work'),
@@ -408,12 +436,20 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
         ),
       ),
       // ใช้ TabBarView เพื่อสลับหน้าจอตามแท็บ
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildInstructionsTab(),
-          if (widget.isTeacher) _buildStudentWorkTab(),
-        ],
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+        child: GlassCard(
+          accent: AppColors.primary,
+          radius: 18,
+          padding: EdgeInsets.zero,
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildInstructionsTab(),
+              if (widget.isTeacher) _buildStudentWorkTab(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -443,27 +479,25 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               itemBuilder: (context, index) {
                 // ส่วนหัว (รายละเอียดงาน)
                 if (index == 0) {
-                  return Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _panelBox(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                         Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.1),
+                                color: AppColors.primary.withOpacity(0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
                                 Icons.assignment,
-                                color: Colors.blueAccent,
+                                color: AppColors.primary,
                                 size: 28,
                               ),
                             ),
@@ -475,9 +509,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                                   Text(
                                     widget.title,
                                     style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blueAccent,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primaryDark,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -501,7 +535,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                             children: [
                               const Icon(
                                 Icons.attach_file,
-                                color: Colors.blueAccent,
+                                color: AppColors.primary,
                                 size: 18,
                               ),
                               const SizedBox(width: 6),
@@ -531,12 +565,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                             final kb = (item.sizeBytes / 1024).toStringAsFixed(
                               1,
                             );
-                            return Card(
-                              margin: const EdgeInsets.only(top: 8),
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                              decoration: _panelBox(radius: 12),
                               child: ListTile(
                                 leading: const Icon(
                                   Icons.insert_drive_file_outlined,
-                                  color: Colors.blueAccent,
+                                  color: AppColors.primary,
                                 ),
                                 title: Text(
                                   item.fileName,
@@ -551,13 +587,14 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                                     ? IconButton(
                                         icon: const Icon(
                                           Icons.delete_outline,
-                                          color: Colors.redAccent,
+                                          color: AppColors.error,
                                         ),
                                         onPressed: _busyAttachmentAction
                                             ? null
                                             : () => _deleteAttachment(item),
                                       )
                                     : const Icon(Icons.open_in_new, size: 18),
+                              ),
                               ),
                             );
                           }),
@@ -572,7 +609,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                             ),
                           ),
                         ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -594,7 +632,10 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  child: Row(
+                  child: Container(
+                    decoration: _panelBox(radius: 12),
+                    padding: const EdgeInsets.all(10),
+                    child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       fullAvatarUrl != null
@@ -647,6 +688,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                       ),
                     ],
                   ),
+                  ),
                 );
               },
             ),
@@ -655,17 +697,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
 
         // กล่องพิมพ์คอมเมนต์ด้านล่าง
         Container(
+          decoration: _panelBox(),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                offset: const Offset(0, -2),
-                blurRadius: 5,
-              ),
-            ],
-          ),
           child: SafeArea(
             child: Row(
               children: [
@@ -676,11 +709,10 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: "Add class comment...",
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
                       filled: true,
-                      fillColor: Colors.grey.shade100,
+                      fillColor: Colors.white.withValues(alpha: 0.55),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(14),
                         borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -691,18 +723,19 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.blueAccent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 20,
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(42, 42),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    onPressed: _sendComment,
+                    padding: EdgeInsets.zero,
+                  ),
+                  onPressed: _sendComment,
+                  child: const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
               ],
@@ -723,11 +756,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
     return Column(
       children: [
         // (Turned in / Assigned)
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: Container(
+          decoration: _panelBox(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -740,12 +774,16 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               _buildStatColumn(assignedCount.toString(), 'Assigned'),
             ],
           ),
+          ),
+          ),
         ),
 
         // 2. ปุ่มเปิด/ปิด รับงาน
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Container(
+            decoration: _panelBox(),
+            child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
@@ -754,7 +792,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               ),
               Switch(
                 value: _isAccepting, // ผูกกับตัวแปร State
-                activeColor: Colors.blueAccent,
+                activeColor: AppColors.primary,
                 onChanged: (val) async {
                   // 1. เปลี่ยน UI ทันทีเพื่อให้ดูสมูท ไม่ต้องรอ API (Optimistic Update)
                   setState(() {
@@ -792,7 +830,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                               ),
                             ],
                           ),
-                          backgroundColor: Colors.redAccent,
+                          backgroundColor: AppColors.error,
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
@@ -801,6 +839,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                 },
               ),
             ],
+          ),
           ),
         ),
         const Divider(height: 1),
@@ -823,6 +862,8 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                   itemBuilder: (context, index) {
                     final submission = _submissions[index];
                     final bool hasScore = submission.score != null;
+                    final String? submissionText = submission.submissionText
+                        ?.trim();
                     final statusLabel = submission.graded
                         ? 'Graded'
                         : 'Turned in';
@@ -841,27 +882,33 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
                           submission.username.isNotEmpty
                               ? submission.username[0].toUpperCase()
                               : '?',
-                          style: const TextStyle(color: Colors.blueAccent),
+                          style: const TextStyle(color: AppColors.primary),
                         ),
                       ),
                       title: Text(
                         '${submission.firstName} ${submission.lastName}',
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
-                      subtitle: Text(
-                        hasScore
-                            ? 'Score: ${submission.score}'
-                            : submission.submittedAt != null
-                            ? 'Submitted ${DateFormat('dd MMM HH:mm').format(submission.submittedAt!)}'
-                            : 'ยังไม่มีข้อมูลการส่งงาน',
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
+                      isThreeLine: submissionText != null && submissionText.isNotEmpty,
+                      subtitleTextStyle: TextStyle(color: Colors.grey.shade600),
                       trailing: Text(
                         statusLabel,
                         style: TextStyle(
                           color: statusColor,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      subtitle: Text(
+                        [
+                          hasScore
+                              ? 'Score: ${submission.score}'
+                              : submission.submittedAt != null
+                              ? 'Submitted ${DateFormat('dd MMM HH:mm').format(submission.submittedAt!)}'
+                              : 'ยังไม่มีข้อมูลการส่งงาน',
+                          if (submissionText != null && submissionText.isNotEmpty)
+                            'คำตอบ: $submissionText',
+                        ].join('\n'),
+                        style: TextStyle(color: Colors.grey.shade600),
                       ),
                       onTap: () {
                         Navigator.push(

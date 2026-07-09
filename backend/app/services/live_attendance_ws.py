@@ -133,18 +133,23 @@ def get_live_session_payload(db: Session, session_id: uuid.UUID | str) -> dict[s
 
     present_count = 0
     late_count = 0
+    absent_count = 0
     unverified_count = 0
+    checked_in_count = 0
     for rec in records:
         status = _status_text(rec.status).strip().lower().replace(" ", "_")
         if status == "present":
             present_count += 1
         elif status == "late":
             late_count += 1
+        elif status == "absent":
+            absent_count += 1
         elif status in {"unverified_face", "manual_override"}:
             unverified_count += 1
+        if rec.check_in_time is not None and status != "absent":
+            checked_in_count += 1
 
-    checked_in_count = len(records)
-    waiting_count = max(int(total_students) - checked_in_count, 0)
+    waiting_count = max(int(total_students) - checked_in_count - absent_count, 0)
 
     return {
         "session_id": str(session.session_id),
@@ -163,6 +168,7 @@ def get_live_session_payload(db: Session, session_id: uuid.UUID | str) -> dict[s
         "summary": {
             "present": present_count,
             "late": late_count,
+            "absent": absent_count,
             "unverified": unverified_count,
             "waiting": waiting_count,
         },

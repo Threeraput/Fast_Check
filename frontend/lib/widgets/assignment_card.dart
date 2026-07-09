@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/services/classwork_simple_service.dart';
+import 'package:frontend/utils/app_theme.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 class AssignmentCard extends StatelessWidget {
   final String classId;
@@ -50,60 +52,65 @@ class AssignmentCard extends StatelessWidget {
         ? extra['is_accepting_submissions'] as bool
         : true;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          // 👈 3. ย้ายคำสั่งเปลี่ยนหน้ามาไว้ตรงนี้ (กดตรงไหนของ Card ก็ทำงาน)
-          // 🚨 วางกับดักจุดที่ 3: เช็คค่าสุดท้ายก่อนส่งไปหน้า Detail
-          print(
-            '🚀 DEBUG NAVIGATING: Sending isAccepting = ${isAcceptingSubmissions}',
-          );
-          Navigator.pushNamed(
-            context,
-            '/assignment-detail',
-            arguments: {
-              'assignmentId': assignmentId,
-              'title': title,
-              'classId': classId,
-              'isTeacher': isTeacher,
-              'dueDateIso': dueIso,
-              'maxScore': maxScore,
-            },
-          ).then((_) => onChanged?.call());
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return GlassCard(
+      accent: AppColors.primary,
+      radius: 16,
+      padding: const EdgeInsets.all(10),
+      onTap: () {
+        print(
+          '🚀 DEBUG NAVIGATING: Sending isAccepting = ${isAcceptingSubmissions}',
+        );
+        Navigator.pushNamed(
+          context,
+          '/assignment-detail',
+          arguments: {
+            'assignmentId': assignmentId,
+            'title': title,
+            'classId': classId,
+            'isTeacher': isTeacher,
+            'dueDateIso': dueIso,
+            'maxScore': maxScore,
+          },
+        ).then((_) => onChanged?.call());
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
               // Header
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.lightBlue[300],
-                    child: Icon(
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
                       Icons.assignment_outlined,
-                      size: 18,
-                      color: Colors.white,
+                      size: 16,
+                      color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'งาน: $title',
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                   Text(
                     df.format(postedAt.toLocal()),
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
 
               if (due != null)
                 Text(
@@ -123,7 +130,7 @@ class AssignmentCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
 
               if (!isTeacher)
                 Align(
@@ -161,9 +168,7 @@ class AssignmentCard extends StatelessWidget {
               //       },
               //     ),
               //   ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -189,21 +194,113 @@ class _StudentSubmitButton extends StatefulWidget {
 class _StudentSubmitButtonState extends State<_StudentSubmitButton> {
   bool _busy = false;
 
-  Future<void> _pickAndSubmit() async {
+  Future<void> _showSubmitDialog() async {
+    final textController = TextEditingController();
+    String? selectedPdfPath;
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final selectedName = selectedPdfPath == null
+                ? 'ไม่ได้แนบไฟล์'
+                : selectedPdfPath!.split(RegExp(r'[\\/]')).last;
+
+            return AlertDialog(
+              title: const Text('ส่งงาน'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'พิมพ์คำตอบได้เลย หรือแนบ PDF เพิ่มก็ได้',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: textController,
+                      minLines: 3,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'คำตอบ',
+                        hintText: 'เช่น 2+2 = 4',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: ['pdf'],
+                            );
+                            if (picked == null || picked.files.isEmpty) return;
+                            final path = picked.files.single.path;
+                            if (path == null || path.trim().isEmpty) return;
+                            setDialogState(() => selectedPdfPath = path);
+                          },
+                          icon: const Icon(Icons.attach_file),
+                          label: const Text('แนบ PDF'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            selectedName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('ยกเลิก'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final answer = textController.text.trim();
+                    if (answer.isEmpty && selectedPdfPath == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('กรุณาพิมพ์คำตอบหรือแนบ PDF อย่างน้อย 1 อย่าง'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: const Text('ส่งงาน'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (submitted != true) {
+      textController.dispose();
+      return;
+    }
+
     try {
       setState(() => _busy = true);
 
-      final picked = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
-      if (picked == null || picked.files.isEmpty) return;
-      final path = picked.files.single.path;
-      if (path == null) return;
-
-      await ClassworkSimpleService.submitPdf(
+      final answer = textController.text.trim();
+      final file = selectedPdfPath == null ? null : File(selectedPdfPath!);
+      await ClassworkSimpleService.submitAssignment(
         assignmentId: widget.assignmentId,
-        pdfFile: File(path),
+        pdfFile: file,
+        submissionText: answer.isEmpty ? null : answer,
       );
 
       if (!mounted) return;
@@ -217,6 +314,7 @@ class _StudentSubmitButtonState extends State<_StudentSubmitButton> {
         context,
       ).showSnackBar(SnackBar(content: Text('ส่งงานไม่สำเร็จ: $e')));
     } finally {
+      textController.dispose();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -259,7 +357,7 @@ class _StudentSubmitButtonState extends State<_StudentSubmitButton> {
       ),
     );
     if (ok == true) {
-      await _pickAndSubmit();
+      await _showSubmitDialog();
     }
   }
 
@@ -286,13 +384,13 @@ class _StudentSubmitButtonState extends State<_StudentSubmitButton> {
                 : Colors.grey[400],
           ),
           icon: Icon(
-            isAccepting ? Icons.picture_as_pdf_outlined : Icons.lock_outline,
+            isAccepting ? Icons.upload_file_outlined : Icons.lock_outline,
           ),
           label: Text(
-            isAccepting ? 'ส่ง PDF' : 'ปิดรับการส่งงาน',
+            isAccepting ? 'ส่งงาน' : 'ปิดรับการส่งงาน',
             style: const TextStyle(color: Colors.white),
           ),
-          onPressed: isAccepting ? _pickAndSubmit : null,
+          onPressed: isAccepting ? _showSubmitDialog : null,
         ),
       );
     } else {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:frontend/models/classroom.dart';
 import 'package:frontend/models/classwork.dart';
 import 'package:frontend/models/users.dart';
@@ -264,12 +265,12 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                               children: [
                                 Icon(
                                   Icons.file_open_outlined,
-                                  color: Colors.blueAccent,
+                                  color: AppColors.primary,
                                 ),
                                 SizedBox(width: 6),
                                 Text(
                                   'เปิดไฟล์งานที่ส่ง',
-                                  style: TextStyle(color: Colors.blueAccent),
+                                  style: TextStyle(color: AppColors.primary),
                                 ),
                               ],
                             ),
@@ -300,7 +301,7 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen> {
                             IconButton.filled(
                               icon: const Icon(Icons.save, color: Colors.white),
                               style: IconButton.styleFrom(
-                                backgroundColor: Colors.blueAccent,
+                                backgroundColor: AppColors.primary,
                                 padding: const EdgeInsets.all(14),
                               ),
                               onPressed: () {

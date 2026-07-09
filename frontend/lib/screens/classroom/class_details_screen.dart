@@ -5,12 +5,15 @@ import 'package:frontend/screens/attendance/class_report_tab.dart';
 import 'package:frontend/screens/classroom/classroom_home_screen.dart';
 import 'package:frontend/screens/announcement/create_announcement_screen.dart';
 import 'package:frontend/screens/attendance/teacher_open_checkin_sheet.dart';
+import 'package:frontend/screens/classroom/chat_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/class_service.dart';
 import 'package:frontend/services/feed_service.dart';
 import 'package:frontend/widgets/feed_cards.dart';
+import 'package:frontend/widgets/glass_card.dart';
 import 'package:frontend/models/feed_item.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/utils/app_theme.dart';
 
 // ใช้สำหรับ URL รูปโปรไฟล์
 import 'package:frontend/services/user_service.dart';
@@ -60,15 +63,15 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
         // ครูใช้รายละเอียดคลาส
         cls = await ClassService.getClassroomDetails(widget.classId);
       } else {
-        // 3. นักเรียนก็ต้องโหลดข้อมูลคลาสเหมือนกันนะ!
-        // (เปลี่ยนชื่อฟังก์ชัน API ตามที่คุณเขียนไว้หลังบ้านครับ)
+        // นักเรียนใช้ endpoint สมาชิกในคลาส เพื่อให้เห็นครูได้
         cls = await ClassService.getStudentClassroomDetails(widget.classId);
       }
 
+      if (!mounted) return;
       setState(() {
         _me = me;
         _isTeacher = isTeacher;
-        _isSwapped = isSwapped; // เก็บไว้ใช้โชว์ปุ่มแดงด้านบน
+        _isSwapped = isSwapped;
         _classroom = cls;
         _loading = false;
       });
@@ -133,13 +136,44 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final title = _classroom?.name ?? widget.className ?? 'Classroom';
-    final description = _classroom?.description;
+    final classCode = _classroom?.code ?? '-';
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD6E4FF)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              'Class Code: $classCode',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(
-                color: Color.fromARGB(255, 28, 178, 248),
+                color: AppColors.primary,
               ),
             )
           : _error
@@ -147,7 +181,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
           : Column(children: [Expanded(child: _buildBody())]),
       floatingActionButton: _currentIndex == 1 && _isTeacher
           ? FloatingActionButton.extended(
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: AppColors.primary,
               icon: const Icon(color: Colors.white, Icons.add),
               label: const Text(
                 style: TextStyle(color: Colors.white),
@@ -171,32 +205,76 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
             )
           : null,
 
-      //  Bottom Navigation Bar เหมือนเดิม
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: const Color.fromARGB(255, 39, 39, 39),
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.forum_outlined),
-            label: 'Stream',
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    const items = [
+      (Icons.forum_outlined, 'Stream'),
+      (Icons.assignment_outlined, 'Classwork'),
+      (Icons.bar_chart_outlined, 'Report'),
+      (Icons.people_outline, 'People'),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 6),
+        child: GlassCard(
+          accent: const Color(0xFF2563EB),
+          radius: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: List.generate(items.length, (i) {
+              final selected = _currentIndex == i;
+              final (icon, label) = items[i];
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Material(
+                    color: selected
+                        ? const Color(0xFF2563EB).withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => setState(() => _currentIndex = i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 20,
+                              color: selected
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Classwork',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Report',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'People',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -221,7 +299,12 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
         //  แท็บรายงานจริง
         return ClassReportTab(classId: widget.classId);
       case 3:
-        return _PeopleTab(classroom: _classroom, onRefresh: _bootstrap);
+        return _PeopleTab(
+          classroom: _classroom,
+          onRefresh: _bootstrap,
+          isTeacher: _isTeacher,
+          currentUserId: _me?.userId,
+        );
       default:
         return const SizedBox.shrink();
     }
@@ -250,6 +333,12 @@ class _StreamTab extends StatefulWidget {
 class _StreamTabState extends State<_StreamTab> {
   late Future<List<FeedItem>> _futureFeed;
   List<FeedItem> _lastFeed = const [];
+
+  Color get _roleTone => widget.isTeacher
+      ? const Color(0xFF2563EB)
+      : const Color(0xFF0EA5A4);
+
+  String get _roleLabel => widget.isTeacher ? 'Teacher Stream' : 'Student Stream';
 
   @override
   void initState() {
@@ -323,44 +412,132 @@ class _StreamTabState extends State<_StreamTab> {
     });
   }
 
+  Widget _buildRoleDivider() {
+    final tone = _roleTone;
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [tone.withValues(alpha: 0.0), tone.withValues(alpha: 0.72)],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: tone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: tone.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            _roleLabel,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: tone,
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [tone.withValues(alpha: 0.72), tone.withValues(alpha: 0.0)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    final tone = _roleTone;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: tone,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.classroom;
     return RefreshIndicator(
       onRefresh: () => _refresh(force: true),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
+          _buildRoleDivider(),
+          const SizedBox(height: 12),
           if (c != null)
-            Card(
-              color: getClassColor(c.name ?? 'Class'),
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            GlassCard(
+              accent: getClassColor(c.name ?? 'Class'),
+              radius: 16,
+              padding: const EdgeInsets.all(0),
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           c.name ?? '—',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: const Color(0xFF0F2547),
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          style: TextStyle(color: Colors.white),
-                          'Code: ${c.code ?? '-'}',
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFFBFD3FF)),
+                          ),
+                          child: Text(
+                            'Code: ${c.code ?? '-'}',
+                            style: const TextStyle(
+                              color: Color(0xFF123A6D),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
-                          style: const TextStyle(color: Colors.white70),
+                          style: const TextStyle(
+                            color: Color(0xFF3D5A82),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                           'Teacher: ${c.teacher?.username ?? c.teacher?.email ?? '-'}',
                         ),
                       ],
@@ -383,7 +560,7 @@ class _StreamTabState extends State<_StreamTab> {
                               children: [
                                 Icon(
                                   Icons.info_outline,
-                                  color: Colors.blueAccent,
+                                  color: AppColors.primary,
                                 ),
                                 SizedBox(width: 8),
                                 Text('คำอธิบายคลาส'),
@@ -411,48 +588,64 @@ class _StreamTabState extends State<_StreamTab> {
               ),
             ),
           if (widget.isTeacher) ...[
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: widget.onCreateAnnouncement,
-              icon: const Icon(Icons.campaign),
-              label: const Text('Create Announcement'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.black38, // สีข้อความและไอคอน
-                minimumSize: const Size.fromHeight(44),
+            const SizedBox(height: 10),
+            GlassCard(
+              accent: const Color(0xFF2563EB),
+              radius: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              onTap: widget.onCreateAnnouncement,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.campaign_outlined, size: 18, color: Color(0xFF1D4ED8)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Create Announcement',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8)),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 8),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.blueAccent, // สีพื้นหลัง
-                minimumSize: const Size.fromHeight(44),
-              ),
-              onPressed: () async {
-                final created =
-                    await showModalBottomSheet<Map<String, dynamic>?>(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) =>
-                          TeacherOpenCheckinSheet(classId: widget.classId),
-                    );
+            GlassCard(
+              accent: const Color(0xFF0EA5A4),
+              radius: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              onTap: () async {
+                        final created =
+                            await showModalBottomSheet<Map<String, dynamic>?>(
+                              context: context,
+                              isScrollControlled: true,
+                              builder: (_) =>
+                                  TeacherOpenCheckinSheet(classId: widget.classId),
+                            );
 
-                if (!mounted) return;
+                        if (!mounted) return;
 
-                if (created != null) {
-                  insertOptimisticSession(created);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
-                  );
-                  refreshFeedEventually();
-                }
+                        if (created != null) {
+                          insertOptimisticSession(created);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('เปิดเช็คชื่อแล้ว')),
+                          );
+                          refreshFeedEventually();
+                        }
               },
-              icon: const Icon(Icons.play_circle_outline),
-              label: const Text('ประกาศเช็คชื่อ'),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.play_circle_outline, size: 18, color: Color(0xFF0F766E)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'ประกาศเช็คชื่อ',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 16),
-          Text('Announcements', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          _sectionTitle('Announcements'),
+          const SizedBox(height: 6),
           FutureBuilder<List<FeedItem>>(
             future: _futureFeed,
             builder: (context, snap) {
@@ -461,7 +654,7 @@ class _StreamTabState extends State<_StreamTab> {
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: Color.fromARGB(255, 28, 178, 248),
+                      color: AppColors.primary,
                     ),
                   ),
                 );
@@ -475,6 +668,15 @@ class _StreamTabState extends State<_StreamTab> {
                 );
               }
               final feed = snap.data ?? const <FeedItem>[];
+              if (feed.isEmpty) {
+                return AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: const Text(
+                    'ยังไม่มีประกาศหรือกิจกรรมในคลาสนี้',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                );
+              }
               return FeedList(
                 items: feed,
                 isTeacher: widget.isTeacher,
@@ -506,6 +708,14 @@ class _ClassworkTab extends StatefulWidget {
 class _ClassworkTabState extends State<_ClassworkTab> {
   late Future<List<FeedItem>> _futureAssignments;
 
+  Color get _roleColor => widget.isTeacher
+      ? const Color(0xFF2563EB)
+      : const Color(0xFF0EA5A4);
+
+  String get _roleLabel => widget.isTeacher
+      ? 'Teacher Classwork'
+      : 'Student Classwork';
+
   @override
   void initState() {
     super.initState();
@@ -522,6 +732,58 @@ class _ClassworkTabState extends State<_ClassworkTab> {
     });
   }
 
+  Widget _buildRoleDivider() {
+    final color = _roleColor;
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.0),
+                  color.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            _roleLabel,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.72),
+                  color.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -529,15 +791,38 @@ class _ClassworkTabState extends State<_ClassworkTab> {
       child: FutureBuilder<List<FeedItem>>(
         future: _futureAssignments,
         builder: (context, snap) {
+          final roleHeader = [
+            _buildRoleDivider(),
+            const SizedBox(height: 12),
+          ];
+
           if (snap.connectionState != ConnectionState.done) {
-            return Center(
-              child: CircularProgressIndicator(
-                color: Color.fromARGB(255, 28, 178, 248),
-              ),
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              children: [
+                ...roleHeader,
+                const SizedBox(height: 40),
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
             );
           }
           if (snap.hasError) {
-            return Center(child: Text('เกิดข้อผิดพลาด: ${snap.error}'));
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              children: [
+                ...roleHeader,
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('เกิดข้อผิดพลาด: ${snap.error}'),
+                ),
+              ],
+            );
           }
 
           final feed = snap.data ?? [];
@@ -546,23 +831,49 @@ class _ClassworkTabState extends State<_ClassworkTab> {
               .toList();
 
           if (assignments.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('ยังไม่มีงานในคลาสนี้'),
-              ),
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              children: [
+                ...roleHeader,
+                AppCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      Icon(
+                        widget.isTeacher
+                            ? Icons.assignment_outlined
+                            : Icons.assignment_late_outlined,
+                        color: _roleColor,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.isTeacher
+                            ? 'ยังไม่มีงานในคลาสนี้ กดปุ่ม เพิ่มงาน เพื่อสร้างงานแรก'
+                            : 'ยังไม่มีงานที่ต้องส่งในคลาสนี้',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             );
           }
 
-          return SingleChildScrollView(
+          return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: FeedList(
-              items: assignments,
-              isTeacher: widget.isTeacher,
-              classId: widget.classId,
-              onChanged: _refresh,
-            ),
+            padding: const EdgeInsets.all(12),
+            children: [
+              ...roleHeader,
+              FeedList(
+                items: assignments,
+                isTeacher: widget.isTeacher,
+                classId: widget.classId,
+                onChanged: _refresh,
+              ),
+            ],
           );
         },
       ),
@@ -589,13 +900,24 @@ class _ReportTab extends StatelessWidget {
 class _PeopleTab extends StatefulWidget {
   final Classroom? classroom;
   final VoidCallback? onRefresh;
-  const _PeopleTab({required this.classroom, this.onRefresh});
+  final bool isTeacher;
+  final String? currentUserId;
+
+  const _PeopleTab({
+    required this.classroom,
+    this.onRefresh,
+    required this.isTeacher,
+    this.currentUserId,
+  });
 
   @override
   State<_PeopleTab> createState() => _PeopleTabState();
 }
 
 class _PeopleTabState extends State<_PeopleTab> {
+  static const Color _teacherTone = Color(0xFF2563EB);
+  static const Color _studentTone = Color(0xFF0EA5A4);
+
   CircleAvatar _avatarFor(User u, {double radius = 20}) {
     final url = UserService.absoluteAvatarUrl(u.avatarUrl);
     if (url != null && url.isNotEmpty) {
@@ -614,6 +936,80 @@ class _PeopleTabState extends State<_PeopleTab> {
   }
 
   String _display(User u) => u.displayName;
+
+  Widget _buildRoleDivider() {
+    final tone = widget.isTeacher ? _teacherTone : _studentTone;
+    final label = widget.isTeacher ? 'Teacher People View' : 'Student People View';
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  tone.withValues(alpha: 0.0),
+                  tone.withValues(alpha: 0.72),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: tone.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: tone.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: tone,
+              letterSpacing: 0.25,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  tone.withValues(alpha: 0.72),
+                  tone.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String title, Color tone) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: tone,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
 
   Future<void> _removeStudent(User student) async {
     if (widget.classroom?.classId == null) return;
@@ -666,39 +1062,92 @@ class _PeopleTabState extends State<_PeopleTab> {
       return const Center(child: Text('ไม่มีข้อมูลสมาชิกในคลาส'));
     }
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       children: [
-        Text('Teacher', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        ListTile(
-          leading: c.teacher != null
-              ? _avatarFor(c.teacher!, radius: 22)
-              : const CircleAvatar(child: Icon(Icons.person)),
-          title: Text(c.teacher != null ? _display(c.teacher!) : '-'),
-          subtitle: Text(c.teacher?.email ?? ''),
-        ),
+        _buildRoleDivider(),
         const SizedBox(height: 12),
-        Text(
-          'Students (${c.students.length})',
-          style: Theme.of(context).textTheme.titleMedium,
+        _sectionTitle('Teacher', _teacherTone),
+        const SizedBox(height: 6),
+        GlassCard(
+          accent: _teacherTone,
+          radius: 14,
+          padding: const EdgeInsets.all(4),
+          child: ListTile(
+            contentPadding: const EdgeInsets.only(left: 0, right: 8),
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 4, height: 44, color: _teacherTone),
+                const SizedBox(width: 10),
+                c.teacher != null
+                    ? _avatarFor(c.teacher!, radius: 22)
+                    : const CircleAvatar(child: Icon(Icons.person)),
+              ],
+            ),
+            title: Text(c.teacher != null ? _display(c.teacher!) : '-'),
+            subtitle: Text(c.teacher?.email ?? ''),
+            trailing: const Icon(Icons.school, size: 18, color: _teacherTone),
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        _sectionTitle('Students (${c.students.length})', _studentTone),
+        const SizedBox(height: 6),
         if (c.students.isEmpty)
-          const Card(
+          const GlassCard(
+            accent: _studentTone,
             child: Padding(
               padding: EdgeInsets.all(16.0),
               child: Text('ยังไม่มีนักเรียน'),
             ),
           ),
         ...c.students.map(
-          (s) => ListTile(
-            leading: _avatarFor(s),
-            title: Text(_display(s)),
-            subtitle: Text(s.email ?? ''),
-            trailing: IconButton(
-              icon: const Icon(Icons.remove_circle, color: Colors.red),
-              tooltip: 'ลบนักเรียน',
-              onPressed: () => _removeStudent(s),
+          (s) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: GlassCard(
+              accent: _studentTone,
+              radius: 12,
+              padding: const EdgeInsets.all(4),
+              child: ListTile(
+              contentPadding: const EdgeInsets.only(left: 0, right: 8),
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 4, height: 40, color: _studentTone),
+                  const SizedBox(width: 10),
+                  _avatarFor(s),
+                ],
+              ),
+              dense: true,
+              title: Text(_display(s), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: Text(s.email ?? '', style: const TextStyle(fontSize: 12)),
+              trailing: widget.isTeacher
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primary),
+                          tooltip: 'Chat student',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  classId: c.classId ?? '',
+                                  otherUser: s,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle, color: Colors.red),
+                          tooltip: 'ลบนักเรียน',
+                          onPressed: () => _removeStudent(s),
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
             ),
           ),
         ),

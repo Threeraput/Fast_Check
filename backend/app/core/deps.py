@@ -70,7 +70,9 @@ def role_required(required_roles: list[str]):
     สร้าง Dependency ที่ตรวจสอบว่าผู้ใช้มี Role ที่จำเป็นหรือไม่
     """
     def decorator(current_user: User = Depends(get_current_active_user)):
-        if not any(role_name in current_user.roles_list for role_name in required_roles):
+        user_roles = {str(r).strip().lower() for r in (current_user.roles_list or [])}
+        required = {str(r).strip().lower() for r in required_roles}
+        if user_roles.isdisjoint(required):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to perform this action"

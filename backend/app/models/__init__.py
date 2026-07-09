@@ -21,5 +21,6 @@ from .attendance_report import AttendanceReport
 from .attendance_report_detail import AttendanceReportDetail
 from .otp import OTP
 from .attendance_session import AttendanceSession
+from .chat_message import ChatMessage
 from .classwork_enums import SubmissionLateness
 

@@ -101,10 +101,13 @@ class AnnouncementService {
   /// แนบ token ทุกครั้ง
   static Future<Map<String, String>> _authHeaders() async {
     final t = await AuthService.getAccessToken();
+    if (t == null || t.isEmpty) {
+      throw Exception('Not authenticated');
+    }
     return {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (t != null) 'Authorization': 'Bearer $t',
+      'Authorization': 'Bearer $t',
     };
   }
 

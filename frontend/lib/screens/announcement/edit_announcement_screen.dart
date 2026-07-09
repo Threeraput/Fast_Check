@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:frontend/utils/app_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../services/announcement_service.dart';
 
@@ -231,7 +232,7 @@ class _EditAnnouncementScreenState extends State<EditAnnouncementScreen> {
                     onPressed: _loading ? null : _save,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                     ),
                     child: _loading

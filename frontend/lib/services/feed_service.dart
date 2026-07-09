@@ -43,6 +43,7 @@ class FeedService {
   static Future<List<FeedItem>> getClassFeed(
     String classId, {
     bool force = false,
+    bool includeTeacherAssignments = true,
   }) async {
     final items = <FeedItem>[];
 
@@ -121,34 +122,35 @@ class FeedService {
     }
 
     // 3) งาน (สำหรับครู) — ของเดิม
-    try {
-      final asgs =
-          await ClassworkSimpleService.listAssignmentsForClassAsTeacherTyped(
-            classId,
+    if (includeTeacherAssignments) {
+      try {
+        final asgs =
+            await ClassworkSimpleService.listAssignmentsForClassAsTeacherTyped(
+              classId,
+            );
+        for (final a in asgs) {
+          items.add(
+            FeedItem(
+              id: 'asg:${a.assignmentId}',
+              classId: classId,
+              type: FeedType.assignment,
+              title: 'งาน: ${a.title}',
+              postedAt: a.createdAt,
+              expiresAt: a.dueDate,
+              extra: {
+                'kind': 'assignment',
+                'assignment_id': a.assignmentId,
+                'title': a.title,
+                'due_date': a.dueDate.toIso8601String(),
+                'max_score': a.maxScore,
+                'is_accepting_submissions': a.isAcceptingSubmissions,
+              },
+            ),
           );
-      for (final a in asgs) {
-        items.add(
-          FeedItem(
-            id: 'asg:${a.assignmentId}',
-            classId: classId,
-            type: FeedType.assignment,
-            title: 'งาน: ${a.title}',
-            postedAt: a.createdAt,
-            expiresAt: a.dueDate,
-            extra: {
-              'kind': 'assignment',
-              'assignment_id': a.assignmentId,
-              'title': a.title,
-              'due_date': a.dueDate.toIso8601String(),
-              'max_score': a.maxScore,
-
-              'is_accepting_submissions': a.isAcceptingSubmissions,
-            },
-          ),
-        );
+        }
+      } catch (e) {
+        print('⚠️ โหลด assignments (ครู) ไม่สำเร็จ: $e');
       }
-    } catch (e) {
-      print('⚠️ โหลด assignments (ครู) ไม่สำเร็จ: $e');
     }
 
     // เรียงลำดับ
@@ -182,8 +184,52 @@ class FeedService {
   }) async {
     final result = <FeedItem>[];
 
+    void appendStudentAssignmentsFromRaw(List<dynamic> rows) {
+      for (final row in rows) {
+        if (row is! Map<String, dynamic>) continue;
+        final assignmentId = (row['assignment_id'] ?? '').toString();
+        if (assignmentId.isEmpty) continue;
+
+        final dueDate = DateTime.tryParse((row['due_date'] ?? '').toString());
+        final createdAt =
+            DateTime.tryParse((row['created_at'] ?? '').toString()) ??
+            dueDate ??
+            DateTime.now();
+
+        final mySubmission = row['my_submission'];
+        result.add(
+          FeedItem(
+            id: 'asg:$assignmentId',
+            classId: classId,
+            type: FeedType.assignment,
+            title: 'งาน: ${(row['title'] ?? 'Assignment').toString()}',
+            postedAt: createdAt,
+            expiresAt: dueDate,
+            extra: {
+              'kind': 'assignment',
+              'assignment_id': assignmentId,
+              'title': (row['title'] ?? '').toString(),
+              'due_date': row['due_date'],
+              'max_score': row['max_score'],
+              'computed_status': (row['computed_status'] ?? 'Not_Submitted')
+                  .toString(),
+              'my_submission': mySubmission is Map<String, dynamic>
+                  ? mySubmission
+                  : null,
+              'is_accepting_submissions':
+                  row['is_accepting_submissions'] == true,
+            },
+          ),
+        );
+      }
+    }
+
     // ดึง base แค่ครั้งเดียว
-    final base = await getClassFeed(classId, force: force);
+    final base = await getClassFeed(
+      classId,
+      force: force,
+      includeTeacherAssignments: false,
+    );
 
     // 1) รวม "ประกาศ" จาก base ครั้งเดียว
     for (final f in base) {
@@ -232,31 +278,42 @@ class FeedService {
       final list = await ClassworkSimpleService.getStudentAssignmentsTyped(
         classId,
       );
-      for (final v in list) {
-        final a = v.assignment;
-        result.add(
-          FeedItem(
-            id: 'asg:${a.assignmentId}',
-            classId: classId,
-            type: FeedType.assignment,
-            title: 'งาน: ${a.title}',
-            postedAt: a.createdAt,
-            expiresAt: a.dueDate,
-            extra: {
-              'kind': 'assignment',
-              'assignment_id': a.assignmentId,
-              'title': a.title,
-              'due_date': a.dueDate.toIso8601String(),
-              'max_score': a.maxScore,
-              'computed_status': latenessToString(v.computedStatus),
-              'my_submission': v.mySubmission?.toJson(),
-              'is_accepting_submissions': a.isAcceptingSubmissions,
-            },
-          ),
-        );
+      if (list.isNotEmpty) {
+        for (final v in list) {
+          final a = v.assignment;
+          result.add(
+            FeedItem(
+              id: 'asg:${a.assignmentId}',
+              classId: classId,
+              type: FeedType.assignment,
+              title: 'งาน: ${a.title}',
+              postedAt: a.createdAt,
+              expiresAt: a.dueDate,
+              extra: {
+                'kind': 'assignment',
+                'assignment_id': a.assignmentId,
+                'title': a.title,
+                'due_date': a.dueDate.toIso8601String(),
+                'max_score': a.maxScore,
+                'computed_status': latenessToString(v.computedStatus),
+                'my_submission': v.mySubmission?.toJson(),
+                'is_accepting_submissions': a.isAcceptingSubmissions,
+              },
+            ),
+          );
+        }
+      } else {
+        final raw = await ClassworkSimpleService.getStudentAssignments(classId);
+        appendStudentAssignmentsFromRaw(raw);
       }
     } catch (e) {
       print('⚠️ โหลด assignments (นักเรียน) ไม่สำเร็จ: $e');
+      try {
+        final raw = await ClassworkSimpleService.getStudentAssignments(classId);
+        appendStudentAssignmentsFromRaw(raw);
+      } catch (fallbackError) {
+        print('⚠️ fallback assignments (นักเรียน) ไม่สำเร็จ: $fallbackError');
+      }
     }
 
     // กันพลาด dedupe อีกรอบ

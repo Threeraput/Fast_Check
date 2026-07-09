@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/attendance_report.dart';
-import 'package:frontend/models/attendance_report_detail.dart';
 import 'package:frontend/screens/classwork/classwork_report_detail_screen.dart';
 import 'package:frontend/services/attendance_report_service.dart';
 import 'package:frontend/services/classwork_simple_service.dart'; // เพิ่ม import นี้
 import 'package:shared_preferences/shared_preferences.dart';
 import 'student_report_detail_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/utils/app_theme.dart';
+import 'package:frontend/services/user_service.dart';
+import 'package:frontend/widgets/glass_card.dart';
 
 // เพิ่ม: ใช้ข้อมูลสมาชิกคลาสเพื่อ map studentId -> ชื่อผู้ใช้
 import 'package:frontend/services/class_service.dart';
@@ -55,11 +57,15 @@ class _ClassReportTabState extends State<ClassReportTab> {
         widget.classId,
       );
 
-      // โหลดรายชื่อสมาชิกในคลาส (เพื่อแปลง studentId -> ชื่อ)
+      // โหลดรายชื่อสมาชิกในคลาส (เพื่อแปลง studentId -> ชื่อ/รูป)
       try {
-        final cls = await ClassService.getClassroomDetails(widget.classId);
+        final cls = await ClassService.getClassroomMembers(widget.classId);
         for (final u in cls.students) {
           _userIndex[u.userId] = u;
+          final sid = (u.studentId ?? '').trim();
+          if (sid.isNotEmpty) {
+            _userIndex[sid] = u;
+          }
         }
       } catch (_) {
         // ถ้าดึงไม่ได้ ให้ปล่อยผ่าน ใช้ studentId เป็น fallback
@@ -81,7 +87,8 @@ class _ClassReportTabState extends State<ClassReportTab> {
 
   // แปลง studentId -> ชื่อที่สวยงาม (first last > username > email > studentId)
   String _displayName(String studentId) {
-    final u = _userIndex[studentId];
+    final key = studentId.trim();
+    final u = _userIndex[key] ?? _userIndex[studentId];
     if (u != null) {
       final fn = (u.firstName ?? '').trim();
       final ln = (u.lastName ?? '').trim();
@@ -91,6 +98,33 @@ class _ClassReportTabState extends State<ClassReportTab> {
       if ((u.email ?? '').isNotEmpty) return u.email!;
     }
     return studentId;
+  }
+
+  Widget _studentAvatar(String studentId, Color accent) {
+    final key = studentId.trim();
+    final u = _userIndex[key] ?? _userIndex[studentId];
+    final imageUrl = u != null ? UserService.absoluteAvatarUrl(u.avatarUrl) : null;
+    final display = _displayName(studentId).trim();
+    final initial = display.isNotEmpty ? display.substring(0, 1).toUpperCase() : '?';
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 18,
+        backgroundColor: accent.withValues(alpha: 0.15),
+        foregroundImage: NetworkImage(imageUrl),
+        child: Text(
+          initial,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      );
+    }
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: accent.withValues(alpha: 0.2),
+      child: Text(
+        initial,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+    );
   }
 
   Future<void> _generateReport() async {
@@ -128,7 +162,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 padding: EdgeInsets.all(16.0),
                 child: Text(
                   'เลือกประเภทการส่งออก (Excel)',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
               ),
               ListTile(
@@ -248,7 +282,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
 
     if (_hasError) {
@@ -275,8 +309,15 @@ class _ClassReportTabState extends State<ClassReportTab> {
     return RefreshIndicator(
       onRefresh: _loadData,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
+          _buildRoleDivider(
+            label: 'Teacher Report',
+            color: const Color(0xFF2563EB),
+            icon: Icons.school,
+          ),
+          const SizedBox(height: 12),
+
           // ปุ่มดาวน์โหลดรายงาน (Excel)
           ElevatedButton.icon(
             onPressed: _isDownloading
@@ -291,12 +332,11 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 : const Icon(Icons.download, color: Colors.white),
             label: Text(
               _isDownloading ? 'กำลังดาวน์โหลด...' : 'ดาวน์โหลดรายงาน (Excel)',
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  Colors.green.shade600, // ใช้สีเขียวให้สื่อถึง Excel
-              minimumSize: const Size.fromHeight(48),
+              backgroundColor: AppColors.success,
+              minimumSize: const Size.fromHeight(42),
             ),
           ),
 
@@ -309,7 +349,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
           // รายการนักเรียน
           Text(
             'รายงานนักเรียนแต่ละคน',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
 
@@ -331,15 +371,72 @@ class _ClassReportTabState extends State<ClassReportTab> {
     );
   }
 
+  Widget _buildRoleDivider({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.0), color.withValues(alpha: 0.75)],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.75), color.withValues(alpha: 0.0)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSummaryCard() {
     final total = _summary?['total_students'] ?? 0;
     final avgRate = (_summary?['average_attendance_rate'] ?? 0.0).toDouble();
     final totalSessions = _summary?['total_sessions'] ?? 0;
 
-    return Card(
-      elevation: 2,
+    return GlassCard(
+      accent: const Color(0xFF2563EB),
+      radius: 16,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -347,9 +444,9 @@ class _ClassReportTabState extends State<ClassReportTab> {
               'สรุปภาพรวมคลาส',
               style: Theme.of(
                 context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 14),
             ),
-            const Divider(height: 24),
+            const Divider(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -387,13 +484,13 @@ class _ClassReportTabState extends State<ClassReportTab> {
   }) {
     return Column(
       children: [
-        Icon(icon, size: 32, color: color),
-        const SizedBox(height: 8),
+        Icon(icon, size: 26, color: color),
+        const SizedBox(height: 6),
         Text(
           value,
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
             color: color,
           ),
         ),
@@ -407,22 +504,20 @@ class _ClassReportTabState extends State<ClassReportTab> {
     final color = _getAttendanceColor(rate);
     final name = _displayName(report.studentId);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        accent: color,
+        radius: 16,
         onTap: () => _showDetailDialog(report),
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: color.withOpacity(0.2),
-                    child: Icon(Icons.person, color: color),
-                  ),
+                  _studentAvatar(report.studentId, color),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -432,8 +527,8 @@ class _ClassReportTabState extends State<ClassReportTab> {
                         Text(
                           'นักเรียน: $name',
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                         ),
                         Text(
@@ -450,10 +545,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${rate.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                          '${rate.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            fontSize: 17,
+                          fontWeight: FontWeight.w700,
                           color: color,
                         ),
                       ),
@@ -465,7 +560,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                   ),
                 ],
               ),
-              const Divider(height: 24),
+              const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -496,8 +591,8 @@ class _ClassReportTabState extends State<ClassReportTab> {
         Text(
           '$value',
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
             color: color,
           ),
         ),
@@ -533,17 +628,21 @@ class _ClassReportTabState extends State<ClassReportTab> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: GlassCard(
+          accent: _getAttendanceColor(report.attendanceRate),
+          radius: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'รายละเอียดการเข้าเรียน',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
-              const Divider(height: 24),
+              const Divider(height: 20),
               _buildDetailRow('นักเรียน', name),
               _buildDetailRow('ทั้งหมด', '${report.totalSessions} ครั้ง'),
               _buildDetailRow('เข้าเรียน', '${report.attendedSessions} ครั้ง'),
@@ -579,8 +678,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
                   icon: const Icon(Icons.photo_library),
                   label: const Text('ดูประวัติรายวันและรูปถ่าย'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade50,
-                    foregroundColor: Colors.blue,
+                    backgroundColor: AppColors.primaryLight,
+                    foregroundColor: AppColors.primary,
+                    minimumSize: const Size.fromHeight(40),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -608,8 +709,10 @@ class _ClassReportTabState extends State<ClassReportTab> {
                   icon: const Icon(Icons.assignment),
                   label: const Text('ดูประวัติการส่งงาน'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade50,
-                    foregroundColor: Colors.blue,
+                    backgroundColor: AppColors.primaryLight,
+                    foregroundColor: AppColors.primary,
+                    minimumSize: const Size.fromHeight(40),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -625,6 +728,7 @@ class _ClassReportTabState extends State<ClassReportTab> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
